@@ -1,0 +1,75 @@
+sudo: false
+dist: trusty
+language: generic
+
+env:
+  global:
+  - GH_REF: github.com/nomeata/kaleidogen.git
+  - secure: "ZMFRlzcJEut3E4nDZpcM+wlkxOzRdTYN9pmlTApoMeYs2PCfaREpLVZCQ8EZ0XjJdKQzhsRZyQsa64/IcFmhFeAiBhaura5pE4VwXd6RKPJwNE9tgnpCJ7G/R0JIFzUA2SFgD4+UW5/Db1JgHIjOTVtvYqtlxjhQOhVTWi7vBlws4EccA+tGZk0VAkHNG4Uk78LZlfXBbluoxjYxI9SeMoPWSlwYUWfkvhl5GqoV18Si9i4vOmT5/T/yb84uQ/bHH3UbrWZ9UF2WtebC9/cvFhWwj1Qa2xyvTYsXfCEKJq6TV0OgialuECByDb5e+cWIixShLpwYTSJV4BrCEMxkLrOoRgLRPJ7LA+I+tjZsh1zmwJqyE5Tlbaq5fX/mE/4Y/HgrXbS4qNGbF6RvzVYhJAxQKFV3LpnrPthFQ5HXfZpyCJt32jTlsfsUdpEUM+QXFqnrDtF7BBEh7AJW2iO/ktObeBNulS428pHL7brA5IBfk/j4WeTAs2l7ZvTy/f8AQbPFv6BPWONJp81E2tdmo1oa+j1I4r4i9hP72Uf97dElZKsF4UANWp8Z7g1OShDymnG1R74gWQFn4utAC33jOF94mcTsHYh3phC/ZOGvdqQGmkZrhF0sVX8fdpxuBFZ6+BgobFiNMJowigM1tleDPTtcvgYbaziFgJ92/NblY54="
+
+
+addons:
+  apt:
+    sources:
+    - hvr-ghc
+    packages:
+    - cabal-install-2.2
+    - ghc-8.2.2
+
+cache:
+  bundler: false
+  directories:
+  - $HOME/.ghc/
+  - $HOME/.ghcjs/
+  - $HOME/.cabal/bin
+  - $HOME/.cabal/share
+  - $HOME/.cabal/lib
+
+before_install:
+    - export PATH=$HOME/.cabal/bin:$PATH
+    - export PATH=/opt/cabal/8.2.2/bin:$PATH
+    - export PATH=/opt/ghc/bin:$PATH
+    - export PATH=$TRAVIS_BUILD_DIR/node_modules/.bin:$PATH
+    - du -sh $HOME/.ghcjs $HOME/.ghc $HOME/.cabal/bin $HOME/.cabal/lib $HOME/.cabal/share
+    - cabal update
+
+jobs:
+ include:
+   - stage: install ghcjs
+     install:
+      #- cabal install Cabal
+      - test -e $HOME/.cabal/bin/HsColour || cabal install hscolour
+      - test -e $HOME/.cabal/bin/hsc2hs || cabal install hsc2hs
+      - test -e $HOME/.cabal/bin/ghcjs || git clone https://github.com/ghcjs/ghcjs.git -b ghc-8.2 ghcjs-8.2
+      - test -e $HOME/.cabal/bin/ghcjs || cabal install ghcjs-8.2
+     script:
+      - ghcjs --version
+      - ghcjs-boot --version
+   - stage: boot ghcjs
+     install:
+      - test -e $HOME/.ghcjs/*/ghcjs/ghcjs_boot.completed || ghcjs-boot --no-haddock --no-prof
+     script:
+       - ghcjs-pkg list
+   # - stage: install ghc dependencies
+   #   install:
+   #    - cabal install -j1 --dependencies-only --enable-tests
+   #   script:
+   #     - ghc-pkg list
+   - stage: install ghcjs dependencies
+     install:
+       - cabal install -j1 --ghcjs --dependencies-only --disable-tests
+     script:
+       - ghcjs-pkg list
+   - stage: build, test and deploy
+     script:
+       - cabal configure --distdir=dist-ghcjs --ghcjs --disable-library-profiling
+       - cabal build --distdir=dist-ghcjs
+       - cabal haddock --haddock-executables --haddock-internal --haddock-hyperlink-source
+
+     after_success:
+        - '[ "$TRAVIS_BRANCH" = "master" ] && [ "$TRAVIS_SECURE_ENV_VARS" = "true" ] && [ "$TRAVIS_PULL_REQUEST" = "false" ] && [ -d logic/dist/doc/html/incredible-logic/ ] &&./.travis-push-gh-pages.sh'
+
+before_cache:
+  - rm -rf $HOME/.ghcjs/*/ghcjs/ghcjs-boot/
+  - du -sh $HOME/.ghcjs $HOME/.ghc $HOME/.cabal/bin $HOME/.cabal/lib $HOME/.cabal/share
+
