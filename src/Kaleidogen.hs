@@ -10,6 +10,7 @@ import Data.Colour.Names
 import Data.Complex
 import Data.Maybe
 import Text.Read
+import Text.Printf
 import Data.Monoid ((<>))
 import Data.Foldable
 import qualified Data.ByteString as BS
@@ -22,11 +23,9 @@ import Language.Javascript.JSaddle hiding ((!!))
 -- import qualified GHCJS.Buffer as B
 import Language.Javascript.JSaddle.Helper
 
-type Img = Complex Double -> Colour Double
+-- Function evaluator
 
-type Stack = [Img]
-type Program = [Int]
-type Inst = Int
+type Img = Complex Double -> Colour Double
 
 scale :: Img -> Img
 scale i c = i (c / 0.8)
@@ -34,36 +33,38 @@ scale i c = i (c / 0.8)
 mix :: (Complex Double -> Bool) -> Img -> Img -> Img
 mix p i1 i2 c = if p c then i1 c else i2 c
 
-before :: Img -> Img -> Img
-before fb bg = mix ((<0.8) . magnitude) (scale fb) bg
-
-rays :: Int -> Img -> Img -> Img
-rays n = mix $ \c -> even (round (phase c / pi * fromIntegral n))
-
-checker :: Img -> Img -> Img
-checker = mix $ \c ->
-    let c' = c * cis (pi/4) * 6
-    in even (round (realPart c') + round (imagPart c'))
-
-inv :: Img -> Img
-inv i c = i $
-    let (m,p) = polar c in
-    if m > 1 then c else mkPolar (1 - m) p
-
-swirl :: Int -> Img -> Img
-swirl x i c = i $
-    let (m,p) = polar c in
-    mkPolar m (p + (1-m) * fromIntegral x)
-
-gradient :: Img
-gradient c | magnitude c > 1 = black
-           | otherwise       = blend (1 - magnitude c) black white
-
 brightness :: Colour Double -> Double
 brightness c = (luminance c) ^ 2
 
-blur :: Img -> Img -> Img -> Img
-blur i1 i2 i3 c = blend (brightness (i1 c)) (i2 c) (i3 c)
+toImg :: RNA -> Img
+toImg (Op0 o)          = op0Img o
+toImg (Op1 o i1)       = op1Img o (toImg i1)
+toImg (Op2 o i1 i2)    = op2Img o (toImg i1) (toImg i2)
+toImg (Op3 o i1 i2 i3) = op3Img o (toImg i1) (toImg i2) (toImg i3)
+
+op0Img :: Op0 -> Img
+op0Img (Solid col) = f
+  where f c | magnitude c > 1 = black
+            | otherwise       = col
+op0Img Gradient = f
+  where f c | magnitude c > 1 = black
+            | otherwise       = blend (1 - magnitude c) black white
+
+op2Img Before fb bg = mix ((<0.8) . magnitude) (scale fb) bg
+op2Img (Rays n) i1 i2 = mix (\c -> even (round (phase c / pi * fromIntegral n))) i1 i2
+op2Img Checker i1 i2 = mix f i1 i2
+  where f c = let c' = c * cis (pi/4) * 6
+              in even (round (realPart c') + round (imagPart c'))
+
+op1Img Inv i = \c -> i $
+    let (m,p) = polar c in
+    if m > 1 then c else mkPolar (1 - m) p
+op1Img (Swirl x) i = \c -> i $
+    let (m,p) = polar c in
+    mkPolar m (p + (1-m) * x)
+
+op3Img Blur i1 i2 i3 = \c ->
+    blend (brightness (i1 c)) (i2 c) (i3 c)
 
 baseColor :: Int -> Colour Double
 baseColor n = colors !! n'
@@ -74,28 +75,98 @@ baseColor n = colors !! n'
              , cyan, magenta, yellow
              ]
 
-sphere :: Colour Double -> Img
-sphere col c | magnitude c > 1 = black
-             | otherwise       = col
+-- GLSL evaluator
+
+type GLSLGen = Integer -> (String, Integer)
+
+toGLSL :: RNA -> String
+toGLSL rna = conclude $ go rna 0
+  where
+    go (Op0 o)          = op0GLSL o
+    go (Op1 o i1)       = op1GLSL o (go i1)
+    go (Op2 o i1 i2)    = op2GLSL o (go i1) (go i2)
+    go (Op3 o i1 i2 i3) = op3GLSL o (go i1) (go i2) (toImg i3)
+
+conclude :: (String, Integer) -> String
+conclude (pgm, r) = pgm ++ "gl_FragColor = vec4(col" ++ show r ++ ", 1.0);"
+
+op0GLSL :: Op0 -> GLSLGen
+op0GLSL (Solid col) i =
+    (printf "vec3 col%d = vec3(%f,%f,%f);" i r g b, i)
+  where RGB r g b = toSRGB col
+op0GLSL Gradient i =
+    (printf "vec3 col%d = length(pos%d) * vec3(1.0,1.0,1.0);" i i, i)
+
+op1GLSL o i1 = i1
+op2GLSL o i1 i2 = i1
+op3GLSL o i1 i2 i3 = i1
+
+{-
+op0Img (Solid col) = f
+  where f c | magnitude c > 1 = black
+            | otherwise       = col
+op0Img Gradient = f
+  where f c | magnitude c > 1 = black
+            | otherwise       = blend (1 - magnitude c) black white
+
+op2Img Before fb bg = mix ((<0.8) . magnitude) (scale fb) bg
+op2Img (Rays n) i1 i2 = mix (\c -> even (round (phase c / pi * fromIntegral n))) i1 i2
+op2Img Checker i1 i2 = mix f i1 i2
+  where f c = let c' = c * cis (pi/4) * 6
+              in even (round (realPart c') + round (imagPart c'))
+
+op1Img Inv i = \c -> i $
+    let (m,p) = polar c in
+    if m > 1 then c else mkPolar (1 - m) p
+op1Img (Swirl x) i = \c -> i $
+    let (m,p) = polar c in
+    mkPolar m (p + (1-m) * x)
+
+op3Img Blur i1 i2 i3 = \c ->
+    blend (brightness (i1 c)) (i2 c) (i3 c)
+-}
+
+type Program = [Int]
+type Inst = Int
+
+data Op0 = Solid (Colour Double)
+         | Gradient
+
+data Op1 = Inv
+         | Swirl Double
+
+data Op2 = Before
+         | Checker
+         | Rays Int
+
+data Op3 = Blur
+
+data RNA
+    = Op0 Op0
+    | Op1 Op1 RNA
+    | Op2 Op2 RNA RNA
+    | Op3 Op3 RNA RNA RNA
+
+type Stack = [RNA]
 
 runInst :: Inst -> Stack -> Stack
-runInst 0 s            = gradient : s
-runInst 1 (i2:i1:s)    = i1 `before` i2 : s
-runInst 2 (i3:i2:i1:s) = blur i3 i1 i2  : s
-runInst 3 (i2:i1:s)    = checker i1 i2  : s
-runInst 4 (i:s)        = inv i          : s
-runInst c (i2:i1:s)    | c >= 10 && c < 17  = rays (c - 9) i1 i2 : s
-runInst c (i:s)        | c >= 20 && c <= 30 = swirl (c - 25) i : s
+runInst 0 s            = Op0 Gradient : s
+runInst 1 (i2:i1:s)    = Op2 Before i1 i2 : s
+runInst 2 (i3:i2:i1:s) = Op3 Blur i3 i1 i2  : s
+runInst 3 (i2:i1:s)    = Op2 Checker i1 i2  : s
+runInst 4 (i:s)        = Op1 Inv i          : s
+runInst c (i2:i1:s)    | c >= 10 && c < 17  = Op2 (Rays (c - 9)) i1 i2 : s
+runInst c (i:s)        | c >= 20 && c <= 30 = Op1 (Swirl (fromIntegral (c - 25))) i : s
 -- fallback
-runInst n s  = sphere (baseColor n) : s
+runInst n s  = Op0 (Solid (baseColor n)) : s
 
-runProgram :: Program -> Stack
-runProgram = foldl' (flip runInst) []
+runProgram :: Program -> RNA
+runProgram = collapsStack . foldl' (flip runInst) []
 
-collapsStack :: [Img] -> Img
-collapsStack [] = sphere black
+collapsStack :: Stack -> RNA
+collapsStack [] = Op0 (Solid black)
 collapsStack [i] = i
-collapsStack (i:is) = fg `before` bg
+collapsStack (i:is) = Op2 Before fg bg
   where
     bg = i
     fg = collapsStack is
@@ -154,8 +225,8 @@ paintGenome :: JSVal -> String -> JSM ()
 paintGenome canvas val = do
     -- jsg "console" ^. js1 "log" ("paintGenome", val)
     let nums = mapMaybe readMaybe (words val)
-    let i = collapsStack (runProgram nums)
-    paint canvas i
+    let i = toGLSL $ runProgram nums
+    paintGL canvas i
 
 update :: JSVal -> JSVal -> JSM ()
 update input canvas = do
@@ -168,22 +239,27 @@ vertexShaderSource =
   \  gl_Position = vec4(a_position, 0, 1);\
   \}"
 
-fragmentShaderSource =
+fragmentShaderSource_prefix =
   "precision mediump float;\
   \uniform vec2 u_windowSize;\
   \void main() {\
-  \  gl_FragColor = vec4(gl_FragCoord.x / u_windowSize.x, 0, gl_FragCoord.y / u_windowSize.y, 1);\
-  \}"
+  \  float s = 2.0 / min(u_windowSize.x, u_windowSize.y);\
+  \  vec2 pos0 = s * (gl_FragCoord.xy - 0.5 * u_windowSize);\
+  \  if (length(pos0) > 1.0) { gl_FragColor = vec4(0,0,0,0); return; }"
+fragmentShaderSource_default =
+  "  gl_FragColor = vec4(pos0,0,1);"
+fragmentShaderSource_suffix =
+  "}"
 
-paintGL :: JSVal -> JSM ()
-paintGL canvas = do
+paintGL :: JSVal -> String -> JSM ()
+paintGL canvas fragmentShaderSource_infix = do
   -- adaption of
   -- https://blog.mayflower.de/4584-Playing-around-with-pixel-shaders-in-WebGL.html
   gl <- canvas ^. js1 "getContext" "experimental-webgl"
   gl ^. jsf "viewport" (0::Int, 0::Int, gl ^. js "drawingBufferWidth", gl ^. js "drawingBufferHeight")
 
-  gl ^. jsf "clearColor" [1.0, 0.0, 0.0, 1.0 :: Double]
-  gl ^. js1 "clear" (gl^. js "COLOR_BUFFER_BIT")
+  -- gl ^. jsf "clearColor" [1.0, 0.0, 0.0, 1.0 :: Double]
+  -- gl ^. js1 "clear" (gl^. js "COLOR_BUFFER_BIT")
 
   buffer <- gl ^. js0 "createBuffer"
   gl ^. jsf "bindBuffer" (gl ^. js "ARRAY_BUFFER", buffer)
@@ -206,6 +282,9 @@ paintGL canvas = do
   jsg "console" ^. js1 "log" (gl ^. js1 "getShaderInfoLog" vertexShader)
 
   fragmentShader <- gl ^. js1 "createShader" (gl ^. js "FRAGMENT_SHADER")
+  let fragmentShaderSource = fragmentShaderSource_prefix ++
+                             fragmentShaderSource_infix ++
+                             fragmentShaderSource_suffix
   gl ^. js2 "shaderSource" fragmentShader fragmentShaderSource
   gl ^. js1 "compileShader" fragmentShader
   jsg "console" ^. js1 "log" (gl ^. js1 "getShaderInfoLog" fragmentShader)
@@ -252,7 +331,7 @@ main = do
     div ^. js1 "appendChild" input
 
     -- paint canvas (rainbow 0)
-    paintGL canvas
+    paintGL canvas (toGLSL $ Op0 (Solid red))
 
     inputMVar <- liftIO newEmptyMVar
     let update = do
