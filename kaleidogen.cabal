@@ -1,0 +1,37 @@
+name: kaleidogen
+version: 0.1
+cabal-version: >=1.24
+-- build-type: Custom
+build-type: Simple
+license: MIT
+license-file: LICENSE
+copyright: Joachim Breitner
+author: Joachim Breitner
+maintainer: Joachim Breitner <mail@joachim-breitner.de>
+homepage: https://github.com/nomeata/kaleidogen
+bug-reports: https://github.com/nomeata/kaleidogen/issues
+synopsis: Grow kaleidoscopes
+description:
+category: Games
+
+source-repository head
+    type: git
+    location: https://github.com/nomeata/kaleidogen
+
+-- The jsaddle-hello-world example file has a more elaborate
+-- setup including webkit and macos support. Removed for simplicity for now,
+-- but should be evaluated later
+
+executable kaleidogen
+    main-is: WarpMain.hs
+    other-modules: Kaleidogen
+    build-depends: base >=4.2 && <5
+    build-depends: jsaddle >=0.9.0.0 && <0.10
+    build-depends: jsaddle-warp >=0.9.0.0 && <0.10
+    build-depends: lens >=4.0.7 && <5.0
+    build-depends: text >=1.2.2.1 && <1.3
+    build-depends: colour
+    build-depends: bytestring
+    hs-source-dirs: src-exe
+    hs-source-dirs: src
+    ghc-options: -threaded -rtsopts

@@ -1,0 +1,1 @@
+-c "cabal new-repl exe:kaleidogen" -T "Language.Javascript.JSaddle.Warp.debug 3708 Kaleidogen.main"
