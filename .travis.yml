@@ -57,6 +57,8 @@ jobs:
                  ./lib/haddock-api-ghcjs/
                  ./lib/haddock-library-ghcjs/
                  ./lib/template-haskell-ghcjs/
+     script:
+      - ghc-pkg list
 
    - stage: install ghcjs
      install:
