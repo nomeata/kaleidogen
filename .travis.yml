@@ -41,7 +41,6 @@ jobs:
  include:
    - stage: install ghcjs dependencies
      install:
-      #- cabal install Cabal
       - cd ..; pwd
       - test -e $HOME/.cabal/bin/HsColour || cabal install hscolour
       - test -e $HOME/.cabal/bin/hsc2hs || cabal install hsc2hs
@@ -62,7 +61,6 @@ jobs:
 
    - stage: install ghcjs
      install:
-      #- cabal install Cabal
       - cd ..; pwd
       - test -e $HOME/.cabal/bin/HsColour || cabal install hscolour
       - test -e $HOME/.cabal/bin/hsc2hs || cabal install hsc2hs
@@ -89,13 +87,13 @@ jobs:
      script:
        - ghcjs-pkg list
 
-   # - stage: install ghc dependencies
+   # - stage: install program dependencies (ghc)
    #   install:
    #    - cabal install -j1 --dependencies-only --enable-tests
    #   script:
    #     - ghc-pkg list
    #
-   - stage: install ghcjs dependencies
+   - stage: install program dependencies (ghcjs)
      install:
        - cabal install -j1 --ghcjs --dependencies-only --disable-tests
      script:
