@@ -26,6 +26,7 @@ cache:
   - $HOME/.cabal/bin
   - $HOME/.cabal/share
   - $HOME/.cabal/lib
+  - $HOME/.cabal/libexec
 
 before_install:
     - export PATH=$HOME/.cabal/bin:$PATH
