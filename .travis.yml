@@ -47,7 +47,7 @@ jobs:
       - test -e $HOME/.cabal/bin/hsc2hs || cabal install hsc2hs
       - test -e $HOME/.cabal/bin/ghcjs || git clone --recursive https://github.com/ghcjs/ghcjs.git -b ghc-8.2 ghcjs-8.2
       - test -e $HOME/.cabal/bin/ghcjs ||  cd ghcjs-8.2
-      - test -e $HOME/.cabal/bin/ghcjs || sed -i -e s,--exclude-vcs-ignores,, ./utils/utils/updateBootArchive.sh
+      - test -e $HOME/.cabal/bin/ghcjs || sed -i -e s,--exclude-vcs-ignores,, ./utils/updateBootArchive.sh
       - test -e $HOME/.cabal/bin/ghcjs || ./utils/makePackages.sh
       - test -e $HOME/.cabal/bin/ghcjs || cabal install
                  ./
