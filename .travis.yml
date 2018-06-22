@@ -15,6 +15,8 @@ addons:
     packages:
     - cabal-install-2.2
     - ghc-8.2.2
+    - alex-3.1.4
+    - happy-1.19.5
 
 cache:
   bundler: false
@@ -28,6 +30,8 @@ cache:
 before_install:
     - export PATH=$HOME/.cabal/bin:$PATH
     - export PATH=/opt/cabal/8.2.2/bin:$PATH
+    - export PATH=/opt/alex/3.1.4/bin:$PATH
+    - export PATH=/opt/happy/1.19.5/bin:$PATH
     - export PATH=/opt/ghc/bin:$PATH
     - export PATH=$TRAVIS_BUILD_DIR/node_modules/.bin:$PATH
     - du -sh $HOME/.ghcjs $HOME/.ghc $HOME/.cabal/bin $HOME/.cabal/lib $HOME/.cabal/share
