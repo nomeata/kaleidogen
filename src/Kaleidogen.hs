@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 module Kaleidogen ( main ) where
 
 import Debug.Trace
@@ -88,26 +89,58 @@ toGLSL rna = conclude $ go rna 0
     go (Op3 o i1 i2 i3) = op3GLSL o (go i1) (go i2) (toImg i3)
 
 conclude :: (String, Integer) -> String
-conclude (pgm, r) = pgm ++ "gl_FragColor = vec4(col" ++ show r ++ ", 1.0);"
+conclude (pgm, r) = pgm ++ "gl_FragColor = vec4(col" ++ show r ++ ", 1.0);\n"
 
 op0GLSL :: Op0 -> GLSLGen
-op0GLSL (Solid col) i =
-    (printf "vec3 col%d = vec3(%f,%f,%f);" i r g b, i)
+op0GLSL (Solid col) n = (,n) $
+    printf "vec3 col%d = vec3(%f,%f,%f);\n" n r g b
   where RGB r g b = toSRGB col
-op0GLSL Gradient i =
-    (printf "vec3 col%d = length(pos%d) * vec3(1.0,1.0,1.0);" i i, i)
+op0GLSL Gradient n = (,n) $
+    printf "vec3 col%d = length(pos%d) * vec3(1.0,1.0,1.0);\n" n n
 
-op1GLSL o i1 = i1
-op2GLSL o i1 i2 = i1
+op1GLSL :: Op1 -> GLSLGen -> GLSLGen
+op1GLSL Inv i1 n = (,n1) $ unlines
+    [ printf "vec2 pos%d = ((1.0-length(pos%d))/length(pos%d)) * pos%d;" (n+1) n n n
+    , src1
+    ]
+  where
+    (src1, n1) = i1 (n+1)
+op1GLSL (Swirl x) i1 n = (,n1) $ unlines
+    [ printf "vec2 pos%d = length(pos%d) * vec2(cos(atan(pos%d.x, pos%d.y) + (1.0-length(pos%d))*%f),sin(atan(pos%d.x, pos%d.y) + (1.0-length(pos%d))*%f));" (n+1) n n n n x n n n x
+    , src1
+    ]
+  where
+    (src1, n1) = i1 (n+1)
+
+op2GLSL :: Op2 -> GLSLGen -> GLSLGen -> GLSLGen
+op2GLSL Before i1 i2 n = (,n2+1) $ unlines
+    [ printf "vec2 pos%d = pos%d/0.8;" (n+1) n
+    , src1
+    , printf "vec2 pos%d = pos%d;" (n1+1) n
+    , src2
+    , printf "vec3 col%d;" (n2+1)
+    , printf "if (length(pos%d) < 0.8) {" n
+    , printf "   col%d = col%d;" (n2+1) n1
+    , printf "} else {"
+    , printf "   col%d = col%d;" (n2+1) n2
+    , printf "};"
+    ]
+  where
+    (src1, n1) = i1 (n+1)
+    (src2, n2) = i2 (n1+1)
+
+op2GLSL (Rays r) i1 i2 n = i1 n
+op2GLSL Checker i1 i2 n = i1 n
+
 op3GLSL o i1 i2 i3 = i1
 
 {-
-op0Img (Solid col) = f
-  where f c | magnitude c > 1 = black
-            | otherwise       = col
-op0Img Gradient = f
-  where f c | magnitude c > 1 = black
-            | otherwise       = blend (1 - magnitude c) black white
+op1Img Inv i = \c -> i $
+    let (m,p) = polar c in
+    if m > 1 then c else mkPolar (1 - m) p
+op1Img (Swirl x) i = \c -> i $
+    let (m,p) = polar c in
+    mkPolar m (p + (1-m) * x)
 
 op2Img Before fb bg = mix ((<0.8) . magnitude) (scale fb) bg
 op2Img (Rays n) i1 i2 = mix (\c -> even (round (phase c / pi * fromIntegral n))) i1 i2
@@ -115,12 +148,6 @@ op2Img Checker i1 i2 = mix f i1 i2
   where f c = let c' = c * cis (pi/4) * 6
               in even (round (realPart c') + round (imagPart c'))
 
-op1Img Inv i = \c -> i $
-    let (m,p) = polar c in
-    if m > 1 then c else mkPolar (1 - m) p
-op1Img (Swirl x) i = \c -> i $
-    let (m,p) = polar c in
-    mkPolar m (p + (1-m) * x)
 
 op3Img Blur i1 i2 i3 = \c ->
     blend (brightness (i1 c)) (i2 c) (i3 c)
@@ -221,17 +248,6 @@ animate canvas = do
             return ()
     return ()
 
-paintGenome :: JSVal -> String -> JSM ()
-paintGenome canvas val = do
-    -- jsg "console" ^. js1 "log" ("paintGenome", val)
-    let nums = mapMaybe readMaybe (words val)
-    let i = toGLSL $ runProgram nums
-    paintGL canvas i
-
-update :: JSVal -> JSVal -> JSM ()
-update input canvas = do
-    Just val <- input ^. js "value" >>= fromJSVal
-    paintGenome canvas val
 
 vertexShaderSource =
   "attribute vec2 a_position;\
@@ -239,20 +255,24 @@ vertexShaderSource =
   \  gl_Position = vec4(a_position, 0, 1);\
   \}"
 
-fragmentShaderSource_prefix =
-  "precision mediump float;\
-  \uniform vec2 u_windowSize;\
-  \void main() {\
-  \  float s = 2.0 / min(u_windowSize.x, u_windowSize.y);\
-  \  vec2 pos0 = s * (gl_FragCoord.xy - 0.5 * u_windowSize);\
-  \  if (length(pos0) > 1.0) { gl_FragColor = vec4(0,0,0,0); return; }"
-fragmentShaderSource_default =
-  "  gl_FragColor = vec4(pos0,0,1);"
-fragmentShaderSource_suffix =
-  "}"
+fragmentShaderSource_prefix = unlines
+  [ "precision mediump float;"
+  , "uniform vec2 u_windowSize;"
+  , "void main() {"
+  , "  float s = 2.0 / min(u_windowSize.x, u_windowSize.y);"
+  , "  vec2 pos0 = s * (gl_FragCoord.xy - 0.5 * u_windowSize);"
+  , "  if (length(pos0) > 1.0) { gl_FragColor = vec4(0,0,0,0); return; }"
+  ]
+indent = unlines . map ("  " ++) . lines
+fragmentShaderSource_default = unlines
+  [ "  gl_FragColor = vec4(pos0,0,1);"
+  ]
+fragmentShaderSource_suffix = unlines
+  [ "}"
+  ]
 
-paintGL :: JSVal -> String -> JSM ()
-paintGL canvas fragmentShaderSource_infix = do
+paintGL :: JSVal -> (JSVal -> JSM ()) -> (JSVal -> JSM ()) -> String -> JSM ()
+paintGL canvas printSrc printErr fragmentShaderSource_infix = do
   -- adaption of
   -- https://blog.mayflower.de/4584-Playing-around-with-pixel-shaders-in-WebGL.html
   gl <- canvas ^. js1 "getContext" "experimental-webgl"
@@ -283,11 +303,13 @@ paintGL canvas fragmentShaderSource_infix = do
 
   fragmentShader <- gl ^. js1 "createShader" (gl ^. js "FRAGMENT_SHADER")
   let fragmentShaderSource = fragmentShaderSource_prefix ++
-                             fragmentShaderSource_infix ++
+                             indent fragmentShaderSource_infix ++
                              fragmentShaderSource_suffix
+  toJSVal fragmentShaderSource >>= printSrc
   gl ^. js2 "shaderSource" fragmentShader fragmentShaderSource
   gl ^. js1 "compileShader" fragmentShader
   jsg "console" ^. js1 "log" (gl ^. js1 "getShaderInfoLog" fragmentShader)
+  gl ^. js1 "getShaderInfoLog" fragmentShader >>= printErr
 
   program <- gl ^. js0 "createProgram"
   gl ^. js2 "attachShader" program vertexShader
@@ -330,17 +352,32 @@ main = do
     input ^. js "style" ^. jss "width" "30%"
     div ^. js1 "appendChild" input
 
+    debug1Div <- doc ^. js1 "createElement" "div"
+    debug1Div ^. js "style" ^. jss "width" "80%"
+    debug1Div ^. js "style" ^. jss "text-align" "left"
+    debug1Div ^. js "style" ^. jss "font-family" "mono"
+    debug1Div ^. js "style" ^. jss "white-space" "pre"
+    div ^. js1 "appendChild" debug1Div
+
+    debug2Div <- doc ^. js1 "createElement" "div"
+    debug2Div ^. js "style" ^. jss "width" "80%"
+    debug2Div ^. js "style" ^. jss "text-align" "left"
+    debug2Div ^. js "style" ^. jss "font-family" "mono"
+    debug2Div ^. js "style" ^. jss "white-space" "pre"
+    div ^. js1 "appendChild" debug2Div
+
     -- paint canvas (rainbow 0)
-    paintGL canvas (toGLSL $ Op0 (Solid red))
+    paintGL canvas (const (return ())) (const (return ())) (toGLSL $ Op0 (Solid red))
 
     inputMVar <- liftIO newEmptyMVar
     let update = do
             Just val <- input ^. js "value" >>= fromJSVal
-            -- jsg "console" ^. js1 "log" ("update", val)
-            -- liftIO $ tryTakeMVar inputMVar
-            -- liftIO $ putMVar inputMVar (val :: String)
-            paintGenome canvas val
-            return ()
+            -- jsg "console" ^. js1 "log" ("paintGenome", val)
+            let nums = mapMaybe readMaybe (words val)
+            let i = toGLSL $ runProgram nums
+            paintGL canvas (\s -> debug1Div ^. jss "innerHTML" s)
+                           (\s -> debug2Div ^. jss "innerHTML" s)
+                           i
 
     {-
     ctx <- askJSM
