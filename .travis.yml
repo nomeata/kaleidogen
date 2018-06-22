@@ -42,15 +42,16 @@ jobs:
       - test -e $HOME/.cabal/bin/HsColour || cabal install hscolour
       - test -e $HOME/.cabal/bin/hsc2hs || cabal install hsc2hs
       - test -e $HOME/.cabal/bin/ghcjs || git clone --recursive https://github.com/ghcjs/ghcjs.git -b ghc-8.2 ghcjs-8.2
-      - "test -e $HOME/.cabal/bin/ghcjs ||  find -name '*.cabal'"
-      - test -e $HOME/.cabal/bin/ghcjs ||  cabal install
-                 ./ghcjs-8.2/
-                 ./ghcjs-8.2/lib/ghc-api-ghcjs/
-                 ./ghcjs-8.2/lib/ghci-ghcjs/
-                 ./ghcjs-8.2/lib/ghcjs-th/
-                 ./ghcjs-8.2/lib/haddock-api-ghcjs/
-                 ./ghcjs-8.2/lib/haddock-library-ghcjs/
-                 ./ghcjs-8.2/lib/template-haskell-ghcjs/
+      - test -e $HOME/.cabal/bin/ghcjs ||  cd ghcjs-8.2
+      - test -e $HOME/.cabal/bin/ghcjs || ./utils/makePackages.sh
+      - test -e $HOME/.cabal/bin/ghcjs || cabal install
+                 ./
+                 ./lib/ghc-api-ghcjs/
+                 ./lib/ghci-ghcjs/
+                 ./lib/ghcjs-th/
+                 ./lib/haddock-api-ghcjs/
+                 ./lib/haddock-library-ghcjs/
+                 ./lib/template-haskell-ghcjs/
      script:
       - ghcjs --version
       - ghcjs-boot --version
