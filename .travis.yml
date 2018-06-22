@@ -49,7 +49,7 @@ jobs:
       - test -e $HOME/.cabal/bin/ghcjs ||  cd ghcjs-8.2
       - test -e $HOME/.cabal/bin/ghcjs || sed -i -e s,--exclude-vcs-ignores,, ./utils/updateBootArchive.sh
       - test -e $HOME/.cabal/bin/ghcjs || ./utils/makePackages.sh
-      - test -e $HOME/.cabal/bin/ghcjs || cabal install
+      - test -e $HOME/.cabal/bin/ghcjs || cabal install -j1
                  ./
                  ./lib/ghc-api-ghcjs/
                  ./lib/ghci-ghcjs/
