@@ -99,6 +99,7 @@ jobs:
    #
    - stage: install program dependencies (ghcjs)
      install:
+       - cabal install -j1 --ghcjs https://github.com/ghcjs/ghcjs-base/archive/4560541fbab5b77ee34d0348ec04bb1dda8e5db3.zip
        - cabal install -j1 --ghcjs --dependencies-only --disable-tests
      script:
        - ghcjs-pkg list
