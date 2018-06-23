@@ -86,7 +86,7 @@ jobs:
    - stage: boot ghcjs
      install:
       - cd ..; pwd
-      - ln -s /usr/bin/gcc-6 $HOME/.cabal/bin/gcc
+      - ln -sf /usr/bin/gcc-6 $HOME/.cabal/bin/gcc
       - test -e $HOME/.ghcjs/*/ghcjs/ghcjs_boot.completed || ghcjs-boot --no-haddock --no-prof
      script:
        - ghcjs-pkg list
