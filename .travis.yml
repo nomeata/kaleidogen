@@ -97,11 +97,20 @@ jobs:
    #   script:
    #     - ghc-pkg list
    #
+   - stage: install ghcjs-base (ghcjs)
+     install:
+       - cabal --version
+       - 'ghcjs-pkg list ghcjs-base | grep -q ghcjs-base ||
+         { git clone https://github.com/ghcjs/ghcjs-base &&
+           cabal install -j1 --ghcjs --constraint="primitive < 0.6.4.0" ./ghcjs-base;
+         }'
+     script:
+       - ghcjs-pkg list
+
    - stage: install program dependencies (ghcjs)
      install:
        - cabal --version
-       - cabal install -j1 --ghcjs https://github.com/ghcjs/ghcjs-base/archive/4560541fbab5b77ee34d0348ec04bb1dda8e5db3.tar.gz --constraint='primitive < 0.6.4.0'
-       - cabal install -j1 --ghcjs --dependencies-only --disable-tests
+       - cabal install -j1 --ghcjs --dependencies-only --disable-tests --constraint="primitive < 0.6.4.0" 
      script:
        - ghcjs-pkg list
 
