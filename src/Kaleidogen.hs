@@ -165,7 +165,7 @@ op3GLSL Blur i1 i2 i3 n = (,n3+1) $ unlines
     , src2
     , printf "vec2 pos%d = pos%d;" (n2+1) n
     , src3
-    , printf "vec3 col%d = length(col%d)/3.0 * col%d + (1.0-length(col%d)/3.0) * col%d;" (n3+1) n1 n2 n1 n3
+    , printf "vec3 col%d = length(col%d)/length(vec3(1.0,1.0,1.0)) * col%d + (1.0-length(col%d)/length(vec3(1.0,1.0,1.0))) * col%d;" (n3+1) n1 n2 n1 n3
     ]
   where
     (src1, n1) = i1 n
