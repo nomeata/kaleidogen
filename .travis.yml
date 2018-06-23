@@ -32,7 +32,7 @@ cache:
 
 before_install:
     - export PATH=$HOME/.cabal/bin:$PATH
-    - export PATH=/opt/cabal/8.2.2/bin:$PATH
+    - export PATH=/opt/cabal/2.2/bin:$PATH
     - export PATH=/opt/alex/3.1.4/bin:$PATH
     - export PATH=/opt/happy/1.19.5/bin:$PATH
     - export PATH=/opt/ghc/bin:$PATH
