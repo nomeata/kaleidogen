@@ -13,7 +13,7 @@ env:
 addons:
   apt:
     sources:
-    - hvr-ghcc
+    - hvr-ghc
     - ubuntu-toolchain-r-test
     packages:
     - cabal-install-2.2
