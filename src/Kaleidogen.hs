@@ -86,7 +86,7 @@ toGLSL rna = conclude $ go rna 0
     go (Op0 o)          = op0GLSL o
     go (Op1 o i1)       = op1GLSL o (go i1)
     go (Op2 o i1 i2)    = op2GLSL o (go i1) (go i2)
-    go (Op3 o i1 i2 i3) = op3GLSL o (go i1) (go i2) (toImg i3)
+    go (Op3 o i1 i2 i3) = op3GLSL o (go i1) (go i2) (go i3)
 
 conclude :: (String, Integer) -> String
 conclude (pgm, r) = pgm ++ "gl_FragColor = vec4(col" ++ show r ++ ", 1.0);\n"
@@ -129,10 +129,48 @@ op2GLSL Before i1 i2 n = (,n2+1) $ unlines
     (src1, n1) = i1 (n+1)
     (src2, n2) = i2 (n1+1)
 
-op2GLSL (Rays r) i1 i2 n = i1 n
-op2GLSL Checker i1 i2 n = i1 n
+op2GLSL (Rays r) i1 i2 n = (,n2+1) $ unlines
+    [ src1
+    , printf "vec2 pos%d = pos%d;" (n1+1) n
+    , src2
+    , printf "vec3 col%d;" (n2+1)
+    , printf "if (mod(atan(pos%d.x, pos%d.y)/%f * %f, 2.0) < 1.0) {" n n (pi::Double) (fromIntegral r :: Double)
+    , printf "   col%d = col%d;" (n2+1) n1
+    , printf "} else {"
+    , printf "   col%d = col%d;" (n2+1) n2
+    , printf "};"
+    ]
+  where
+    (src1, n1) = i1 n
+    (src2, n2) = i2 (n1+1)
+op2GLSL Checker i1 i2 n = (,n2+1) $ unlines
+    [ src1
+    , printf "vec2 pos%d = pos%d;" (n1+1) n
+    , src2
+    , printf "vec2 tmp%d = 6.0*(1.0/sqrt(2.0)) * mat2(1.0,1.0,-1.0,1.0) * pos%d;" n n
+    , printf "vec3 col%d;" (n2+1)
+    , printf "if (mod(tmp%d.x, 2.0) < 1.0 != mod(tmp%d.y, 2.0) < 1.0) {" n n
+    , printf "   col%d = col%d;" (n2+1) n1
+    , printf "} else {"
+    , printf "   col%d = col%d;" (n2+1) n2
+    , printf "};"
+    ]
+  where
+    (src1, n1) = i1 n
+    (src2, n2) = i2 (n1+1)
 
-op3GLSL o i1 i2 i3 = i1
+op3GLSL Blur i1 i2 i3 n = (,n3+1) $ unlines
+    [ src1
+    , printf "vec2 pos%d = pos%d;" (n1+1) n
+    , src2
+    , printf "vec2 pos%d = pos%d;" (n2+1) n
+    , src3
+    , printf "vec3 col%d = length(col%d)/3.0 * col%d + (1.0-length(col%d)/3.0) * col%d;" (n3+1) n1 n2 n1 n3
+    ]
+  where
+    (src1, n1) = i1 n
+    (src2, n2) = i2 (n1+1)
+    (src3, n3) = i3 (n2+1)
 
 {-
 op1Img Inv i = \c -> i $
