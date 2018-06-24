@@ -21,8 +21,9 @@ import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar
 import Control.Lens ((^.))
 import Language.Javascript.JSaddle hiding ((!!))
--- import qualified GHCJS.Buffer as B
 import Language.Javascript.JSaddle.Helper
+import Language.Javascript.JSaddle.Warp (run)
+
 
 -- Function evaluator
 
@@ -367,9 +368,8 @@ paintGL canvas printSrc printErr fragmentShaderSource_infix = do
   gl ^. jsf "drawArrays" (gl ^. js "TRIANGLES", 0::Int, 6::Int);
   return ()
 
-
-
-main = do
+main :: IO ()
+main = run 3709 $ do
     doc <- jsg "document"
     -- doc ^. js "body" ^. js "style" ^. jss "margin" "0"
     -- doc ^. js "body" ^. js "style" ^. jss "padding" "0"
