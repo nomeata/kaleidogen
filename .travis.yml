@@ -110,7 +110,7 @@ jobs:
    - stage: install program dependencies (ghcjs)
      install:
        - cabal --version
-       - cabal install -j1 --ghcjs --dependencies-only --disable-tests --constraint="primitive < 0.6.4.0" 
+       - cabal install -j1 --ghcjs --dependencies-only --disable-tests --constraint="primitive < 0.6.4.0"
      script:
        - ghcjs-pkg list
 
@@ -118,10 +118,10 @@ jobs:
      script:
        - cabal configure --distdir=dist-ghcjs --ghcjs --disable-library-profiling
        - cabal build --distdir=dist-ghcjs
-       - cabal haddock --haddock-executables --haddock-internal --haddock-hyperlink-source
+       - cabal haddock --executables --internal --hyperlink-source
 
      after_success:
-        - '[ "$TRAVIS_BRANCH" = "master" ] && [ "$TRAVIS_SECURE_ENV_VARS" = "true" ] && [ "$TRAVIS_PULL_REQUEST" = "false" ] && [ -d logic/dist/doc/html/incredible-logic/ ] &&./.travis-push-gh-pages.sh'
+        - '[ "$TRAVIS_BRANCH" = "master" ] && [ "$TRAVIS_SECURE_ENV_VARS" = "true" ] && [ "$TRAVIS_PULL_REQUEST" = "false" ] && [ -d dist/doc/html/kaleidogen/ ] &&./.travis-push-gh-pages.sh'
 
 before_cache:
   - rm -rf $HOME/.ghcjs/*/ghcjs/ghcjs-boot/
