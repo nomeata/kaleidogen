@@ -116,12 +116,24 @@ jobs:
 
    - stage: build, test and deploy
      script:
-       - cabal configure --ghcjs --distdir=dist-ghcjs --disable-library-profiling
-       - cabal build --ghcjs --distdir=dist-ghcjs
-       - cabal haddock --ghcjs --distdir=dist-ghcjs --executables --internal --hyperlink-source
+       - cabal configure --distdir=dist-ghcjs --ghcjs --disable-library-profiling
+       - cabal build     --distdir=dist-ghcjs
+       - cabal haddock   --distdir=dist-ghcjs --executables --internal --hyperlink-source
+       - mkdir -p gh-page
+       - cp -vr dist-ghcjs/build/kaleidogen/kaleidogen.jsexe/ gh-page
+       - cp -vr dist/doc/html/kaleidogen/ gh-page/doc
+       - echo 'domain.de' > gh-page/CNAME
 
-     after_success:
-        - '[ "$TRAVIS_BRANCH" = "master" ] && [ "$TRAVIS_SECURE_ENV_VARS" = "true" ] && [ "$TRAVIS_PULL_REQUEST" = "false" ] && [ -d dist/doc/html/kaleidogen/ ] &&./.travis-push-gh-pages.sh'
+     deploy:
+       provider: pages
+       local-dir: gh-page
+       # fqdn: domain.de
+       keep-history: true
+       allow-empty-commit: true
+       skip-cleanup: true
+       github-token: $GITHUB_TOKEN  # Set in the settings page of your repository, as a secure variable
+       on:
+         branch: master
 
 before_cache:
   - rm -rf $HOME/.ghcjs/*/ghcjs/ghcjs-boot/
