@@ -114,9 +114,8 @@ jobs:
        - cabal build     --distdir=dist-ghcjs
        - cabal haddock   --distdir=dist-ghcjs --executables --internal --hyperlink-source
        - mkdir -p gh-page
-       - cp -vr dist-ghcjs/build/kaleidogen/kaleidogen.jsexe/ gh-page
+       - cp -vr dist-ghcjs/build/kaleidogen/kaleidogen.jsexe gh-page
        - cp -vr dist-ghcjs/doc/html/kaleidogen/kaleidogen gh-page/doc
-       # - echo 'domain.de' > gh-page/CNAME
 
      deploy:
        provider: pages
