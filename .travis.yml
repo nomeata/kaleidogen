@@ -85,12 +85,7 @@ jobs:
      script:
        - ghcjs-pkg list
 
-   # - stage: install program dependencies (ghc)
-   #   install:
-   #    - cabal install -j1 --dependencies-only --enable-tests
-   #   script:
-   #     - ghc-pkg list
-   #
+   # needed due to https://github.com/ghcjs/ghcjs-base/issues/81
    - stage: install ghcjs-base (ghcjs)
      install:
        - cabal --version
@@ -114,8 +109,9 @@ jobs:
        - cabal build     --distdir=dist-ghcjs
        - cabal haddock   --distdir=dist-ghcjs --executables --internal --hyperlink-source
        - mkdir -p gh-page
-       - cp -vr dist-ghcjs/build/kaleidogen/kaleidogen.jsexe gh-page
-       - cp -vr dist-ghcjs/doc/html/kaleidogen/kaleidogen gh-page/doc
+       - cp -vr dist-ghcjs/build/*/*.jsexe/ gh-page
+       - cp -vr dist-ghcjs/doc/html/*/* gh-page/doc
+       # - echo 'domain.de' > gh-page/CNAME
 
      deploy:
        provider: pages
