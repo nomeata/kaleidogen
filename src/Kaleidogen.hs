@@ -44,12 +44,12 @@ paintGL canvas printErr fragmentShaderSource = do
   vertexShader <- gl ^. js1 "createShader" (gl ^. js "VERTEX_SHADER")
   gl ^. js2 "shaderSource" vertexShader vertexShaderSource
   gl ^. js1 "compileShader" vertexShader
-  jsg "console" ^. js1 "log" (gl ^. js1 "getShaderInfoLog" vertexShader)
+  -- jsg "console" ^. js1 "log" (gl ^. js1 "getShaderInfoLog" vertexShader)
 
   fragmentShader <- gl ^. js1 "createShader" (gl ^. js "FRAGMENT_SHADER")
   gl ^. js2 "shaderSource" fragmentShader fragmentShaderSource
   gl ^. js1 "compileShader" fragmentShader
-  jsg "console" ^. js1 "log" (gl ^. js1 "getShaderInfoLog" fragmentShader)
+  -- jsg "console" ^. js1 "log" (gl ^. js1 "getShaderInfoLog" fragmentShader)
   gl ^. js1 "getShaderInfoLog" fragmentShader >>= printErr
 
   program <- gl ^. js0 "createProgram"
@@ -57,7 +57,7 @@ paintGL canvas printErr fragmentShaderSource = do
   gl ^. js2 "attachShader" program fragmentShader
   gl ^. js1 "linkProgram" program
   gl ^. js1 "useProgram" program
-  jsg "console" ^. js1 "log" (gl ^. js1 "getProgramInfoLog" program)
+  -- jsg "console" ^. js1 "log" (gl ^. js1 "getProgramInfoLog" program)
 
   positionLocation <- gl ^. js2 "getAttribLocation" program "a_position"
   gl ^. js1 "enableVertexAttribArray" positionLocation
