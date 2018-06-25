@@ -35,4 +35,5 @@ executable kaleidogen
     build-depends: colour
     build-depends: bytestring
     hs-source-dirs: src
+    ghc-options: -main-is Kaleidogen
     ghc-options: -threaded -rtsopts
