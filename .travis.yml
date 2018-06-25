@@ -110,12 +110,11 @@ jobs:
        - cabal haddock   --distdir=dist-ghcjs --executables --internal --hyperlink-source
        - cp -vr dist-ghcjs/build/*/*.jsexe gh-page
        - cp -vr dist-ghcjs/doc/html/*/* gh-page/doc
-       # - echo 'domain.de' > gh-page/CNAME
 
      deploy:
        provider: pages
        local-dir: gh-page
-       # fqdn: domain.de
+       fqdn: kaleidogen.nomeata.de
        keep-history: true
        allow-empty-commit: true
        skip-cleanup: true
