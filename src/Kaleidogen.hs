@@ -70,15 +70,35 @@ paintGL canvas printErr fragmentShaderSource = do
   gl ^. jsf "drawArrays" (gl ^. js "TRIANGLES", 0::Int, 6::Int);
   return ()
 
+
+-- | With GHC (and warp), there is a title element by default,
+-- with GHCJS there is not.
+setTitle :: String -> JSM ()
+setTitle titleString = do
+    doc <- jsg "document"
+    titles <- doc ^. js "head" ^. js1 "getElementsByTagName" "title"
+    Just len <- titles ^. js "length" >>= fromJSVal
+    if len > (0::Int)
+      then do
+        title <- titles ^.js1 "item" (0::Int)
+        title ^. jss "innerHTML" titleString
+      else do
+        title <- doc ^. js1 "createElement" "title"
+        title ^. jss "innerHTML" titleString
+        doc ^. js "head" ^. js1 "appendChild" title
+        return ()
+
+
 main :: IO ()
 main = run 3709 $ do
+    jsg "console" ^. js1 "log" "Hello World!"
+
+    setTitle "Kaleidogen"
+
     doc <- jsg "document"
     -- doc ^. js "body" ^. js "style" ^. jss "margin" "0"
     -- doc ^. js "body" ^. js "style" ^. jss "padding" "0"
 
-    title <- doc ^. js "head" ^. js1 "getElementsByTagName" "title" ^.js1 "item" (0::Int)
-    jsg "console" ^. js1 "log" title
-    title ^. jss "innerHTML" "Kaleidogen"
 
     topDiv <- doc ^. js1 "createElement" "div"
     topDiv ^. jss "align" "center"
