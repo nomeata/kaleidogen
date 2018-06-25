@@ -24,6 +24,9 @@ source-repository head
 
 executable kaleidogen
     main-is: Kaleidogen.hs
+    other-modules: RNA
+    other-modules: GLSL
+    other-modules: Expression
     build-depends: base >=4.2 && <5
     build-depends: jsaddle >=0.9.0.0 && <0.10
     build-depends: jsaddle-warp >=0.9.0.0 && <0.10

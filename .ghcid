@@ -1,1 +1,1 @@
--c "cabal new-repl exe:kaleidogen" -T ":main"
+-c "cabal new-repl exe:kaleidogen" -T "Kaleidogen.main"
