@@ -18,8 +18,8 @@ main = mainWidgetWithHead (el "title" (text "Kaleidogen")) $
     elAttr "div" ("align" =: "center") $ mdo
         dError <- fragmentShaderCanvas (mconcat
             [ "style"  =: "border: 1px solid black; width: 30%"
-            , "width"  =: "300"
-            , "height" =: "300"
+            , "width"  =: "1000"
+            , "height" =: "1000"
             ]) shader
         el "br" blank
         inp <- textInput $ def
