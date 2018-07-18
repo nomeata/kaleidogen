@@ -3,15 +3,7 @@ module GLSL where
 
 import Text.Printf
 import Data.Colour.SRGB
-
 import RNA
-
-vertexShaderSource :: String
-vertexShaderSource =
-  "attribute vec2 a_position;\
-  \void main() {\
-  \  gl_Position = vec4(a_position, 0, 1);\
-  \}"
 
 indent :: String -> String
 indent = unlines . map ("  " ++) . lines
@@ -118,6 +110,7 @@ op2GLSL Checker i1 i2 n = (,n2+1) $ unlines
     (src1, n1) = i1 n
     (src2, n2) = i2 (n1+1)
 
+op3GLSL :: Op3 -> GLSLGen -> GLSLGen -> GLSLGen -> GLSLGen
 op3GLSL Blur i1 i2 i3 n = (,n3+1) $ unlines
     [ src1
     , printf "vec2 pos%d = pos%d;" (n1+1) n

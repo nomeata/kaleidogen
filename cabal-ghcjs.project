@@ -1,18 +1,17 @@
-packages: .
+packages: ./kaleidogen.cabal
+
+compiler: ghcjs
+with-compiler: ghcjs
+with-hc-pkg: ghcjs-pkg
+
+constraints: primitive < 0.6.4.0
 
 packages: ../haskell/reflex-dom-fragment-shader-canvas/
-
-with-compiler: ghc-8.2
 
 source-repository-package
      type:     git
      location: https://github.com/reflex-frp/reflex
      tag: 9f3356fecb1620f74b45291b38aaaafbe92458fa
-
-package reflex-dom
-  flags: +use-warp -webkit2gtk
-
-allow-newer: Cabal
 
 source-repository-package
      type:     git
@@ -25,3 +24,8 @@ source-repository-package
      location: https://github.com/reflex-frp/reflex-dom
      tag: df9fff3a0f4e393db6af0beecabd38156c82aedc
      subdir: reflex-dom-core
+
+source-repository-package
+     type:     git
+     location: https://github.com/ghcjs/ghcjs-base
+     tag: 01014ade3f8f5ae677df192d7c2a208bd795b96c
