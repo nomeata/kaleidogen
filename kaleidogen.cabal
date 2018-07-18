@@ -32,7 +32,6 @@ executable kaleidogen
     build-depends: reflex-dom >= 0.4
     build-depends: reflex-dom-fragment-shader-canvas
     build-depends: lens >=4.0.7 && <5.0
-    build-depends: ghcjs-dom
     build-depends: containers
     build-depends: text
     build-depends: mtl
