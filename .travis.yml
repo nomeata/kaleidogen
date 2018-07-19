@@ -100,11 +100,11 @@ jobs:
    - stage: install reflex-dom (ghcjs)
      install:
        - cabal --version
-       - 'ghcjs-pkg list ghcjs-base | grep -q reflex ||
+       - 'ghcjs-pkg list reflex | grep -q reflex ||
          { git clone https://github.com/reflex-frp/reflex &&
            cabal install -j1 --ghcjs --constraint="primitive < 0.6.4.0" ./reflex;
          }'
-       - 'ghcjs-pkg list ghcjs-base | grep -q reflex-dom ||
+       - 'ghcjs-pkg list reflex-dom | grep -q reflex-dom ||
          { git clone https://github.com/reflex-frp/reflex-dom &&
            cabal install -j1 --ghcjs --constraint="primitive < 0.6.4.0" ./reflex-dom/reflex-dom-core ./reflex-dom/reflex-dom;
          }'
