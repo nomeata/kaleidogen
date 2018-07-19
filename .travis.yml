@@ -31,12 +31,15 @@ before_install:
     - export PATH=/opt/happy/1.19.5/bin:$PATH
     - export PATH=/opt/ghc/bin:$PATH
     - export PATH=$TRAVIS_BUILD_DIR/node_modules/.bin:$PATH
-    - du -sh $HOME/.ghcjs $HOME/.ghc $HOME/.cabal/bin $HOME/.cabal/lib $HOME/.cabal/share
+    - 'fgrep hackage-ghcjs-overlay.nomeata.de/ $HOME/.cabal/config ||
+      echo -e "repository ghcjs-overlay\n url: http://hackage-ghcjs-overlay.nomeata.de/\n secure: True\n root-keys:\n key-threshold: 0" >> ~/.cabal/config'
+    - cat ~/.cabal/config
     - cabal update
 
 jobs:
  include:
    - stage: install ghcjs dependencies
+     if: type = api
      install:
       - cd ..; pwd
       - test -e $HOME/.cabal/bin/HsColour || cabal install hscolour
@@ -57,6 +60,7 @@ jobs:
       - ghc-pkg list
 
    - stage: install ghcjs
+     if: type = api
      install:
       - cd ..; pwd
       - test -e $HOME/.cabal/bin/HsColour || cabal install hscolour
@@ -78,6 +82,7 @@ jobs:
       - ghcjs-boot --version
 
    - stage: boot ghcjs
+     if: type = api
      install:
       - cd ..; pwd
       - ln -sf /usr/bin/gcc-6 $HOME/.cabal/bin/gcc
@@ -85,34 +90,8 @@ jobs:
      script:
        - ghcjs-pkg list
 
-   # needed due to https://github.com/ghcjs/ghcjs-base/issues/81
-   - stage: install ghcjs-base (ghcjs)
-     install:
-       - cabal --version
-       - 'ghcjs-pkg list ghcjs-base | grep -q ghcjs-base ||
-         { git clone https://github.com/ghcjs/ghcjs-base &&
-           cabal install -j1 --ghcjs --constraint="primitive < 0.6.4.0" ./ghcjs-base;
-         }'
-     script:
-       - ghcjs-pkg list
-
-   # Not on hackage
-   - stage: install reflex-dom (ghcjs)
-     install:
-       - cabal --version
-       - 'ghcjs-pkg list reflex | grep -q reflex ||
-         { git clone https://github.com/reflex-frp/reflex &&
-           cabal install -j1 --ghcjs --constraint="primitive < 0.6.4.0" ./reflex;
-         }'
-       - 'ghcjs-pkg list reflex-dom | grep -q reflex-dom ||
-         { git clone https://github.com/reflex-frp/reflex-dom &&
-           cabal install -j1 --ghcjs --constraint="primitive < 0.6.4.0" ./reflex-dom/reflex-dom-core ./reflex-dom/reflex-dom;
-         }'
-     script:
-       - ghcjs-pkg list
-
-
    - stage: install program dependencies (ghcjs)
+     if: type = api
      install:
        - cabal --version
        - cabal install -j1 --ghcjs --dependencies-only --disable-tests --constraint="primitive < 0.6.4.0"
@@ -121,6 +100,8 @@ jobs:
 
    - stage: build, test and deploy
      script:
+       # Try to build new dependencies
+       - cabal install -j1 --ghcjs --dependencies-only --disable-tests --constraint="primitive < 0.6.4.0"
        - cabal configure --distdir=dist-ghcjs --ghcjs --disable-library-profiling
        - cabal build     --distdir=dist-ghcjs
        - cabal haddock   --distdir=dist-ghcjs --executables --internal --hyperlink-source
