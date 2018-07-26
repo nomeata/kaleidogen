@@ -95,7 +95,8 @@ op2GLSL (Rays r) i1 i2 n = (,n2+1) $ unlines
     (src1, n1) = i1 n
     (src2, n2) = i2 (n1+1)
 op2GLSL Checker i1 i2 n = (,n2+1) $ unlines
-    [ src1
+    [ printf "vec2 pos%d = pos%d;" (n+1) n
+    , src1
     , printf "vec2 pos%d = pos%d;" (n1+1) n
     , src2
     , printf "vec2 tmp%d = 6.0*(1.0/sqrt(2.0)) * mat2(1.0,1.0,-1.0,1.0) * pos%d;" n n
@@ -107,7 +108,7 @@ op2GLSL Checker i1 i2 n = (,n2+1) $ unlines
     , printf "};"
     ]
   where
-    (src1, n1) = i1 n
+    (src1, n1) = i1 (n+1)
     (src2, n2) = i2 (n1+1)
 
 op3GLSL :: Op3 -> GLSLGen -> GLSLGen -> GLSLGen -> GLSLGen
