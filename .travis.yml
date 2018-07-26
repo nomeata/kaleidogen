@@ -1,4 +1,4 @@
-sudo: false
+sudo: required
 dist: trusty
 language: generic
 
@@ -6,13 +6,15 @@ addons:
   apt:
     sources:
     - hvr-ghc
+    - sourceline: 'ppa:hvr/ghcjs'
     - ubuntu-toolchain-r-test
+    - sourceline: 'deb https://deb.nodesource.com/node_6.x trusty main'
+      key_url: 'https://deb.nodesource.com/gpgkey/nodesource.gpg.key'
     packages:
-    - cabal-install-2.2
-    - ghc-8.2.2
+    - cabal-install-head
+    - ghcjs-8.2
     - alex-3.1.4
     - happy-1.19.5
-    - gcc-6
 
 cache:
   bundler: false
@@ -23,90 +25,39 @@ cache:
   - $HOME/.cabal/share
   - $HOME/.cabal/lib
   - $HOME/.cabal/libexec
+  - $HOME/.cabal/store
 
 before_install:
     - export PATH=$HOME/.cabal/bin:$PATH
-    - export PATH=/opt/cabal/2.2/bin:$PATH
-    - export PATH=/opt/alex/3.1.4/bin:$PATH
-    - export PATH=/opt/happy/1.19.5/bin:$PATH
     - export PATH=/opt/ghc/bin:$PATH
+    - export PATH=/opt/ghcjs/8.2/bin:$PATH
     - export PATH=$TRAVIS_BUILD_DIR/node_modules/.bin:$PATH
+    - rm -f ~/.cabal/config
+    - cabal update # to ensure the config exists
     - 'fgrep hackage-ghcjs-overlay.nomeata.de/ $HOME/.cabal/config ||
-      echo -e "repository ghcjs-overlay\n url: http://hackage-ghcjs-overlay.nomeata.de/\n secure: True\n root-keys:\n key-threshold: 0" >> ~/.cabal/config'
+      echo -e "repository ghcjs-overlay\n url: http://hackage-ghcjs-overlay.nomeata.de/\n secure: True\n root-keys:\n key-threshold: 0\n" >> ~/.cabal/config'
     - cat ~/.cabal/config
     - cabal update
 
+install:
+    # do not fail here, so that partial builds still warm the cache)
+    - cabal new-build --ghcjs --dependencies-only --constraint="primitive < 0.6.4.0" || true
+
 jobs:
- include:
-   - stage: install ghcjs dependencies
+  include:
+   - stage: warm cache with program dependencies
      if: type = api
-     install:
-      - cd ..; pwd
-      - test -e $HOME/.cabal/bin/HsColour || cabal install hscolour
-      - test -e $HOME/.cabal/bin/hsc2hs || cabal install hsc2hs
-      - test -e $HOME/.cabal/bin/ghcjs || git clone --recursive https://github.com/ghcjs/ghcjs.git -b ghc-8.2 ghcjs-8.2
-      - test -e $HOME/.cabal/bin/ghcjs || cd ghcjs-8.2
-      - test -e $HOME/.cabal/bin/ghcjs || sed -i -e s,--exclude-vcs-ignores,, ./utils/updateBootArchive.sh
-      - test -e $HOME/.cabal/bin/ghcjs || ./utils/makePackages.sh
-      - test -e $HOME/.cabal/bin/ghcjs || cabal install -j1 --dependencies-only
-                 ./
-                 ./lib/ghc-api-ghcjs/
-                 ./lib/ghci-ghcjs/
-                 ./lib/ghcjs-th/
-                 ./lib/haddock-api-ghcjs/
-                 ./lib/haddock-library-ghcjs/
-                 ./lib/template-haskell-ghcjs/
      script:
-      - ghc-pkg list
-
-   - stage: install ghcjs
-     if: type = api
-     install:
-      - cd ..; pwd
-      - test -e $HOME/.cabal/bin/HsColour || cabal install hscolour
-      - test -e $HOME/.cabal/bin/hsc2hs || cabal install hsc2hs
-      - test -e $HOME/.cabal/bin/ghcjs || git clone --recursive https://github.com/ghcjs/ghcjs.git -b ghc-8.2 ghcjs-8.2
-      - test -e $HOME/.cabal/bin/ghcjs ||  cd ghcjs-8.2
-      - test -e $HOME/.cabal/bin/ghcjs || sed -i -e s,--exclude-vcs-ignores,, ./utils/updateBootArchive.sh
-      - test -e $HOME/.cabal/bin/ghcjs || ./utils/makePackages.sh
-      - test -e $HOME/.cabal/bin/ghcjs || cabal install -j1 --ghc-option=+RTS --ghc-option=-M2G --ghc-option=-RTS
-                 ./
-                 ./lib/ghc-api-ghcjs/
-                 ./lib/ghci-ghcjs/
-                 ./lib/ghcjs-th/
-                 ./lib/haddock-api-ghcjs/
-                 ./lib/haddock-library-ghcjs/
-                 ./lib/template-haskell-ghcjs/
-     script:
-      - ghcjs --version
-      - ghcjs-boot --version
-
-   - stage: boot ghcjs
-     if: type = api
-     install:
-      - cd ..; pwd
-      - ln -sf /usr/bin/gcc-6 $HOME/.cabal/bin/gcc
-      - test -e $HOME/.ghcjs/*/ghcjs/ghcjs_boot.completed || ghcjs-boot --no-haddock --no-prof
-     script:
-       - ghcjs-pkg list
-
-   - stage: install program dependencies (ghcjs)
-     if: type = api
-     install:
-       - cabal --version
-       - cabal install -j1 --ghcjs --dependencies-only --disable-tests --constraint="primitive < 0.6.4.0"
-     script:
+       # dont actually build, we just want to warm the cache
        - ghcjs-pkg list
 
    - stage: build, test and deploy
      script:
-       # Try to build new dependencies
-       - cabal install -j1 --ghcjs --dependencies-only --disable-tests --constraint="primitive < 0.6.4.0"
-       - cabal configure --distdir=dist-ghcjs --ghcjs --disable-library-profiling
-       - cabal build     --distdir=dist-ghcjs
-       - cabal haddock   --distdir=dist-ghcjs --executables --internal --hyperlink-source
-       - cp -vr dist-ghcjs/build/*/*.jsexe gh-page
-       - cp -vr dist-ghcjs/doc/html/*/* gh-page/doc
+       # now build
+       - cabal new-build --ghcjs --constraint="primitive < 0.6.4.0" 
+
+     before_deploy:
+       - cp -rv dist-newstyle/build/*/*/*/x/*/build/*/*.jsexe gh-page
 
      deploy:
        provider: pages
@@ -121,5 +72,5 @@ jobs:
 
 before_cache:
   - rm -rf $HOME/.ghcjs/*/ghcjs/ghcjs-boot/
-  - du -sh $HOME/.ghcjs $HOME/.ghc $HOME/.cabal/bin $HOME/.cabal/lib $HOME/.cabal/share
+  - du -sh $HOME/.ghcjs $HOME/.ghc $HOME/.cabal/bin $HOME/.cabal/lib $HOME/.cabal/config $HOME/.cabal/share
 
