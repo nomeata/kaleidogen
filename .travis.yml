@@ -41,7 +41,7 @@ before_install:
 
 install:
     # do not fail here, so that partial builds still warm the cache)
-    - cabal new-build --ghcjs --dependencies-only --constraint="primitive < 0.6.4.0" || true
+    - cabal new-build --ghcjs --dependencies-only || true
 
 jobs:
   include:
@@ -54,7 +54,7 @@ jobs:
    - stage: build, test and deploy
      script:
        # now build
-       - cabal new-build --ghcjs --constraint="primitive < 0.6.4.0" 
+       - cabal new-build --ghcjs
 
      before_deploy:
        - cp -rv dist-newstyle/build/*/*/*/x/*/build/*/*.jsexe gh-page
