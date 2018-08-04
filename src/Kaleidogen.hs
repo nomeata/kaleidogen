@@ -1,35 +1,173 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DataKinds #-}
 module Kaleidogen where
 
 import Reflex.Dom.FragmentShaderCanvas
 import Reflex.Dom
 
 import qualified Data.Text as T
+import qualified Data.Set as S
 import Data.Maybe
+import Data.Bifunctor
+import Data.Monoid
+import Data.List
 import Text.Read
+import Control.Monad.Fix
 
 import Expression
 import GLSL
 
+
+flipSetMember :: Ord a =>  S.Set a -> a -> S.Set a
+flipSetMember s x | S.member x s = S.delete x s
+                  | otherwise    = S.insert x s
+
+stateMachine :: (MonadFix m, MonadHold t m, Reflex t) =>
+    a -> [Event t (a -> a)] -> m (Dynamic t a)
+stateMachine x es = foldDyn ($) x $ mergeWith (.) es
+
+
+selectNList ::
+    forall t a b m.
+    (Adjustable t m, DomBuilder t m, MonadFix m, PostBuild t m, MonadHold t m, Ord a) =>
+    Int ->
+    Event t () ->
+    Dynamic t [a] ->
+    (Dynamic t a -> m b) ->
+    m (Event t [a], Dynamic t [b])
+selectNList n eClear dxs act = mdo
+    -- TODO: This currently only works if the input is is only appended to, but
+    -- not if elements is deleted. If we need that, we should update the selected set
+    let eSelection :: Event t (S.Set a) = attachWith flipSetMember (current dSelected) eClicks
+    -- This separation is necessary so that eClear may depend on the eSelectedN
+    -- that we return; otherwise we get a loop
+    let eClearedSelection :: Event t (S.Set a) = leftmost [S.empty <$ eClear, eSelection]
+    dSelected :: Dynamic t (S.Set a) <- holdDyn S.empty eClearedSelection
+
+    let dxs' = (\s -> map (\x -> (x `S.member` s, x))) <$> dSelected <*> dxs
+    dstuff <- simpleList dxs' $ \dx' -> do
+        let enabled = fst <$> dx'
+        let dx = snd <$> dx'
+        let attrs = (\case { True -> "class" =: "selected" ; False -> mempty}) <$> enabled
+        (eClick,dy) <- clickable $ elDynAttr' "div" attrs $ act dx
+        let eTaggedClick = tag (current dx) eClick
+        return (eTaggedClick, dy)
+    let eClicks = switch (current (leftmost . fmap fst <$> dstuff))
+    let dys = fmap snd <$> dstuff
+    let eSelectedN = S.toList <$> ffilter (\s -> S.size s == n) eSelection
+    return (eSelectedN, dys)
+
+-- | A div class with an event to make it scroll all the way to the right.
+-- | Does not work yet, postposed right now
+scrollRightDivClass :: (MonadHold t m, PostBuild t m, DomBuilder t m) => Event t () -> T.Text -> m a -> m a
+scrollRightDivClass e cls act = do
+    attrs <- holdDyn mempty ("scrollLeft" =: "10000" <$ e)
+    let attrs' = ("class" =: cls <>) <$> attrs
+    elDynAttr "div" attrs' act
+
+patternCanvans :: MonadWidget t m => Dynamic t T.Text -> m (Dynamic t (Maybe T.Text))
+patternCanvans genome = do
+    let nums   = mapMaybe (readMaybe . T.unpack) . T.words <$> genome
+    let shader = T.pack . toFragmentShader . runProgram <$> nums
+    fragmentShaderCanvas (mconcat
+        [ "width"  =: "1000"
+        , "height" =: "1000"
+        ]) shader
+
+clickable :: (HasDomEvent t el 'ClickTag, Functor f) =>
+   f (el, c) -> f (Event t (DomEventType el 'ClickTag), c)
+clickable act = first (domEvent Click) <$> act
+
+divClass' :: DomBuilder t m =>
+    T.Text ->
+    m a ->
+    m (Element EventResult (DomBuilderSpace m) t, a)
+divClass' cls act = elAttr' "div" ("class" =: cls) act
+
+derive :: [T.Text] -> T.Text
+derive = T.unwords
+
 main :: IO ()
-main = mainWidgetWithHead (el "title" (text "Kaleidogen")) $
+main = mainWidgetWithHead htmlHead $
     elAttr "div" ("align" =: "center") $ mdo
-        dError <- fragmentShaderCanvas (mconcat
-            [ "style"  =: "border: 1px solid black; width: 30%"
-            , "width"  =: "1000"
-            , "height" =: "1000"
-            ]) shader
-        el "br" blank
-        inp <- textInput $ def
-           & textInputConfig_initialValue .~ "1 2"
-           & textInputConfig_attributes .~ (return ("style"  =: "width:80%"))
-        let nums   = mapMaybe (readMaybe . T.unpack) . T.words <$> (_textInput_value inp)
-        let shader = T.pack . toFragmentShader . runProgram <$> nums
+        (ePairSelected, _dErrors) <- divClass "patterns" $ do
+            selectNList 2 (() <$ eAdded) genomes $ patternCanvans
+
+        (eAdded, _) <- clickable $ divClass' "new-pat" $ patternCanvans dNewGenome
+
+        {-
+        inp <- textArea $ def
+           & textAreaConfig_initialValue .~ "1 2"
+           & textAreaConfig_attributes .~ (return ("style"  =: "width:80%"))
+           -- & textAreaConfig_setValue .~ updated (T.unlines <$> genomes)
+        --let genomes = T.lines <$> _textArea_value inp
+
+        el "pre" $ dynText (T.unlines <$> genomes)
+        -}
+
+
+        dNewGenome <- holdDyn "1" (derive <$> ePairSelected)
+
+
+        genomes <- foldDyn (\new xs -> nub $ xs ++ [new])
+                           ["0","1","2"] (tag (current dNewGenome) eAdded)
+
+
+        {- WebGL debugging
         el "br" blank
         elAttr "div" (mconcat
             [ ("style"  =: "width:80%; text-align: left; white-space:pre; font-family:mono")
             ]) $
-          dynText (maybe "" id <$> dError)
+          dynText (dErrors >>= sequence >>= return . foldMap (foldMap id))
+        -}
+        return ()
+  where
+    htmlHead :: DomBuilder t m => m ()
+    htmlHead = do
+        el "style" (text css)
+        el "title" (text "Fragment Shader Demo")
+
+css :: T.Text
+css = T.unlines
+    [ "html {"
+    , "  margin: 0;"
+    , "  height: 100%;"
+    , "}"
+    , "body {"
+    , "  display: flex;"
+    , "  margin: 0;"
+    , "  height: 100%;"
+    , "  flex-direction: column;"
+    , "}"
+    , ".patterns {"
+    , "  margin:0;"
+    , "  height:50%;"
+    , "  display: flex;"
+    , "  justify-content: center;"
+    , "  overflow-x: scroll;"
+    , "}"
+    , ".patterns canvas {"
+    , "  height:30vh;" -- Can we do this better? Why does 100% not work?
+    , "  margin:5vh;"
+    , "}"
+    , ".new-pat canvas {"
+    , "  height:30vh;"
+    , "  margin:5vh;"
+    , "}"
+    , ".patterns canvas {"
+    , "  border: 3px solid white;"
+    , "}"
+    , ".patterns .selected  canvas {"
+    , "  border: 3px solid blue;"
+    , "}"
+    ]
+
 
