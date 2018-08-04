@@ -69,11 +69,14 @@ scrollRightDivClass e cls act = do
 
 patternCanvans :: MonadWidget t m => Dynamic t DNA -> m (Dynamic t (Maybe T.Text))
 patternCanvans genome = do
-    let shader = T.pack . toFragmentShader . runProgram <$> genome
-    fragmentShaderCanvas (mconcat
-        [ "width"  =: "1000"
-        , "height" =: "1000"
-        ]) shader
+    let dShader = T.pack . toFragmentShader . runProgram <$> genome
+    let dTitle = T.unwords . map (T.pack . show) <$> genome
+    elDynAttr "div" ((\t -> "title" =: t) <$> dTitle) $ do
+        let attrs = mconcat
+                [ "width"  =: "1000"
+                , "height" =: "1000"
+                ]
+        fragmentShaderCanvas attrs dShader
 
 clickable :: (HasDomEvent t el 'ClickTag, Functor f) =>
    f (el, c) -> f (Event t (DomEventType el 'ClickTag), c)
@@ -149,6 +152,7 @@ css = T.unlines
     , "  display: flex;"
     , "  flex-wrap: wrap;"
     , "  justify-content: space-evenly;" -- does not work yet
+    , "  align-content: flex-start;"
     , "  overflow-y: auto;"
     , "}"
     , ".patterns canvas {"
