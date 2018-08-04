@@ -36,7 +36,7 @@ runInst n s  = Op0 (Solid (baseColor n)) : s
 
 
 collapsStack :: Stack -> RNA
-collapsStack [] = Op0 (Solid black)
+collapsStack [] = Op0 (Solid white)
 collapsStack [i] = i
 collapsStack (i:is) = Op2 Before fg bg
   where

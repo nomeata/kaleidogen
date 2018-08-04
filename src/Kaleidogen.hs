@@ -56,8 +56,7 @@ selectNList n eClear dxs act = mdo
         return (eTaggedClick, dy)
     let eClicks = switch (current (leftmost . fmap fst <$> dstuff))
     let dys = fmap snd <$> dstuff
-    let eSelectedN = S.toList <$> ffilter (\s -> S.size s == n) eSelection
-    return (eSelectedN, dys)
+    return (eSelection, dys)
 
 -- | A div class with an event to make it scroll all the way to the right.
 -- | Does not work yet, postposed right now
@@ -89,9 +88,11 @@ divClass' :: DomBuilder t m =>
 divClass' cls act = elAttr' "div" ("class" =: cls) act
 
 
-derive' :: [DNA] -> DNA
-derive' [x,y] = crossover x y
-derive' _ = [] -- Should not be possible
+preview :: [DNA] -> DNA
+preview []    = []
+preview [x]   = x
+preview [x,y] = crossover x y
+preview _ = [] -- Should not be possible
 
 main :: IO ()
 main = mainWidgetWithHead htmlHead $
@@ -111,13 +112,10 @@ main = mainWidgetWithHead htmlHead $
         el "pre" $ dynText (T.unlines <$> genomes)
         -}
 
-
-        dNewGenome <- holdDyn [1] (derive' <$> ePairSelected)
-
+        dNewGenome <- holdDyn [] (preview <$> ePairSelected)
 
         genomes <- foldDyn (\new xs -> nub $ xs ++ [new])
                            initialDNAs (tag (current dNewGenome) eAdded)
-
 
         {- WebGL debugging
         el "br" blank
