@@ -15,15 +15,14 @@ import Reflex.Dom
 
 import qualified Data.Text as T
 import qualified Data.Set as S
-import Data.Maybe
 import Data.Bifunctor
 import Data.Monoid
 import Data.List
-import Text.Read
 import Control.Monad.Fix
 
 import Expression
 import GLSL
+import DNA
 
 
 flipSetMember :: Ord a =>  S.Set a -> a -> S.Set a
@@ -73,10 +72,9 @@ scrollRightDivClass e cls act = do
     let attrs' = ("class" =: cls <>) <$> attrs
     elDynAttr "div" attrs' act
 
-patternCanvans :: MonadWidget t m => Dynamic t T.Text -> m (Dynamic t (Maybe T.Text))
+patternCanvans :: MonadWidget t m => Dynamic t DNA -> m (Dynamic t (Maybe T.Text))
 patternCanvans genome = do
-    let nums   = mapMaybe (readMaybe . T.unpack) . T.words <$> genome
-    let shader = T.pack . toFragmentShader . runProgram <$> nums
+    let shader = T.pack . toFragmentShader . runProgram <$> genome
     fragmentShaderCanvas (mconcat
         [ "width"  =: "1000"
         , "height" =: "1000"
@@ -92,8 +90,10 @@ divClass' :: DomBuilder t m =>
     m (Element EventResult (DomBuilderSpace m) t, a)
 divClass' cls act = elAttr' "div" ("class" =: cls) act
 
-derive :: [T.Text] -> T.Text
-derive = T.unwords
+
+derive' :: [DNA] -> DNA
+derive' [x,y] = crossover x y
+derive' _ = [] -- Should not be possible
 
 main :: IO ()
 main = mainWidgetWithHead htmlHead $
@@ -114,11 +114,11 @@ main = mainWidgetWithHead htmlHead $
         -}
 
 
-        dNewGenome <- holdDyn "1" (derive <$> ePairSelected)
+        dNewGenome <- holdDyn [1] (derive' <$> ePairSelected)
 
 
         genomes <- foldDyn (\new xs -> nub $ xs ++ [new])
-                           ["0","1","2"] (tag (current dNewGenome) eAdded)
+                           initialDNAs (tag (current dNewGenome) eAdded)
 
 
         {- WebGL debugging

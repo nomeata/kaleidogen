@@ -24,6 +24,7 @@ source-repository head
 
 executable kaleidogen
     main-is: Kaleidogen.hs
+    other-modules: DNA
     other-modules: RNA
     other-modules: GLSL
     other-modules: Expression
