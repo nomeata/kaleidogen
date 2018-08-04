@@ -30,11 +30,10 @@ executable kaleidogen
     other-modules: Expression
     other-modules: SBNL
     build-depends: base >=4.2 && <5
-    build-depends: jsaddle >=0.9.0.0 && <0.10
-    build-depends: jsaddle-dom >=0.9.0.0 && <0.10
     build-depends: reflex-dom >= 0.4
     build-depends: reflex-dom-fragment-shader-canvas
-    build-depends: lens >=4.0.7 && <5.0
+    build-depends: MonadRandom ==0.5.*
+    build-depends: hashable ==1.2.*
     build-depends: containers
     build-depends: text
     build-depends: mtl
