@@ -14,7 +14,6 @@ import Reflex.Dom.FragmentShaderCanvas
 import Reflex.Dom
 
 import qualified Data.Text as T
-import qualified Data.Set as S
 import Data.Bifunctor
 import Data.Monoid
 import Data.List
@@ -23,11 +22,7 @@ import Control.Monad.Fix
 import Expression
 import GLSL
 import DNA
-
-
-flipSetMember :: Ord a =>  S.Set a -> a -> S.Set a
-flipSetMember s x | S.member x s = S.delete x s
-                  | otherwise    = S.insert x s
+import qualified SBNL as S
 
 stateMachine :: (MonadFix m, MonadHold t m, Reflex t) =>
     a -> [Event t (a -> a)] -> m (Dynamic t a)
@@ -45,11 +40,11 @@ selectNList ::
 selectNList n eClear dxs act = mdo
     -- TODO: This currently only works if the input is is only appended to, but
     -- not if elements is deleted. If we need that, we should update the selected set
-    let eSelection :: Event t (S.Set a) = attachWith flipSetMember (current dSelected) eClicks
+    let eSelection :: Event t (S.SBNL a) = attachWith (S.flipMember n) (current dSelected) eClicks
     -- This separation is necessary so that eClear may depend on the eSelectedN
     -- that we return; otherwise we get a loop
-    let eClearedSelection :: Event t (S.Set a) = leftmost [S.empty <$ eClear, eSelection]
-    dSelected :: Dynamic t (S.Set a) <- holdDyn S.empty eClearedSelection
+    let eClearedSelection :: Event t (S.SBNL a) = leftmost [S.empty <$ eClear, eSelection]
+    dSelected :: Dynamic t (S.SBNL a) <- holdDyn S.empty eClearedSelection
 
     let dxs' = (\s -> map (\x -> (x `S.member` s, x))) <$> dSelected <*> dxs
     dstuff <- simpleList dxs' $ \dx' -> do
@@ -151,7 +146,7 @@ css = T.unlines
     , "  margin:0;"
     , "  height:50%;"
     , "  display: flex;"
-    , "  justify-content: center;"
+    -- , "  justify-content: center;"
     , "  overflow-x: scroll;"
     , "}"
     , ".patterns canvas {"

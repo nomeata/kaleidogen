@@ -28,6 +28,7 @@ executable kaleidogen
     other-modules: RNA
     other-modules: GLSL
     other-modules: Expression
+    other-modules: SBNL
     build-depends: base >=4.2 && <5
     build-depends: jsaddle >=0.9.0.0 && <0.10
     build-depends: jsaddle-dom >=0.9.0.0 && <0.10
