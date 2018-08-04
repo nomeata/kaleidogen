@@ -89,7 +89,7 @@ divClass' cls act = elAttr' "div" ("class" =: cls) act
 
 
 preview :: [DNA] -> DNA
-preview []    = []
+preview []    = blankDNA
 preview [x]   = x
 preview [x,y] = crossover x y
 preview _ = [] -- Should not be possible
@@ -112,7 +112,7 @@ main = mainWidgetWithHead htmlHead $
         el "pre" $ dynText (T.unlines <$> genomes)
         -}
 
-        dNewGenome <- holdDyn [] (preview <$> ePairSelected)
+        dNewGenome <- holdDyn blankDNA (preview <$> ePairSelected)
 
         genomes <- foldDyn (\new xs -> nub $ xs ++ [new])
                            initialDNAs (tag (current dNewGenome) eAdded)

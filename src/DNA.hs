@@ -12,19 +12,26 @@ crossover x' y' = evalRand (crossover' x y) $ mkStdGen (hash (x,y))
 
 crossover' :: MonadRandom m => DNA -> DNA -> m DNA
 crossover' x y
+    | null x
+    = return y
+    | null y
+    = return x
     | length x + length y <= 2
     = do n <- getRandomR (0,30)
          return $ x ++ y ++ [n]
     | otherwise
-    = w [ (pure $ x ++ y ++ [sum x + sum y], 1)
-        , (pure $ zipWith' (+) x y, 1)
+    = w [ (pure $ x ++ y ++ [sum x + sum y], 5)
+        , (pure $ zipWith' (+) x y, fromIntegral $ length x + length y)
         ]
   where
     w = join . weighted
 
 zipWith' :: (a -> a -> a) -> [a] -> [a] -> [a]
-zipWith' op xs ys = zipWith op xs ys ++ drop n xs ++ drop n ys
-  where n = min (length xs) (length ys)
+zipWith' op xs ys | length xs < length ys = zipWith op (cycle xs) ys
+                  | otherwise             = zipWith op xs (cycle ys)
+
+blankDNA :: DNA
+blankDNA = []
 
 initialDNAs :: [DNA]
 initialDNAs =
