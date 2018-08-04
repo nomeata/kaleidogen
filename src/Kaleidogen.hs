@@ -129,7 +129,7 @@ main = mainWidgetWithHead htmlHead $
     htmlHead :: DomBuilder t m => m ()
     htmlHead = do
         el "style" (text css)
-        el "title" (text "Fragment Shader Demo")
+        el "title" (text "Kaleidogen")
 
 css :: T.Text
 css = T.unlines
