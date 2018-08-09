@@ -34,15 +34,4 @@ blankDNA :: DNA
 blankDNA = []
 
 initialDNAs :: [DNA]
-initialDNAs =
-    [ [0]
-    , [1]
-    , [2]
-    , [3]
-    , [4]
-    , [5]
-    , [6]
-    , [7]
-    , [8]
-    ]
-
+initialDNAs = [ [x] | x <- [0..8] ]
