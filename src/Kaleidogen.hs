@@ -48,8 +48,8 @@ selectNList n eClear dxs act = mdo
 
     let dxs' = (\s -> map (\x -> (x `S.member` s, x))) <$> dSelected <*> dxs
     dstuff <- simpleList dxs' $ \dx' -> do
-        let enabled = fst <$> dx'
-        let dx = snd <$> dx'
+        enabled <- holdUniqDyn (fst <$> dx')
+        dx      <- holdUniqDyn (snd <$> dx')
         let attrs = (\case { True -> "class" =: "selected" ; False -> mempty}) <$> enabled
         (eClick,dy) <- clickable $ elDynAttr' "div" attrs $ act dx
         let eTaggedClick = tag (current dx) eClick
