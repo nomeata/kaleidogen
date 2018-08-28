@@ -10,11 +10,6 @@ indent = unlines . map ("  " ++) . lines
 
 toFragmentShader :: RNA -> String
 toFragmentShader rna = conclude $ go rna 0
-  where
-    go (Op0 o)          = op0GLSL o
-    go (Op1 o i1)       = op1GLSL o (go i1)
-    go (Op2 o i1 i2)    = op2GLSL o (go i1) (go i2)
-    go (Op3 o i1 i2 i3) = op3GLSL o (go i1) (go i2) (go i3)
 
 conclude :: (String, Integer) -> String
 conclude (pgm, r) = unlines
@@ -42,45 +37,62 @@ conclude (pgm, r) = unlines
 -- This could all be much nicer, and heavy refactoring is welcome.
 type GLSLGen = Integer -> (String, Integer)
 
-op0GLSL :: Op0 -> GLSLGen
-op0GLSL (Solid col) n = (,n) $
+go :: RNA -> GLSLGen
+
+go (Solid col) n = (,n) $
     printf "vec3 col%d = vec3(%f,%f,%f);\n" n r g b
   where RGB r g b = toSRGB col
-op0GLSL Gradient n = (,n) $
-    printf "vec3 col%d = length(pos%d) * vec3(1.0,1.0,1.0);\n" n n
 
-op1GLSL :: Op1 -> GLSLGen -> GLSLGen
-op1GLSL Inv i1 n = (,n1) $ unlines
-    [ printf "vec2 pos%d = ((1.0-length(pos%d))/length(pos%d)) * pos%d;" (n+1) n n n
-    , src1
-    ]
-  where
-    (src1, n1) = i1 (n+1)
-op1GLSL (Swirl x) i1 n = (,n1) $ unlines
-    [ printf "vec2 pos%d = length(pos%d) * vec2(cos(atan(pos%d.x, pos%d.y) + (1.0-length(pos%d))*%f),sin(atan(pos%d.x, pos%d.y) + (1.0-length(pos%d))*%f));" (n+1) n n n n x n n n x
-    , src1
-    ]
-  where
-    (src1, n1) = i1 (n+1)
-
-op2GLSL :: Op2 -> GLSLGen -> GLSLGen -> GLSLGen
-op2GLSL Before i1 i2 n = (,n2+1) $ unlines
-    [ printf "vec2 pos%d = pos%d/0.8;" (n+1) n
+go (Blend x r1 r2) n = (,n2+1) $ unlines
+    [ printf "vec2 pos%d = pos%d;" (n+1) n
     , src1
     , printf "vec2 pos%d = pos%d;" (n1+1) n
     , src2
+    , printf "vec3 col%d = %f * col%d + (1.0-%f) * col%d;" (n2+1) x n1 x n2
+    ]
+  where
+    (src1, n1) = go r1 (n+1)
+    (src2, n2) = go r2 (n1+1)
+
+go (Checker x r1 r2) n = (,n2+1) $ unlines
+    [ printf "vec2 pos%d = pos%d;" (n+1) n
+    , src1
+    , printf "vec2 pos%d = pos%d;" (n1+1) n
+    , src2
+    , printf "vec2 tmp%d = %f*(1.0/sqrt(2.0)) * mat2(1.0,1.0,-1.0,1.0) * pos%d;" n x n
     , printf "vec3 col%d;" (n2+1)
-    , printf "if (length(pos%d) < 0.8) {" n
+    , printf "if (mod(tmp%d.x, 2.0) < 1.0 != mod(tmp%d.y, 2.0) < 1.0) {" n n
     , printf "   col%d = col%d;" (n2+1) n1
     , printf "} else {"
     , printf "   col%d = col%d;" (n2+1) n2
     , printf "};"
     ]
   where
-    (src1, n1) = i1 (n+1)
-    (src2, n2) = i2 (n1+1)
+    (src1, n1) = go r1 (n+1)
+    (src2, n2) = go r2 (n1+1)
 
-op2GLSL (Rays r) i1 i2 n = (,n2+1) $ unlines
+go (Rotate x r1) n = (,n1) $ unlines
+    [ printf "vec2 pos%d = length(pos%d) * vec2(cos(atan(pos%d.x, pos%d.y) + %f),sin(atan(pos%d.x, pos%d.y) + %f));" (n+1) n n n x n n x
+    , src1
+    ]
+  where
+    (src1, n1) = go r1 (n+1)
+
+go (Invert r1) n = (,n1) $ unlines
+    [ printf "vec2 pos%d = ((1.0-length(pos%d))/length(pos%d)) * pos%d;" (n+1) n n n
+    , src1
+    ]
+  where
+    (src1, n1) = go r1 (n+1)
+
+go (Swirl x r1) n = (,n1) $ unlines
+    [ printf "vec2 pos%d = length(pos%d) * vec2(cos(atan(pos%d.x, pos%d.y) + (1.0-length(pos%d))*%f),sin(atan(pos%d.x, pos%d.y) + (1.0-length(pos%d))*%f));" (n+1) n n n n x n n n x
+    , src1
+    ]
+  where
+    (src1, n1) = go r1 (n+1)
+
+go (Rays r r1 r2) n = (,n2+1) $ unlines
     [ src1
     , printf "vec2 pos%d = pos%d;" (n1+1) n
     , src2
@@ -92,35 +104,32 @@ op2GLSL (Rays r) i1 i2 n = (,n2+1) $ unlines
     , printf "};"
     ]
   where
-    (src1, n1) = i1 n
-    (src2, n2) = i2 (n1+1)
-op2GLSL Checker i1 i2 n = (,n2+1) $ unlines
+    (src1, n1) = go r1 n
+    (src2, n2) = go r2 (n1+1)
+
+go (Gradient r1 r2) n = (,n2+1) $ unlines
     [ printf "vec2 pos%d = pos%d;" (n+1) n
     , src1
     , printf "vec2 pos%d = pos%d;" (n1+1) n
     , src2
-    , printf "vec2 tmp%d = 6.0*(1.0/sqrt(2.0)) * mat2(1.0,1.0,-1.0,1.0) * pos%d;" n n
+    , printf "vec3 col%d = length(pos%d) * col%d + (1.0-length(pos%d)) * col%d;" (n2+1) n n1 n n2
+    ]
+  where
+    (src1, n1) = go r1 (n+1)
+    (src2, n2) = go r2 (n1+1)
+
+go (Ontop x r1 r2) n = (,n2+1) $ unlines
+    [ printf "vec2 pos%d = pos%d/0.8;" (n+1) n
+    , src1
+    , printf "vec2 pos%d = pos%d;" (n1+1) n
+    , src2
     , printf "vec3 col%d;" (n2+1)
-    , printf "if (mod(tmp%d.x, 2.0) < 1.0 != mod(tmp%d.y, 2.0) < 1.0) {" n n
+    , printf "if (length(pos%d) < %f) {" n x
     , printf "   col%d = col%d;" (n2+1) n1
     , printf "} else {"
     , printf "   col%d = col%d;" (n2+1) n2
     , printf "};"
     ]
   where
-    (src1, n1) = i1 (n+1)
-    (src2, n2) = i2 (n1+1)
-
-op3GLSL :: Op3 -> GLSLGen -> GLSLGen -> GLSLGen -> GLSLGen
-op3GLSL Blur i1 i2 i3 n = (,n3+1) $ unlines
-    [ src1
-    , printf "vec2 pos%d = pos%d;" (n1+1) n
-    , src2
-    , printf "vec2 pos%d = pos%d;" (n2+1) n
-    , src3
-    , printf "vec3 col%d = length(col%d)/length(vec3(1.0,1.0,1.0)) * col%d + (1.0-length(col%d)/length(vec3(1.0,1.0,1.0))) * col%d;" (n3+1) n1 n2 n1 n3
-    ]
-  where
-    (src1, n1) = i1 n
-    (src2, n2) = i2 (n1+1)
-    (src3, n3) = i3 (n2+1)
+    (src1, n1) = go r1 (n+1)
+    (src2, n2) = go r2 (n1+1)

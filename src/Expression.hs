@@ -1,44 +1,50 @@
-module Expression (runProgram) where
+module Expression (dna2rna) where
 
 import Data.Colour
 import Data.Colour.Names
-import Data.Foldable
+import Data.Word
 
+import DNA
 import RNA
 
-runProgram :: Program -> RNA
-runProgram = collapsStack . foldl' (flip runInst) []
+dna2rna :: DNA -> RNA
+dna2rna = go . fromDNA
 
-baseColor :: Int -> Colour Double
-baseColor n = colors !! n'
+go :: TNA -> RNA
+go (N arg) = Solid (baseColor arg)
+go (B op arg t1 t2) = indexMod op
+    [ Solid (baseColor arg)
+    , Blend a01           r1 r2
+    , Checker (1  … 6)    r1 r2
+    , Rotate  (0  … 2*pi) r1
+    , Invert              r1
+    , Swirl   (-1 … 1)    r1
+    , Rays    (1  …… 8)   r1 r2
+    , Gradient            r1 r2
+    , Ontop   (0.5 … 0.9) r1 r2
+    ]
   where
-    n' = n `mod` length colors
+    (…) :: Double -> Double -> Double
+    l … u = l + a01 * (u - l)
+
+    (……) :: Int -> Int -> Int
+    l …… u = min u $ floor $ fromIntegral l … (fromIntegral u+1)
+
+    a01 :: Double
+    a01 = fromIntegral arg / fromIntegral (maxBound `asTypeOf` arg)
+
+    r1 = go t1
+    r2 = go t2
+
+baseColor :: Word8 -> Colour Double
+baseColor n = indexMod n colors
+  where
     colors = [ black, white
              , red, green, blue
              , cyan, magenta, yellow
              ]
 
-type Program = [Int]
-type Inst = Int
-
-type Stack = [RNA]
-
-runInst :: Inst -> Stack -> Stack
-runInst 0 s            = Op0 Gradient : s
-runInst 1 (i2:i1:s)    = Op2 Before i1 i2 : s
-runInst 2 (i3:i2:i1:s) = Op3 Blur i3 i1 i2  : s
-runInst 3 (i2:i1:s)    = Op2 Checker i1 i2  : s
-runInst 4 (i:s)        = Op1 Inv i          : s
-runInst c (i2:i1:s)    | c >= 10 && c < 17  = Op2 (Rays (c - 9)) i1 i2 : s
-runInst c (i:s)        | c >= 20 && c <= 30 = Op1 (Swirl (fromIntegral (c - 25))) i : s
--- fallback
-runInst n s  = Op0 (Solid (baseColor n)) : s
-
-
-collapsStack :: Stack -> RNA
-collapsStack [] = Op0 (Solid white)
-collapsStack [i] = i
-collapsStack (i:is) = Op2 Before fg bg
+indexMod :: Word8 -> [a] -> a
+indexMod n xs = xs !! n'
   where
-    bg = i
-    fg = collapsStack is
+    n' = fromIntegral (n-1) `mod` length xs

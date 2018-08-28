@@ -68,7 +68,7 @@ scrollRightDivClass e cls act = do
 
 patternCanvans :: MonadWidget t m => Dynamic t DNA -> m (Dynamic t (Maybe T.Text))
 patternCanvans genome = do
-    let dShader = T.pack . toFragmentShader . runProgram <$> genome
+    let dShader = T.pack . toFragmentShader . dna2rna <$> genome
     let dTitle = T.unwords . map (T.pack . show) <$> genome
     elDynAttr "div" ((\t -> "title" =: t) <$> dTitle) $ do
         let attrs = mconcat

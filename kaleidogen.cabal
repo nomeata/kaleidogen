@@ -38,6 +38,8 @@ executable kaleidogen
     build-depends: text
     build-depends: mtl
     build-depends: colour
+    -- just for ghci. How to avoid?
+    build-depends: QuickCheck
     hs-source-dirs: src
     ghc-options: -main-is Kaleidogen
     ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
