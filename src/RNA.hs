@@ -1,9 +1,9 @@
 module RNA where
 
-import Data.Colour
+import Data.Colour.RGBSpace.HSV
 
 data RNA
-    = Solid (Colour Double)
+    = Solid (RGB Double)
     | Blend Double RNA RNA
     | Checker Double RNA RNA
     | Rotate Double RNA

@@ -41,7 +41,7 @@ go :: RNA -> GLSLGen
 
 go (Solid col) n = (,n) $
     printf "vec3 col%d = vec3(%f,%f,%f);\n" n r g b
-  where RGB r g b = toSRGB col
+  where RGB r g b = col
 
 go (Blend x r1 r2) n = (,n2+1) $ unlines
     [ printf "vec2 pos%d = pos%d;" (n+1) n

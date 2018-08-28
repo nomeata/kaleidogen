@@ -1,7 +1,6 @@
 module Expression (dna2rna) where
 
-import Data.Colour
-import Data.Colour.Names
+import Data.Colour.RGBSpace.HSV
 import Data.Word
 
 import DNA
@@ -13,8 +12,7 @@ dna2rna = go . fromDNA
 go :: TNA -> RNA
 go (N arg) = Solid (baseColor arg)
 go (B op arg t1 t2) = indexMod op
-    [ Solid (baseColor arg)
-    , Blend a01           r1 r2
+    [ Blend a01           r1 r2
     , Checker (1  … 6)    r1 r2
     , Rotate  (0  … 2*pi) r1
     , Invert              r1
@@ -36,13 +34,12 @@ go (B op arg t1 t2) = indexMod op
     r1 = go t1
     r2 = go t2
 
-baseColor :: Word8 -> Colour Double
-baseColor n = indexMod n colors
+baseColor :: Word8 -> RGB Double
+baseColor 0 = hsv 0   1 0
+baseColor 1 = hsv 0   0 1
+baseColor n = hsv tau 0.7 1
   where
-    colors = [ black, white
-             , red, green, blue
-             , cyan, magenta, yellow
-             ]
+    tau = (fromIntegral (n-2) / fromIntegral (maxBound `asTypeOf` n - 2)) * 360
 
 indexMod :: Word8 -> [a] -> a
 indexMod n xs = xs !! n'
