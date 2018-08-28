@@ -29,9 +29,9 @@ toDNA :: TNA -> DNA
 toDNA (B n a t1 t2) = n : a : toDNA t1 ++ toDNA t2
 toDNA (N a) = [0, a]
 
-crossover :: DNA -> DNA -> DNA
-crossover x' y' =
-    toDNA $ evalRand (crossover' x y) $ mkStdGen (hash (x,y))
+crossover :: Int -> DNA -> DNA -> DNA
+crossover seed x' y' =
+    toDNA $ evalRand (crossover' x y) $ mkStdGen (hash (seed,x,y))
   where
     [x, y] = sort [fromDNA x', fromDNA y']
 
@@ -81,4 +81,4 @@ blankDNA :: DNA
 blankDNA = [0]
 
 initialDNAs :: [DNA]
-initialDNAs = [ [0,x] | x <- [0..8] ]
+initialDNAs = [ [0,x] | x <- [1..8] ]

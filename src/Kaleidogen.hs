@@ -18,6 +18,7 @@ import Data.Bifunctor
 import Data.Monoid
 import Data.List
 import Control.Monad.Fix
+import Control.Monad.Random.Class
 
 import Expression
 import GLSL
@@ -88,14 +89,18 @@ divClass' :: DomBuilder t m =>
 divClass' cls act = elAttr' "div" ("class" =: cls) act
 
 
-preview :: [DNA] -> DNA
-preview []    = blankDNA
-preview [x]   = x
-preview [x,y] = crossover x y
-preview _ = [] -- Should not be possible
+type Seed = Int
+
+preview :: Seed -> [DNA] -> DNA
+preview _ []    = blankDNA
+preview _ [x]   = x
+preview s [x,y] = crossover s x y
+preview _ _ = [] -- Should not be possible
 
 main :: IO ()
-main = mainWidgetWithHead htmlHead $
+main = do
+  s <- getRandom
+  mainWidgetWithHead htmlHead $
     elAttr "div" ("align" =: "center") $ mdo
         (ePairSelected, _dErrors) <- divClass "patterns" $ do
             selectNList 2 (() <$ eAdded) genomes $ patternCanvans
@@ -112,7 +117,7 @@ main = mainWidgetWithHead htmlHead $
         el "pre" $ dynText (T.unlines <$> genomes)
         -}
 
-        dNewGenome <- holdDyn blankDNA (preview <$> ePairSelected)
+        dNewGenome <- holdDyn blankDNA (preview s <$> ePairSelected)
 
         genomes <- foldDyn (\new xs -> nub $ xs ++ [new])
                            initialDNAs (tag (current dNewGenome) eAdded)
