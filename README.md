@@ -1,6 +1,8 @@
 Kaleidogen
 ==========
 
+http://kaleidogen.nomeata.de/
+
 
 Local development with GHC
 --------------------------
