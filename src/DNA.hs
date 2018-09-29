@@ -36,40 +36,45 @@ crossover seed x' y' =
     [x, y] = sort [fromDNA x', fromDNA y']
 
 crossover' :: MonadRandom m => TNA -> TNA -> m TNA
-crossover' t1 t2 = w $
-    [ 1 =: N <$> mixArg a1 a2
-    | N a1 <- pure t1, N a2 <- pure t2
-    ] ++
-    [ 1 =: B n1 <$> mixArg a1 a2 <*> pure t1a <*> pure t1b
-    | B n1 a1 t1a t1b <- pure t1, N a2 <- pure t2
-    ] ++
-    [ 1 =: B n2 <$> mixArg a1 a2 <*> pure t2a <*> pure t2b
-    | N a1 <- pure t1, B n2 a2 t2a t2b <- pure t2
-    ] ++
-    [ 1 =: B <$> getRandom <*> getRandom <*> pure t1 <*> pure t2
-    ] ++
-    [ 1 =: crossover' t1a t1b >>= \t1' -> crossover' t1' t2
-    | B _ _ t1a t1b <- pure t1
-    ] ++
-    [ 1 =: crossover' t2a t2b >>= \t2' -> crossover' t1 t2'
-    | B _ _ t2a t2b <- pure t2
-    ] ++
-    [ 4 =: B <$> mixOp n1 n2 <*> mixArg a1 a2 <*> oneOf t1a t2a <*> oneOf t1b t2b
-    | B n1 a1 t1a t1b <- pure t1, B n2 a2 t2a t2b <- pure t2
-    ] ++
-    [ 1 =: B n1 a1 <$> crossover' t1a t2 <*> pure t1b
-    | B n1 a1 t1a t1b <- pure t1
-    ] ++
-    [ 1 =: B n1 a1 <$> pure t1a <*> crossover' t1b t2
-    | B n1 a1 t1a t1b <- pure t1
-    ] ++
-    [ 1 =: B n2 a2 <$> crossover' t1 t2a <*> pure t2b
-    | B n2 a2 t2a t2b <- pure t2
-    ] ++
-    [ 1 =: B n2 a2 <$> pure t2a <*> crossover' t1 t2b
-    | B n2 a2 t2a t2b <- pure t2
-    ]
+crossover' = start
   where
+    start (N a1) (N a2) = B <$> getRandom <*> getRandom <*> pure (N a1) <*> pure (N a2)
+    start t1 t2 = go t1 t2
+
+    go t1 t2 = w $
+        [ 1 =: N <$> mixArg a1 a2
+        | N a1 <- pure t1, N a2 <- pure t2
+        ] ++
+        [ 1 =: B n1 <$> mixArg a1 a2 <*> pure t1a <*> pure t1b
+        | B n1 a1 t1a t1b <- pure t1, N a2 <- pure t2
+        ] ++
+        [ 1 =: B n2 <$> mixArg a1 a2 <*> pure t2a <*> pure t2b
+        | N a1 <- pure t1, B n2 a2 t2a t2b <- pure t2
+        ] ++
+        [ 1 =: B <$> getRandom <*> getRandom <*> pure t1 <*> pure t2
+        ] ++
+        [ 1 =: go t1a t1b >>= \t1' -> go t1' t2
+        | B _ _ t1a t1b <- pure t1
+        ] ++
+        [ 1 =: go t2a t2b >>= \t2' -> go t1 t2'
+        | B _ _ t2a t2b <- pure t2
+        ] ++
+        [ 4 =: B <$> mixOp n1 n2 <*> mixArg a1 a2 <*> oneOf t1a t2a <*> oneOf t1b t2b
+        | B n1 a1 t1a t1b <- pure t1, B n2 a2 t2a t2b <- pure t2
+        ] ++
+        [ 1 =: B n1 a1 <$> go t1a t2 <*> pure t1b
+        | B n1 a1 t1a t1b <- pure t1
+        ] ++
+        [ 1 =: B n1 a1 <$> pure t1a <*> go t1b t2
+        | B n1 a1 t1a t1b <- pure t1
+        ] ++
+        [ 1 =: B n2 a2 <$> go t1 t2a <*> pure t2b
+        | B n2 a2 t2a t2b <- pure t2
+        ] ++
+        [ 1 =: B n2 a2 <$> pure t2a <*> go t1 t2b
+        | B n2 a2 t2a t2b <- pure t2
+        ]
+
     (=:) = (,)
     infixr 0 =:
     w = join . weighted . map swap
