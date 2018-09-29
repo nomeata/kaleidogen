@@ -92,14 +92,14 @@ divClass' cls act = elAttr' "div" ("class" =: cls) act
 type Seed = Int
 
 preview :: Seed -> [DNA] -> DNA
-preview _ []    = blankDNA
-preview _ [x]   = x
-preview s [x,y] = crossover s x y
+preview _    []    = blankDNA
+preview _    [x]   = x
+preview seed [x,y] = crossover seed x y
 preview _ _ = [] -- Should not be possible
 
 main :: IO ()
 main = do
-  s <- getRandom
+  seed <- getRandom
   mainWidgetWithHead htmlHead $
     elAttr "div" ("align" =: "center") $ mdo
         (ePairSelected, _dErrors) <- divClass "patterns" $ do
@@ -117,7 +117,7 @@ main = do
         el "pre" $ dynText (T.unlines <$> genomes)
         -}
 
-        dNewGenome <- holdDyn blankDNA (preview s <$> ePairSelected)
+        dNewGenome <- holdDyn blankDNA (preview seed <$> ePairSelected)
 
         genomes <- foldDyn (\new xs -> nub $ xs ++ [new])
                            initialDNAs (tag (current dNewGenome) eAdded)
