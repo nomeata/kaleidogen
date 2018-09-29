@@ -7,12 +7,12 @@ import Data.Hashable
 import Data.List
 import Data.Word
 import Data.Tuple
-import GHC.Generics
+import Data.Ord
 
 type DNA = [Word8]
 
 data TNA = B Word8 Word8 TNA TNA | N Word8
-  deriving (Ord, Eq, Generic, Hashable)
+  deriving (Ord, Eq)
 
 
 fromDNA :: DNA -> TNA
@@ -31,9 +31,9 @@ toDNA (N a) = [0, a]
 
 crossover :: Int -> DNA -> DNA -> DNA
 crossover seed x' y' =
-    toDNA $ evalRand (crossover' x y) $ mkStdGen (hash (seed,x,y))
+    toDNA $ evalRand (crossover' (fromDNA x) (fromDNA y)) $ mkStdGen (hash (seed,x,y))
   where
-    [x, y] = sort [fromDNA x', fromDNA y']
+    [x, y] = sortBy (comparing hash) [x', y']
 
 crossover' :: MonadRandom m => TNA -> TNA -> m TNA
 crossover' = start
