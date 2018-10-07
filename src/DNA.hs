@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
-
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 module DNA where
 
 import Control.Monad.Random.Strict
@@ -11,23 +11,35 @@ import Data.Ord
 
 type DNA = [Word8]
 
-data TNA = B Word8 Word8 TNA TNA | N Word8
+data StructuredDNA = SDNA
+    { color1 :: Word8
+    , color2 :: Word8
+    , shape :: ShapeTree
+    }
+
+data ShapeTree = B Word8 Word8 ShapeTree ShapeTree | N
   deriving (Ord, Eq)
 
 
-fromDNA :: DNA -> TNA
-fromDNA = fst . go
+fromDNA :: DNA -> StructuredDNA
+fromDNA (color1:color2:rest) = SDNA color1 color2 (fst (go rest))
   where
-    go :: DNA -> (TNA, DNA)
-    go (0:a:rest) = (N a, rest)
+    go :: DNA -> (ShapeTree, DNA)
+    go (0:rest)   = (N, rest)
     go (n:a:rest) = (B n a t1 t2, rest2)
       where (t1, rest1) = go rest
             (t2, rest2) = go rest1
-    go _          = (N 0, [])
+    go _          = (N, [])
 
-toDNA :: TNA -> DNA
-toDNA (B n a t1 t2) = n : a : toDNA t1 ++ toDNA t2
-toDNA (N a) = [0, a]
+fromDNA [color1] = fromDNA [color1, color1]
+fromDNA [] = fromDNA [0]
+
+toDNA :: StructuredDNA -> DNA
+toDNA (SDNA color1 color2 shape)
+    = color1 : color2 : go shape
+  where
+    go (B n a t1 t2) = n : a : go t1 ++ go t2
+    go N = [0]
 
 crossover :: Int -> DNA -> DNA -> DNA
 crossover seed x' y' =
@@ -35,21 +47,18 @@ crossover seed x' y' =
   where
     [x, y] = sortBy (comparing hash) [x', y']
 
-crossover' :: MonadRandom m => TNA -> TNA -> m TNA
+crossover' :: MonadRandom m => StructuredDNA -> StructuredDNA -> m StructuredDNA
 crossover' = start
   where
-    start (N a1) (N a2) = B <$> getRandom <*> getRandom <*> pure (N a1) <*> pure (N a2)
-    start t1 t2 = go t1 t2
+    start (SDNA col11 col12 shape1) (SDNA col21 col22 shape2)
+         = SDNA <$> oneOf col11 col21 <*> oneOf col12 col22 <*> root shape1 shape2
+
+    root N N = B <$> getRandom <*> getRandom <*> pure N <*> pure N
+    root t1 t2 = go t1 t2
 
     go t1 t2 = w $
-        [ 1 =: N <$> mixArg a1 a2
-        | N a1 <- pure t1, N a2 <- pure t2
-        ] ++
-        [ 1 =: B n1 <$> mixArg a1 a2 <*> pure t1a <*> pure t1b
-        | B n1 a1 t1a t1b <- pure t1, N a2 <- pure t2
-        ] ++
-        [ 1 =: B n2 <$> mixArg a1 a2 <*> pure t2a <*> pure t2b
-        | N a1 <- pure t1, B n2 a2 t2a t2b <- pure t2
+        [ 1 =: pure N
+        | N <- pure t1, N <- pure t2
         ] ++
         [ 1 =: B <$> getRandom <*> getRandom <*> pure t1 <*> pure t2
         ] ++
@@ -59,7 +68,7 @@ crossover' = start
         [ 1 =: go t2a t2b >>= \t2' -> go t1 t2'
         | B _ _ t2a t2b <- pure t2
         ] ++
-        [ 4 =: B <$> mixOp n1 n2 <*> mixArg a1 a2 <*> oneOf t1a t2a <*> oneOf t1b t2b
+        [ 4 =: B <$> mixOp n1 n2 <*> mixArg a1 a2 <*> go t1a t2a <*> go t1b t2b
         | B n1 a1 t1a t1b <- pure t1, B n2 a2 t2a t2b <- pure t2
         ] ++
         [ 1 =: B n1 a1 <$> go t1a t2 <*> pure t1b
@@ -95,4 +104,4 @@ blankDNA :: DNA
 blankDNA = [0]
 
 initialDNAs :: [DNA]
-initialDNAs = [ [0,x] | x <- 0:1:[2,34..255] ]
+initialDNAs = [ [x,x] | x <- [0,43..255] ]

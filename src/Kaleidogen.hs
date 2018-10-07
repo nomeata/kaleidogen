@@ -70,8 +70,9 @@ scrollRightDivClass e cls act = do
 patternCanvans :: MonadWidget t m => Dynamic t DNA -> m (Dynamic t (Maybe T.Text))
 patternCanvans genome = do
     let dShader = T.pack . toFragmentShader . dna2rna <$> genome
-    let dTitle = T.unwords . map (T.pack . show) <$> genome
-    elDynAttr "div" ((\t -> "title" =: t) <$> dTitle) $ do
+    -- let showTitle dna = T.pack $ unlines [show dna, show (dna2rna dna)]
+    let showTitle dna = T.pack $ show dna
+    elDynAttr "div" ((\dna -> "title" =: showTitle dna) <$> genome) $ do
         let attrs = mconcat
                 [ "width"  =: "1000"
                 , "height" =: "1000"
@@ -102,10 +103,10 @@ main = do
   seed <- getRandom
   mainWidgetWithHead htmlHead $
     elAttr "div" ("align" =: "center") $ mdo
+        (eAdded, _) <- clickable $ divClass' "new-pat" $ patternCanvans dNewGenome
+
         (ePairSelected, _dErrors) <- divClass "patterns" $ do
             selectNList 2 (() <$ eAdded) genomes $ patternCanvans
-
-        (eAdded, _) <- clickable $ divClass' "new-pat" $ patternCanvans dNewGenome
 
         {-
         inp <- textArea $ def
