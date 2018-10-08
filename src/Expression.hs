@@ -11,27 +11,28 @@ import DNA
 import RNA
 
 dna2rna :: DNA -> RNA
-dna2rna = fromSDNA . fromDNA
-
-fromSDNA :: StructuredDNA -> RNA
-fromSDNA (SDNA col1 col2 shape) = fst $ go shape colors
+dna2rna [] = dna2rna [0]
+dna2rna [x] = dna2rna [x,x]
+dna2rna (col1:col2:ops) = fst $ go ops colors
   where
     colors = cycle $ foldl1 interleave $ map derivedColors $ map baseColor $ nub [col1, col2]
 
     go _ [] = error "finite list in fromSDNA"
-    go N (c:cols) = (, cols) $ Solid c
-    go (B op arg t1 t2) cols = (, cols2) $
-        indexMod op
-            -- [ Blend a01           r1 r2
-            [ Checker (1  … 6)    r1 r2
-            , Rotate  (0  … 2*pi) (Gradient r1 r2)
-            , Invert              (Gradient r1 r2)
-            , Swirl   (-1 … 1)    (Gradient r1 r2)
-            , Rays    (2  …… 8)   r1 r2
-            , Gradient            r1 r2
-            , Ontop   (0.5 … 0.9) r1 r2
-            ]
+    go []  (c:cols) = (, cols) $ Solid c
+    go (x:rest) cols = indexMod op
+        -- [ Blend a01           r1 r2
+        [ binary $ Checker (1  … 6)
+        , unary  $ Rotate  (0  … 2*pi)
+        , unary  $ Invert
+        , unary  $ Swirl   (-1 … 1)
+        , binary $ Rays    (2  …… 8)
+        , binary $ Gradient
+        , binary $ Ontop   (0.5 … 0.9)
+        ]
       where
+        op = x `div` 16
+        arg = x `mod` 16
+
         (…) :: Double -> Double -> Double
         l … u = l + a01 * (u - l)
 
@@ -39,21 +40,32 @@ fromSDNA (SDNA col1 col2 shape) = fst $ go shape colors
         l …… u = min u $ floor $ fromIntegral l … (fromIntegral u+1)
 
         a01 :: Double
-        a01 = fromIntegral arg / fromIntegral (maxBound `asTypeOf` arg)
+        a01 = fromIntegral arg / 16
 
-        (r1, cols1) = go t1 cols
-        (r2, cols2) = go t2 cols1
+        binary f = (f r1 r2, cols2)
+          where
+            (rest1, rest2) = splitInHalf rest
+            (r1, cols1) = go rest1 cols
+            (r2, cols2) = go rest2 cols1
+
+        unary f = (f r1, cols1)
+          where
+            (r1, cols1) = go rest cols
 
 interleave :: [a] -> [a] -> [a]
 interleave [] ys = ys
 interleave (x:xs) ys = x : interleave ys xs
 
+splitInHalf :: [a] -> ([a],[a])
+splitInHalf xs = splitAt n xs
+  where n = length xs `div` 2
+
 derivedColors :: RGB Double -> [RGB Double]
 derivedColors (hsvView -> (h,s,v)) =
     hsv h s v :
-    -- hsv h ((s+1)/2) v : hsv h (s/2) v :
-    -- hsv h s ((v+1)/2) : hsv h s (v/2) :
     hsv (h+30) s v : hsv (h-30) s v :
+    hsv h ((s+1)/2) v : hsv h (s/2) v :
+    hsv h s ((v+1)/2) : hsv h s (v/2) :
     []
 
 baseColor :: Word8 -> RGB Double
