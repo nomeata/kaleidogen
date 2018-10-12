@@ -19,19 +19,26 @@ dna2rna (col1:col2:ops) = fst $ go ops colors
 
     go _ [] = error "finite list in fromSDNA"
     go []  (c:cols) = (, cols) $ Solid c
-    go (x:rest) cols = indexMod op
-        -- [ Blend a01           r1 r2
-        [ binary $ Checker (1  … 6)
-        , unary  $ Rotate  (0  … 2*pi)
-        , unary  $ Invert
-        , unary  $ Swirl   (-1 … 1)
-        , binary $ Rays    (2  …… 8)
-        , binary $ Gradient
-        , binary $ Ontop   (0.5 … 0.9)
-        ]
+    go (x:rest) cols
+        | null rest = indexMod op binaryOps
+        | otherwise = indexMod op (binaryOps ++ unaryOps)
       where
+        binaryOps = binary <$>
+            [ Checker (1  … 6)
+            , Rays    (2  …… 8)
+            , Gradient
+            , Ontop   (0.5 … 0.9)
+            -- , Blend a01
+            ]
+        unaryOps = unary <$>
+            [ Rotate  (0  … 2*pi)
+            , Invert
+            , Swirl   (-1 … 1)
+            ]
+
         op = x `div` 16
         arg = x `mod` 16
+
 
         (…) :: Double -> Double -> Double
         l … u = l + a01 * (u - l)
