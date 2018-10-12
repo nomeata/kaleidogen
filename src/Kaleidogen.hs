@@ -12,6 +12,7 @@ module Kaleidogen where
 
 import Reflex.Dom.FragmentShaderCanvas
 import Reflex.Dom
+import CanvasSave
 
 import qualified Data.Text as T
 import Data.Bifunctor
@@ -68,11 +69,13 @@ scrollRightDivClass e cls act = do
     let attrs' = ("class" =: cls <>) <$> attrs
     elDynAttr "div" attrs' act
 
-patternCanvans :: MonadWidget t m => Dynamic t DNA -> m (Dynamic t (Maybe T.Text))
-patternCanvans dGenome = patternCanvansMay (Just <$> dGenome)
+patternCanvans :: MonadWidget t m =>
+    Dynamic t DNA -> m (Dynamic t (Maybe T.Text))
+patternCanvans dGenome = patternCanvansMay mempty (Just <$> dGenome)
 
-patternCanvansMay :: MonadWidget t m => Dynamic t (Maybe DNA) -> m (Dynamic t (Maybe T.Text))
-patternCanvansMay dGenome = do
+patternCanvansMay :: MonadWidget t m =>
+    Event t T.Text -> Dynamic t (Maybe DNA) -> m (Dynamic t (Maybe T.Text))
+patternCanvansMay eSave dGenome = do
     let dShader = T.pack . maybe blankShader (toFragmentShader . dna2rna) <$> dGenome
     -- let showTitle dna = T.pack $ unlines [show dna, show (dna2rna dna)]
     let showTitle dna = T.pack . maybe "" show $ dna
@@ -81,7 +84,9 @@ patternCanvansMay dGenome = do
                 [ "width"  =: "1000"
                 , "height" =: "1000"
                 ]
-        fragmentShaderCanvas attrs dShader
+        (e,dErr) <- fragmentShaderCanvas' attrs dShader
+        _ <- performEvent $ (<$> eSave) $ \name -> CanvasSave.save name e
+        return dErr
 
 clickable :: (HasDomEvent t el 'ClickTag, Functor f) =>
    f (el, c) -> f (Event t (DomEventType el 'ClickTag), c)
@@ -114,15 +119,17 @@ main = do
   seed <- getRandom
   mainWidgetWithHead htmlHead $
     elAttr "div" ("align" =: "center") $ mdo
-        (eAdded1, eDelete, _eSave) <- divClass "toolbar" $
+        (eAdded1, eDelete, eSave) <- divClass "toolbar" $
             (,,) <$>
             toolbarButton "➕" dCanAdd <*>
             toolbarButton "🗑" dCanDel <*>
             toolbarButton "💾" dCanSave
 
-        (eAdded2, _) <- clickable $ divClass' "new-pat" $ patternCanvansMay dNewGenome
+        (eAdded2, _) <- clickable $ divClass' "new-pat" $
+            patternCanvansMay eSaveAs dNewGenome
 
         let eAdded = eAdded1 <> eAdded2
+        let eSaveAs = "kaleidogen.png" <$ eSave
 
         let dCanAdd = (\new xs -> maybe False (`notElem` xs) new) <$> dNewGenome <*> dGenomes
         let dCanDel = (\new xs -> maybe False (`elem`    xs) new) <$> dNewGenome <*> dGenomes
@@ -169,6 +176,7 @@ main = do
     htmlHead = do
         el "style" (text css)
         el "title" (text "Kaleidogen")
+        elAttr "script" ("src" =: "https://fastcdn.org/FileSaver.js/1.1.20151003/FileSaver.min.js") (return ())
 
 css :: T.Text
 css = T.unlines

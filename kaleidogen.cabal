@@ -29,9 +29,10 @@ executable kaleidogen
     other-modules: GLSL
     other-modules: Expression
     other-modules: SBNL
+    other-modules: CanvasSave
     build-depends: base >=4.2 && <5
     build-depends: reflex-dom >= 0.4
-    build-depends: reflex-dom-fragment-shader-canvas
+    build-depends: reflex-dom-fragment-shader-canvas >= 0.2
     build-depends: MonadRandom ==0.5.*
     build-depends: hashable ==1.2.*
     build-depends: containers
@@ -40,6 +41,11 @@ executable kaleidogen
     build-depends: colour
     -- just for ghci. How to avoid?
     build-depends: QuickCheck
+    -- used in CanvasSave
+    build-depends: jsaddle >=0.9.4 && <0.10
+    build-depends: jsaddle-dom >=0.9.2 && <0.10
+    build-depends: lens
+
     hs-source-dirs: src
     ghc-options: -main-is Kaleidogen
     ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
