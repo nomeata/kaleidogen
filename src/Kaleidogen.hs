@@ -77,8 +77,8 @@ patternCanvansMay :: MonadWidget t m =>
     Event t T.Text -> Dynamic t (Maybe DNA) -> m (Dynamic t (Maybe T.Text))
 patternCanvansMay eSave dGenome = do
     let dShader = T.pack . maybe blankShader (toFragmentShader . dna2rna) <$> dGenome
-    -- let showTitle dna = T.pack $ unlines [show dna, show (dna2rna dna)]
-    let showTitle dna = T.pack . maybe "" show $ dna
+    -- let showTitle dna = T.pack $ unlines [dna2hex dna, show (dna2rna dna)]
+    let showTitle dna = maybe "" dna2hex $ dna
     elDynAttr "div" ((\dna -> "title" =: showTitle dna) <$> dGenome) $ do
         let attrs = mconcat
                 [ "width"  =: "1000"
@@ -87,6 +87,11 @@ patternCanvansMay eSave dGenome = do
         (e,dErr) <- fragmentShaderCanvas' attrs dShader
         _ <- performEvent $ (<$> eSave) $ \name -> CanvasSave.save name e
         return dErr
+
+toFilename :: Maybe DNA -> T.Text
+toFilename (Just dna) = "kaleidogen-" <> dna2hex dna <> ".png"
+toFilename Nothing    = "error.png"
+
 
 clickable :: (HasDomEvent t el 'ClickTag, Functor f) =>
    f (el, c) -> f (Event t (DomEventType el 'ClickTag), c)
@@ -129,7 +134,8 @@ main = do
             patternCanvansMay eSaveAs dNewGenome
 
         let eAdded = eAdded1 <> gate (current dCanAdd) eAdded2
-        let eSaveAs = "kaleidogen.png" <$ eSave
+        let dFilename = toFilename <$> dNewGenome
+        let eSaveAs = tag (current dFilename) eSave
 
         let dCanAdd = (\new xs -> maybe False (`notElem` xs) new) <$> dNewGenome <*> dGenomes
         let dCanDel = (\new xs -> maybe False (`elem`    xs) new) <$> dNewGenome <*> dGenomes

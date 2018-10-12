@@ -7,8 +7,14 @@ import Data.Hashable
 import Data.List
 import Data.Word
 import Data.Ord
+import qualified Data.Text as T
+import qualified Data.ByteString as BS
+import Text.Hex
 
 type DNA = [Word8]
+
+dna2hex :: DNA -> T.Text
+dna2hex = encodeHex . BS.pack
 
 crossover :: Int -> DNA -> DNA -> DNA
 crossover seed x' y' =

@@ -37,6 +37,8 @@ executable kaleidogen
     build-depends: hashable ==1.2.*
     build-depends: containers
     build-depends: text
+    build-depends: hex-text
+    build-depends: bytestring
     build-depends: mtl
     build-depends: colour
     -- just for ghci. How to avoid?
