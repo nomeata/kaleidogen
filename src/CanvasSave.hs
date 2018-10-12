@@ -1,13 +1,10 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 module CanvasSave where
 
 import qualified Data.Text as T
-import Language.Javascript.JSaddle (JSVal, liftJSM, MonadJSM)
+import Language.Javascript.JSaddle (toJSVal, liftJSM, MonadJSM)
 import Language.Javascript.JSaddle.Object
 import Control.Lens ((^.))
 import Reflex.Dom
-import JSDOM.Types (unElement)
-
 
 header :: DomBuilder t m => m ()
 header = do
@@ -15,7 +12,7 @@ header = do
 
 save :: MonadJSM m => T.Text -> El t -> m ()
 save name e = liftJSM $ do
-    let (domEl :: JSVal) = unElement (_element_raw e)
+    domEl <- toJSVal (_element_raw e)
     _ <- domEl ^. js1 "toBlob" (fun $ \_ _ [blob] -> () <$ jsg2 "saveAs" blob name )
     return ()
 
