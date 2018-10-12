@@ -17,6 +17,7 @@ import qualified Data.Text as T
 import Data.Bifunctor
 import Data.Monoid
 import Data.List
+import Data.Maybe
 import Control.Monad.Fix
 import Control.Monad.Random.Class
 
@@ -68,11 +69,14 @@ scrollRightDivClass e cls act = do
     elDynAttr "div" attrs' act
 
 patternCanvans :: MonadWidget t m => Dynamic t DNA -> m (Dynamic t (Maybe T.Text))
-patternCanvans genome = do
-    let dShader = T.pack . toFragmentShader . dna2rna <$> genome
+patternCanvans dGenome = patternCanvansMay (Just <$> dGenome)
+
+patternCanvansMay :: MonadWidget t m => Dynamic t (Maybe DNA) -> m (Dynamic t (Maybe T.Text))
+patternCanvansMay dGenome = do
+    let dShader = T.pack . maybe blankShader (toFragmentShader . dna2rna) <$> dGenome
     -- let showTitle dna = T.pack $ unlines [show dna, show (dna2rna dna)]
-    let showTitle dna = T.pack $ show dna
-    elDynAttr "div" ((\dna -> "title" =: showTitle dna) <$> genome) $ do
+    let showTitle dna = T.pack . maybe "" show $ dna
+    elDynAttr "div" ((\dna -> "title" =: showTitle dna) <$> dGenome) $ do
         let attrs = mconcat
                 [ "width"  =: "1000"
                 , "height" =: "1000"
@@ -92,21 +96,40 @@ divClass' cls act = elAttr' "div" ("class" =: cls) act
 
 type Seed = Int
 
-preview :: Seed -> [DNA] -> DNA
-preview _    []    = blankDNA
-preview _    [x]   = x
-preview seed [x,y] = crossover seed x y
-preview _ _ = [] -- Should not be possible
+preview :: Seed -> [DNA] -> Maybe DNA
+preview _    []    = Nothing
+preview _    [x]   = Just x
+preview seed [x,y] = Just $ crossover seed x y
+preview _ _ = Nothing -- Should not be possible
+
+toolbarButton :: (DomBuilder t m, PostBuild t m) =>
+    T.Text -> Dynamic t Bool -> m (Event t ())
+toolbarButton txt dActive = do
+    let dAttrs = (\case True -> mempty; False -> "class" =: "disabled") <$> dActive
+    (e,_) <- elDynAttr' "a" dAttrs (text txt)
+    return $ domEvent Click e
 
 main :: IO ()
 main = do
   seed <- getRandom
   mainWidgetWithHead htmlHead $
     elAttr "div" ("align" =: "center") $ mdo
-        (eAdded, _) <- clickable $ divClass' "new-pat" $ patternCanvans dNewGenome
+        (eAdded1, eDelete, _eSave) <- divClass "toolbar" $
+            (,,) <$>
+            toolbarButton "➕" dCanAdd <*>
+            toolbarButton "🗑" dCanDel <*>
+            toolbarButton "💾" dCanSave
+
+        (eAdded2, _) <- clickable $ divClass' "new-pat" $ patternCanvansMay dNewGenome
+
+        let eAdded = eAdded1 <> eAdded2
+
+        let dCanAdd = (\new xs -> maybe False (`notElem` xs) new) <$> dNewGenome <*> dGenomes
+        let dCanDel = (\new xs -> maybe False (`elem`    xs) new) <$> dNewGenome <*> dGenomes
+        let dCanSave = isJust <$> dNewGenome
 
         (ePairSelected, _dErrors) <- divClass "patterns" $ do
-            selectNList 2 (() <$ eAdded) genomes $ patternCanvans
+            selectNList 2 (eAdded <> eDelete) dGenomes $ patternCanvans
 
         {-
         inp <- textArea $ def
@@ -117,11 +140,21 @@ main = do
 
         el "pre" $ dynText (T.unlines <$> genomes)
         -}
+        dPairSelected <- holdDyn (take 1 initialDNAs) $ mconcat
+            [ ePairSelected
+            , [] <$ eAdded
+            , [] <$ eDelete
+            ]
 
-        dNewGenome <- holdDyn blankDNA (preview seed <$> ePairSelected)
+        let dNewGenome = preview seed <$> dPairSelected
 
-        genomes <- foldDyn (\new xs -> nub $ xs ++ [new])
-                           initialDNAs (tag (current dNewGenome) eAdded)
+        dGenomes <- foldDyn id initialDNAs $ mconcat
+            [ (\new xs -> nub $ xs ++ [new]) <$>
+                    fmapMaybe id (tag (current dNewGenome) eAdded)
+            , (\new xs -> delete new xs) <$>
+                    fmapMaybe id (tag (current dNewGenome) eDelete)
+            ]
+
 
         {- WebGL debugging
         el "br" blank
@@ -149,9 +182,27 @@ css = T.unlines
     , "  height: 100%;"
     , "  flex-direction: column;"
     , "}"
+    , ".toolbar {"
+    , "  height:10vh;"
+    , "}"
+    , ".toolbar a {"
+    , "  display:inline-block;"
+    , "  margin:1vh 2vh;"
+    , "  border:none;"
+    , "  padding:.5vh;"
+    , "  font-size:6vh;"
+    , "  width:8vh;"
+    , "  height:8vh;"
+    , "  background-color:lightblue;"
+    , "  border-radius: 1vh;"
+    , "}"
+    , ".toolbar a.disabled {"
+    , "  background-color:lightgrey;"
+    , "  color:white;"
+    , "}"
     , ".patterns {"
     , "  margin:0;"
-    , "  height:50vh;"
+    , "  height:40vh;"
     , "  width:100%;"
     , "  display: flex;"
     , "  flex-wrap: wrap;"

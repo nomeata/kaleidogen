@@ -24,6 +24,8 @@ conclude (pgm, r) = unlines
   , "}"
   ]
 
+blankShader :: String
+blankShader = conclude $ go (Solid (RGB 1 1 1)) 0
 
 -- GLSL evaluator
 
