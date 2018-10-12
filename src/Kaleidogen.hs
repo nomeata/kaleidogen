@@ -112,7 +112,7 @@ toolbarButton :: (DomBuilder t m, PostBuild t m) =>
 toolbarButton txt dActive = do
     let dAttrs = (\case True -> mempty; False -> "class" =: "disabled") <$> dActive
     (e,_) <- elDynAttr' "a" dAttrs (text txt)
-    return $ domEvent Click e
+    return $ gate (current dActive) $ domEvent Click e
 
 main :: IO ()
 main = do
@@ -128,7 +128,7 @@ main = do
         (eAdded2, _) <- clickable $ divClass' "new-pat" $
             patternCanvansMay eSaveAs dNewGenome
 
-        let eAdded = eAdded1 <> eAdded2
+        let eAdded = eAdded1 <> gate (current dCanAdd) eAdded2
         let eSaveAs = "kaleidogen.png" <$ eSave
 
         let dCanAdd = (\new xs -> maybe False (`notElem` xs) new) <$> dNewGenome <*> dGenomes
