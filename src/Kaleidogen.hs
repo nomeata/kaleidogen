@@ -31,23 +31,23 @@ stateMachine :: (MonadFix m, MonadHold t m, Reflex t) =>
     a -> [Event t (a -> a)] -> m (Dynamic t a)
 stateMachine x es = foldDyn ($) x $ mergeWith (.) es
 
-
 selectNList ::
     forall t a b m.
     (Adjustable t m, DomBuilder t m, MonadFix m, PostBuild t m, MonadHold t m, Ord a) =>
     Int ->
+    [a] ->
     Event t () ->
     Dynamic t [a] ->
     (Dynamic t a -> m b) ->
     m (Event t [a], Dynamic t [b])
-selectNList n eClear dxs act = mdo
+selectNList n s0 eClear dxs act = mdo
     -- TODO: This currently only works if the input is is only appended to, but
     -- not if elements is deleted. If we need that, we should update the selected set
     let eSelection :: Event t (S.SBNL a) = attachWith (S.flipMember n) (current dSelected) eClicks
     -- This separation is necessary so that eClear may depend on the eSelectedN
     -- that we return; otherwise we get a loop
     let eClearedSelection :: Event t (S.SBNL a) = leftmost [S.empty <$ eClear, eSelection]
-    dSelected :: Dynamic t (S.SBNL a) <- holdDyn S.empty eClearedSelection
+    dSelected :: Dynamic t (S.SBNL a) <- holdDyn s0 eClearedSelection
 
     let dxs' = (\s -> map (\x -> (x `S.member` s, x))) <$> dSelected <*> dxs
     dstuff <- simpleList dxs' $ \dx' -> do
@@ -141,8 +141,10 @@ main = do
         let dCanDel = (\new xs -> maybe False (`elem`    xs) new) <$> dNewGenome <*> dGenomes
         let dCanSave = isJust <$> dNewGenome
 
+        let s0 = take 1 initialDNAs
+
         (ePairSelected, _dErrors) <- divClass "patterns" $ do
-            selectNList 2 (eAdded <> eDelete) dGenomes $ patternCanvans
+            selectNList 2 s0 (eAdded <> eDelete) dGenomes $ patternCanvans
 
         {-
         inp <- textArea $ def
@@ -153,7 +155,7 @@ main = do
 
         el "pre" $ dynText (T.unlines <$> genomes)
         -}
-        dPairSelected <- holdDyn (take 1 initialDNAs) $ mconcat
+        dPairSelected <- holdDyn s0 $ mconcat
             [ ePairSelected
             , [] <$ eAdded
             , [] <$ eDelete
