@@ -85,4 +85,4 @@ baseColor n = hsv tau 0.7 1
 indexMod :: Word8 -> [a] -> a
 indexMod n xs = xs !! n'
   where
-    n' = fromIntegral (n-1) `mod` length xs
+    n' = fromIntegral n `mod` length xs
