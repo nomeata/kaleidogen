@@ -96,7 +96,7 @@ go (Swirl x r1) n = (,n1) $ unlines
 
 go (Dilated r r1) n = (,n1) $ unlines
     [ printf "float tmp%d = atan(pos%d.x, pos%d.y);" n n n
-    , printf "vec2 pos%d = length(pos%d) * vec2(cos(tmp%d + 0.3 * sin(tmp%d * %d.0)),sin(tmp%d + 0.3 * sin(tmp%d * %d.0)));" (n+1) n n n r n n r
+    , printf "vec2 pos%d = length(pos%d) * vec2(cos(tmp%d + 1.0/%d.0 * sin(tmp%d * %d.0)),sin(tmp%d + 1.0/%d.0 * sin(tmp%d * %d.0)));" (n+1) n n r n r n r n r
     , src1
     ]
   where
