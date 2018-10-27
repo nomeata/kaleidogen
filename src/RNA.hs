@@ -12,4 +12,5 @@ data RNA
     | Rays Int RNA RNA
     | Gradient RNA RNA
     | Ontop Double RNA RNA
+    | Dilated Int RNA
     deriving Show

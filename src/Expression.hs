@@ -28,12 +28,12 @@ dna2rna (col1:col2:ops) = fst $ go ops colors
             , Rays    (2  …… 8)
             , Gradient
             , Ontop   (0.5 … 0.9)
-            -- , Blend a01
             ]
         unaryOps = unary <$>
             [ Rotate  (0  … 2*pi)
             , Invert
             , Swirl   (-1 … 1)
+            , Dilated (2 …… 8)
             ]
 
         op = x `div` 16

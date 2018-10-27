@@ -94,6 +94,14 @@ go (Swirl x r1) n = (,n1) $ unlines
   where
     (src1, n1) = go r1 (n+1)
 
+go (Dilated r r1) n = (,n1) $ unlines
+    [ printf "float tmp%d = atan(pos%d.x, pos%d.y);" n n n
+    , printf "vec2 pos%d = length(pos%d) * vec2(cos(tmp%d + 0.3 * sin(tmp%d * %d.0)),sin(tmp%d + 0.3 * sin(tmp%d * %d.0)));" (n+1) n n n r n n r
+    , src1
+    ]
+  where
+    (src1, n1) = go r1 (n+1)
+
 go (Rays r r1 r2) n = (,n2+1) $ unlines
     [ src1
     , printf "vec2 pos%d = pos%d;" (n1+1) n
