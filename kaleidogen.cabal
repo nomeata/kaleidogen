@@ -28,7 +28,7 @@ common logic
     other-modules: RNA
     other-modules: GLSL
     other-modules: Expression
-    other-modules: SBNL
+    other-modules: SelectTwo
     build-depends: base >=4.2 && <5
     build-depends: MonadRandom ==0.5.*
     build-depends: hashable ==1.2.*

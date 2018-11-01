@@ -24,7 +24,7 @@ import Control.Monad.Fix
 import Expression
 import GLSL
 import DNA
-import qualified SBNL as S
+import qualified SelectTwo as S2
 
 stateMachine :: (MonadFix m, MonadHold t m, Reflex t) =>
     a -> [Event t (a -> a)] -> m (Dynamic t a)
@@ -56,23 +56,27 @@ patternCanvasList dGenomes = mdo
     return (dClick, dErr, dSize)
 
 patternCanvasSelectableList :: forall t m. MonadWidget t m =>
-    Event t () -> Dynamic t [DNA] -> m (Event t [DNA], Dynamic t T.Text)
+    Event t () -> Dynamic t [DNA] -> m (Dynamic t (S2.SelectTwo DNA), Dynamic t T.Text)
 patternCanvasSelectableList eClear dGenomes = mdo
     (dClick, dErr, dSize) <- patternCanvasList dGenomesWithSelection
 
     let eSelectOne = fmapMaybe id $ locateClick <$> current dSize <@> dClick
 
-    let eSelection = attachWith (S.flipMember 2) (current dSelected) eSelectOne
+    let eSelection :: Event t (S2.SelectTwo Int) =
+            attachWith S2.flip (current dSelected) eSelectOne
     -- This separation is necessary so that eClear may depend on the eSelectedN
     -- that we return; otherwise we get a loop
-    let eClearedSelection :: Event t (S.SBNL Int) = leftmost [S.empty <$ eClear, eSelection]
-    dSelected :: Dynamic t (S.SBNL Int) <- holdDyn [0] eClearedSelection
+    let eClearedSelection :: Event t (S2.SelectTwo Int)
+            = leftmost [S2.empty <$ eClear, eSelection]
+    dSelected :: Dynamic t (S2.SelectTwo Int)
+            <- holdDyn (S2.singleton 0) eClearedSelection
 
     let dGenomesWithSelection =
-            (\xs s -> zip xs (map (`S.member` s) [0..])) <$> dGenomes <*> dSelected
-    let eSelectedGenomes =
-            (\xs s -> [ x | (x,n) <- zip xs [0..], n `S.member` s]) <$> current dGenomes <@> eSelection
-    return (eSelectedGenomes, dErr)
+            (\xs s -> zip xs (map (`S2.member` s) [0..])) <$> dGenomes <*> dSelected
+
+    dSelection' <- holdDyn (S2.singleton 0) $ leftmost [ eSelection, S2.empty <$ eClear]
+    let dSelectedGenomes = (\xs s -> fmap (xs!!) s) <$> dGenomes <*> dSelection'
+    return (dSelectedGenomes, dErr)
 
 layoutLarge :: (Double, Double) -> a -> [(a, Double, (Double, Double), Double)]
 layoutLarge (w, h) x = [(x, 0, (w/2, h/2), min (w/2) (h/2))]
@@ -118,11 +122,10 @@ divClass' cls = elAttr' "div" ("class" =: cls)
 
 type Seed = Int
 
-preview :: Seed -> [DNA] -> Maybe DNA
-preview _    []    = Nothing
-preview _    [x]   = Just x
-preview seed [x,y] = Just $ crossover seed x y
-preview _ _ = Nothing -- Should not be possible
+preview :: Seed -> S2.SelectTwo DNA -> Maybe DNA
+preview _    S2.NoneSelected = Nothing
+preview _    (S2.OneSelected x)   = Just x
+preview seed (S2.TwoSelected x y) = Just $ crossover seed x y
 
 toolbarButton :: (DomBuilder t m, PostBuild t m) =>
     T.Text -> Dynamic t Bool -> m (Event t ())
@@ -153,9 +156,7 @@ main = do
         let dCanDel = (\new xs -> maybe False (`elem`    xs) new) <$> dNewGenome <*> dGenomes
         let dCanSave = isJust <$> dNewGenome
 
-        let s0 = take 1 initialDNAs
-
-        (ePairSelected, _dErrors) <- divClass "patterns" $
+        (dPairSelected, _dErrors) <- divClass "patterns" $
             patternCanvasSelectableList (eAdded <> eDelete) dGenomes
 
         {-
@@ -167,11 +168,6 @@ main = do
 
         el "pre" $ dynText (T.unlines <$> genomes)
         -}
-        dPairSelected <- holdDyn s0 $ mconcat
-            [ ePairSelected
-            , [] <$ eAdded
-            , [] <$ eDelete
-            ]
 
         let dNewGenome = preview seed <$> dPairSelected
 
