@@ -27,12 +27,11 @@ import GHCJS.DOM.Window
 import GHCJS.DOM.Element
 import GHCJS.DOM.RequestAnimationFrameCallback
 import GHCJS.DOM.EventM (mouseOffsetXY)
-import GHCJS.DOM.DOMRect (getX, getY)
 -- import GHCJS.DOM.EventM (on, preventDefault)
 import qualified GHCJS.DOM.EventTargetClosures as DOM (EventName, unsafeEventName)
 
 import Language.Javascript.JSaddle.Object hiding (array)
-import Control.Lens ((^.))
+-- import Control.Lens ((^.))
 
 
 vertexShaderSource :: Text
@@ -193,13 +192,6 @@ shaderCanvas' toDraw = do
 
   eClick <- wrapDomEvent domEl (onEventName Mousedown) $
     bimap fromIntegral fromIntegral <$> mouseOffsetXY
-    {-
-    rect <- liftJSM $ getBoundingClientRect domEl
-    x0 <- getX rect
-    y0 <- getY rect
-    (x,y) <- mouseClientXY
-    return (fromIntegral x - x0, fromIntegral y - y0)
-    -}
 
   let eDraw = leftmost
         [ tag (current toDraw) eResized
