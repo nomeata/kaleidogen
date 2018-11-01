@@ -20,7 +20,6 @@ import Data.Monoid
 import Data.List
 import Data.Maybe
 import Control.Monad.Fix
-import Control.Monad.Random.Class
 
 import Expression
 import GLSL

@@ -1,6 +1,12 @@
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-module DNA where
+module DNA
+    ( DNA
+    , dna2hex
+    , crossover
+    , Control.Monad.Random.Strict.getRandom
+    , blankDNA
+    , initialDNAs
+    ) where
 
 import Control.Monad.Random.Strict
 import Data.Hashable
