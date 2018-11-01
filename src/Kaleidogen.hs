@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE RecursiveDo #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -31,44 +30,6 @@ stateMachine :: (MonadFix m, MonadHold t m, Reflex t) =>
     a -> [Event t (a -> a)] -> m (Dynamic t a)
 stateMachine x es = foldDyn ($) x $ mergeWith (.) es
 
-selectNList ::
-    forall t a b m.
-    (Adjustable t m, DomBuilder t m, MonadFix m, PostBuild t m, MonadHold t m, Ord a) =>
-    Int ->
-    [a] ->
-    Event t () ->
-    Dynamic t [a] ->
-    (Dynamic t a -> m b) ->
-    m (Event t [a], Dynamic t [b])
-selectNList n s0 eClear dxs act = mdo
-    -- TODO: This currently only works if the input is is only appended to, but
-    -- not if elements is deleted. If we need that, we should update the selected set
-    let eSelection :: Event t (S.SBNL a) = attachWith (S.flipMember n) (current dSelected) eClicks
-    -- This separation is necessary so that eClear may depend on the eSelectedN
-    -- that we return; otherwise we get a loop
-    let eClearedSelection :: Event t (S.SBNL a) = leftmost [S.empty <$ eClear, eSelection]
-    dSelected :: Dynamic t (S.SBNL a) <- holdDyn s0 eClearedSelection
-
-    let dxs' = (\s -> map (\x -> (x `S.member` s, x))) <$> dSelected <*> dxs
-    dstuff <- simpleList dxs' $ \dx' -> do
-        enabled <- holdUniqDyn (fst <$> dx')
-        dx      <- holdUniqDyn (snd <$> dx')
-        let attrs = (\case { True -> "class" =: "selected" ; False -> mempty}) <$> enabled
-        (eClick,dy) <- clickable $ elDynAttr' "div" attrs $ act dx
-        let eTaggedClick = tag (current dx) eClick
-        return (eTaggedClick, dy)
-    let eClicks = switch (current (leftmost . fmap fst <$> dstuff))
-    let dys = fmap snd <$> dstuff
-    return (eSelection, dys)
-
--- | A div class with an event to make it scroll all the way to the right.
--- | Does not work yet, postposed right now
-scrollRightDivClass :: (MonadHold t m, PostBuild t m, DomBuilder t m) => Event t () -> T.Text -> m a -> m a
-scrollRightDivClass e cls act = do
-    attrs <- holdDyn mempty ("scrollLeft" =: "10000" <$ e)
-    let attrs' = ("class" =: cls <>) <$> attrs
-    elDynAttr "div" attrs' act
-
 patternCanvans :: MonadWidget t m =>
     Dynamic t DNA -> m (Dynamic t T.Text)
 patternCanvans dGenome = patternCanvansMay mempty (Just <$> dGenome)
@@ -87,23 +48,31 @@ patternCanvansMay eSave dGenome = do
 
 patternCanvasList :: MonadWidget t m =>
     Dynamic t [(DNA, Bool)] ->
-    m (Event t (Int, Int), Dynamic t T.Text, Dynamic t (Double, Double))
+    m (Event t (Double, Double), Dynamic t T.Text, Dynamic t (Double, Double))
 patternCanvasList dGenomes = mdo
     let dShaders = map (first (T.pack . toFragmentShader . dna2rna)) <$> dGenomes
     let dDrawable = layoutGrid <$> dSize <*> dShaders
     (dClick, dErr, dSize) <- shaderCanvas dDrawable
     return (dClick, dErr, dSize)
 
-patternCanvasSelectableList :: MonadWidget t m =>
-    Dynamic t [DNA] -> m (Dynamic t T.Text)
-patternCanvasSelectableList dGenomes = mdo
-    (dClick, dErr, dSize) <- patternCanvasList dSelectedGenomes
-    let eSelectOne = locateClick <$> current dSize <@> dClick
-    dSelected <- foldDyn id S.empty $ mconcat
-        [ flip (S.flipMember 2) <$> eSelectOne ]
-    let dSelectedGenomes =
+patternCanvasSelectableList :: forall t m. MonadWidget t m =>
+    Event t () -> Dynamic t [DNA] -> m (Event t [DNA], Dynamic t T.Text)
+patternCanvasSelectableList eClear dGenomes = mdo
+    (dClick, dErr, dSize) <- patternCanvasList dGenomesWithSelection
+
+    let eSelectOne = fmapMaybe id $ locateClick <$> current dSize <@> dClick
+
+    let eSelection = attachWith (S.flipMember 2) (current dSelected) eSelectOne
+    -- This separation is necessary so that eClear may depend on the eSelectedN
+    -- that we return; otherwise we get a loop
+    let eClearedSelection :: Event t (S.SBNL Int) = leftmost [S.empty <$ eClear, eSelection]
+    dSelected :: Dynamic t (S.SBNL Int) <- holdDyn [0] eClearedSelection
+
+    let dGenomesWithSelection =
             (\xs s -> zip xs (map (`S.member` s) [0..])) <$> dGenomes <*> dSelected
-    return dErr
+    let eSelectedGenomes =
+            (\xs s -> [ x | (x,n) <- zip xs [0..], n `S.member` s]) <$> current dGenomes <@> eSelection
+    return (eSelectedGenomes, dErr)
 
 layoutLarge :: (Double, Double) -> a -> [(a, Double, (Double, Double), Double)]
 layoutLarge (w, h) x = [(x, 0, (w/2, h/2), min (w/2) (h/2))]
@@ -119,8 +88,17 @@ layoutGrid (w,h) xs =
     per_row = floor (w/(h/4)) :: Integer
     s = w/fromIntegral per_row
 
-locateClick :: (Double, Double) -> (Int, Int) -> Int
-locateClick _ _ = 0
+locateClick :: (Double, Double) -> (Double, Double) -> Maybe Int
+locateClick (w,h) (x,y) =
+    let i = floor (x / s) in
+    let j = floor (y / s) in
+    let n = i + j * per_row in
+    if (x - (0.5 * s + s * fromIntegral i))**2 +
+       (y - (0.5 * s + s * fromIntegral j))**2 <= (s/2)**2
+    then Just n else Nothing
+  where
+    per_row = floor (w/(h/4)) :: Int
+    s = w/fromIntegral per_row
 
 toFilename :: Maybe DNA -> T.Text
 toFilename (Just dna) = "kaleidogen-" <> dna2hex dna <> ".png"
@@ -171,20 +149,14 @@ main = do
         let dFilename = toFilename <$> dNewGenome
         let eSaveAs = tag (current dFilename) eSave
 
-        let dGenomes = map fst <$> dSelectedGenomes
         let dCanAdd = (\new xs -> maybe False (`notElem` xs) new) <$> dNewGenome <*> dGenomes
         let dCanDel = (\new xs -> maybe False (`elem`    xs) new) <$> dNewGenome <*> dGenomes
         let dCanSave = isJust <$> dNewGenome
 
         let s0 = take 1 initialDNAs
 
-        {-
-        (ePairSelected, _dErrors) <- divClass "patterns" $ do
-            selectNList 2 s0 (eAdded <> eDelete) dGenomes $ patternCanvans
-        -}
-        let ePairSelected = never
-        _dErrors <- divClass "patterns" $
-            patternCanvasList dSelectedGenomes
+        (ePairSelected, _dErrors) <- divClass "patterns" $
+            patternCanvasSelectableList (eAdded <> eDelete) dGenomes
 
         {-
         inp <- textArea $ def
@@ -203,14 +175,10 @@ main = do
 
         let dNewGenome = preview seed <$> dPairSelected
 
-        let selectFirst [] = []
-            selectFirst (x:xs) = (x, True) : map (,False) xs
-
-        dSelectedGenomes <- foldDyn id (selectFirst initialDNAs) $ mconcat
-            [ (\new xs -> map (,False) $ nub $ map fst xs ++ [new]) <$>
+        dGenomes <- stateMachine initialDNAs
+            [ (\new xs -> nub $ xs ++ [new]) <$>
                     fmapMaybe id (tag (current dNewGenome) eAdded)
-            , (\new xs -> map (,False) $ delete new (map fst xs)) <$>
-                    fmapMaybe id (tag (current dNewGenome) eDelete)
+            , delete <$> fmapMaybe id (tag (current dNewGenome) eDelete)
             ]
 
 
@@ -262,7 +230,7 @@ css = T.unlines
     , ".new-pat canvas {"
     , "  height:45vh;"
     , "  width:45vh;"
-    , "  margin:2vh;"
+    , "  margin:0;"
     , "}"
     , ".patterns canvas {"
     , "  margin:0;"

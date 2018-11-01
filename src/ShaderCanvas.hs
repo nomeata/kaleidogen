@@ -17,6 +17,7 @@ import Data.Text as Text (Text, unlines)
 import Control.Monad.IO.Class
 import Control.Monad.Fix
 import Data.Foldable
+import Data.Bifunctor
 
 import GHCJS.DOM
 import GHCJS.DOM.Types hiding (Text, Event)
@@ -25,11 +26,13 @@ import GHCJS.DOM.WebGLRenderingContextBase
 import GHCJS.DOM.Window
 import GHCJS.DOM.Element
 import GHCJS.DOM.RequestAnimationFrameCallback
+import GHCJS.DOM.EventM (mouseOffsetXY)
+import GHCJS.DOM.DOMRect (getX, getY)
 -- import GHCJS.DOM.EventM (on, preventDefault)
 import qualified GHCJS.DOM.EventTargetClosures as DOM (EventName, unsafeEventName)
 
 import Language.Javascript.JSaddle.Object hiding (array)
--- import Control.Lens ((^.))
+import Control.Lens ((^.))
 
 
 vertexShaderSource :: Text
@@ -63,8 +66,8 @@ trivialFragmentShader = Text.unlines
 
 type Drawable = (Text, Double, (Double, Double), Double)
 
-paintGL :: MonadDOM m => (Text -> m ()) -> [Drawable] -> HTMLCanvasElement -> m ()
-paintGL printErr toDraw canvas =
+paintGL :: MonadDOM m => (Text -> m ()) -> HTMLCanvasElement -> (Double, Double) -> [Drawable] -> m ()
+paintGL printErr canvas (w,h) toDraw =
   -- adaption of
   -- https://blog.mayflower.de/4584-Playing-around-with-pixel-shaders-in-WebGL.html
 
@@ -75,9 +78,9 @@ paintGL printErr toDraw canvas =
     Just gl' -> do
       gl <- unsafeCastTo WebGLRenderingContext gl'
 
-      w <- getDrawingBufferWidth gl
-      h <- getDrawingBufferHeight gl
-      viewport gl 0 0 w h
+      bw <- getDrawingBufferWidth gl
+      bh <- getDrawingBufferHeight gl
+      viewport gl 0 0 bw bh
 
       clearColor gl 1 1 1 1
       clear gl COLOR_BUFFER_BIT
@@ -124,7 +127,7 @@ paintGL printErr toDraw canvas =
           -- liftJSM $ jsg ("console"::Text) ^. js1 ("log"::Text) program
 
           windowSizeLocation <- getUniformLocation gl (Just program) ("u_windowSize" :: Text)
-          uniform2f gl (Just windowSizeLocation) (fromIntegral w) (fromIntegral h)
+          uniform2f gl (Just windowSizeLocation) w h
 
           posLocation <- getUniformLocation gl (Just program) ("u_pos" :: Text)
           uniform2f gl (Just posLocation) x y
@@ -148,9 +151,7 @@ querySize :: (IsElement self, MonadJSM m) => self -> m (Double, Double)
 querySize domEl = liftJSM $ do
       w <- getClientWidth domEl
       h <- getClientHeight domEl
-      Just win <- currentWindow
-      r <- getDevicePixelRatio win
-      return (r * w, r * h)
+      return (w,h)
 
 autoResizeCanvas ::
     (MonadFix m, MonadHold t m,
@@ -160,36 +161,45 @@ autoResizeCanvas ::
 autoResizeCanvas domEl =  do
   -- Automatically update the size when it changes
   animationFrameE <- getAnimationFrameE
+  ratio <- liftJSM $ currentWindow >>= getDevicePixelRatio . fromJust
   initialSize <- querySize domEl
   eCanvasSize <- performEvent (querySize domEl <$ animationFrameE)
   dCanvasSize <- holdUniqDyn =<< holdDyn initialSize eCanvasSize
   eResized <- performEvent $ (<$> updated dCanvasSize) $ \(w,h) -> do
-    setWidth domEl (ceiling w)
-    setHeight domEl (ceiling h)
-    -- liftJSM $ jsg ("console"::Text) ^. jsf ("log"::Text) ("resize" :: Text, w, h)
+    setWidth domEl (ceiling (ratio * w))
+    setHeight domEl (ceiling (ratio * h))
     return ()
   return (dCanvasSize, eResized)
 
 shaderCanvas ::
     (MonadWidget t m) =>
     Dynamic t [Drawable] ->
-    m (Event t (Int,Int), Dynamic t Text, Dynamic t (Double, Double))
+    m (Event t (Double,Double), Dynamic t Text, Dynamic t (Double, Double))
 shaderCanvas toDraw
     = snd <$> shaderCanvas' toDraw
 
 shaderCanvas' ::
     (MonadWidget t m) =>
     Dynamic t [Drawable] ->
-    m (El t, (Event t (Int, Int), Dynamic t Text, Dynamic t (Double, Double)))
+    m (El t, (Event t (Double, Double), Dynamic t Text, Dynamic t (Double, Double)))
 shaderCanvas' toDraw = do
   (canvasEl, _) <- el' "canvas" blank
   (eError, reportError) <- newTriggerEvent
   pb <- getPostBuild
 
-  let eClick = domEvent Mousedown canvasEl
 
   domEl <- unsafeCastTo HTMLCanvasElement $ _element_raw canvasEl
   (dCanvasSize, eResized) <- autoResizeCanvas domEl
+
+  eClick <- wrapDomEvent domEl (onEventName Mousedown) $
+    bimap fromIntegral fromIntegral <$> mouseOffsetXY
+    {-
+    rect <- liftJSM $ getBoundingClientRect domEl
+    x0 <- getX rect
+    y0 <- getY rect
+    (x,y) <- mouseClientXY
+    return (fromIntegral x - x0, fromIntegral y - y0)
+    -}
 
   let eDraw = leftmost
         [ tag (current toDraw) eResized
@@ -197,8 +207,8 @@ shaderCanvas' toDraw = do
         , tag (current toDraw) pb
         ]
 
-  _ <- performEvent $ (<$> eDraw) $ \src ->
-    paintGL (liftIO . reportError) src domEl
+  _ <- performEvent $
+    paintGL (liftIO . reportError) domEl <$> current dCanvasSize <@> eDraw 
 
   dErr <- holdDyn "" eError
   return (canvasEl, (eClick, dErr, dCanvasSize))
