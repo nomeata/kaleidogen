@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -80,12 +81,46 @@ patternCanvansMay eSave dGenome = do
     elDynAttr "div" ((\dna -> "title" =: showTitle dna) <$> dGenome) $ mdo
         let dShader = T.pack . maybe blankShader (toFragmentShader . dna2rna) <$> dGenome
         let dDrawable = layoutLarge <$> dSize <*> dShader
-        (e,(dErr, dSize)) <- shaderCanvas' dDrawable
+        (e,(_dClick, dErr, dSize)) <- shaderCanvas' dDrawable
         _ <- performEvent $ (<$> eSave) $ \name -> CanvasSave.save name e
         return dErr
 
-layoutLarge :: (Double, Double) -> a -> [(a, (Double, Double), Double)]
-layoutLarge (w, h) x = [(x, (w/2, h/2), min (w/2) (h/2))]
+patternCanvasList :: MonadWidget t m =>
+    Dynamic t [(DNA, Bool)] ->
+    m (Event t (Int, Int), Dynamic t T.Text, Dynamic t (Double, Double))
+patternCanvasList dGenomes = mdo
+    let dShaders = map (first (T.pack . toFragmentShader . dna2rna)) <$> dGenomes
+    let dDrawable = layoutGrid <$> dSize <*> dShaders
+    (dClick, dErr, dSize) <- shaderCanvas dDrawable
+    return (dClick, dErr, dSize)
+
+patternCanvasSelectableList :: MonadWidget t m =>
+    Dynamic t [DNA] -> m (Dynamic t T.Text)
+patternCanvasSelectableList dGenomes = mdo
+    (dClick, dErr, dSize) <- patternCanvasList dSelectedGenomes
+    let eSelectOne = locateClick <$> current dSize <@> dClick
+    dSelected <- foldDyn id S.empty $ mconcat
+        [ flip (S.flipMember 2) <$> eSelectOne ]
+    let dSelectedGenomes =
+            (\xs s -> zip xs (map (`S.member` s) [0..])) <$> dGenomes <*> dSelected
+    return dErr
+
+layoutLarge :: (Double, Double) -> a -> [(a, Double, (Double, Double), Double)]
+layoutLarge (w, h) x = [(x, 0, (w/2, h/2), min (w/2) (h/2))]
+
+layoutGrid :: (Double, Double) -> [(a, Bool)] -> [(a, Double, (Double, Double), Double)]
+layoutGrid (w,h) xs =
+    [ (a, if selected then 1 else 0, (x,y), 0.9 * (s/2))
+    | (i,(a, selected)) <- zip [0..] xs
+    , let x = 0.5 * s + s * fromIntegral (i `mod` per_row)
+    , let y = 0.5 * s + s * fromIntegral (i `div` per_row)
+    ]
+  where
+    per_row = floor (w/(h/4)) :: Integer
+    s = w/fromIntegral per_row
+
+locateClick :: (Double, Double) -> (Int, Int) -> Int
+locateClick _ _ = 0
 
 toFilename :: Maybe DNA -> T.Text
 toFilename (Just dna) = "kaleidogen-" <> dna2hex dna <> ".png"
@@ -100,7 +135,7 @@ divClass' :: DomBuilder t m =>
     T.Text ->
     m a ->
     m (Element EventResult (DomBuilderSpace m) t, a)
-divClass' cls act = elAttr' "div" ("class" =: cls) act
+divClass' cls = elAttr' "div" ("class" =: cls)
 
 
 type Seed = Int
@@ -136,14 +171,20 @@ main = do
         let dFilename = toFilename <$> dNewGenome
         let eSaveAs = tag (current dFilename) eSave
 
+        let dGenomes = map fst <$> dSelectedGenomes
         let dCanAdd = (\new xs -> maybe False (`notElem` xs) new) <$> dNewGenome <*> dGenomes
         let dCanDel = (\new xs -> maybe False (`elem`    xs) new) <$> dNewGenome <*> dGenomes
         let dCanSave = isJust <$> dNewGenome
 
         let s0 = take 1 initialDNAs
 
+        {-
         (ePairSelected, _dErrors) <- divClass "patterns" $ do
             selectNList 2 s0 (eAdded <> eDelete) dGenomes $ patternCanvans
+        -}
+        let ePairSelected = never
+        _dErrors <- divClass "patterns" $
+            patternCanvasList dSelectedGenomes
 
         {-
         inp <- textArea $ def
@@ -162,10 +203,13 @@ main = do
 
         let dNewGenome = preview seed <$> dPairSelected
 
-        dGenomes <- foldDyn id initialDNAs $ mconcat
-            [ (\new xs -> nub $ xs ++ [new]) <$>
+        let selectFirst [] = []
+            selectFirst (x:xs) = (x, True) : map (,False) xs
+
+        dSelectedGenomes <- foldDyn id (selectFirst initialDNAs) $ mconcat
+            [ (\new xs -> map (,False) $ nub $ map fst xs ++ [new]) <$>
                     fmapMaybe id (tag (current dNewGenome) eAdded)
-            , (\new xs -> delete new xs) <$>
+            , (\new xs -> map (,False) $ delete new (map fst xs)) <$>
                     fmapMaybe id (tag (current dNewGenome) eDelete)
             ]
 
@@ -215,31 +259,15 @@ css = T.unlines
     , "  background-color:lightgrey;"
     , "  color:white;"
     , "}"
-    , ".patterns {"
-    , "  margin:0;"
-    , "  height:40vh;"
-    , "  width:100%;"
-    , "  display: flex;"
-    , "  flex-wrap: wrap;"
-    , "  justify-content: space-evenly;" -- does not work yet
-    , "  align-content: flex-start;"
-    , "  overflow-y: auto;"
-    , "}"
-    , ".patterns canvas {"
-    , "  height:10vh;"
-    , "  width:10vh;"
-    , "  margin:2vh;"
-    , "}"
     , ".new-pat canvas {"
     , "  height:45vh;"
     , "  width:45vh;"
     , "  margin:2vh;"
     , "}"
     , ".patterns canvas {"
-    , "  border: 3px solid white;"
-    , "}"
-    , ".patterns .selected  canvas {"
-    , "  border: 3px solid blue;"
+    , "  margin:0;"
+    , "  height:40vh;"
+    , "  width:100%;"
     , "}"
     ]
 

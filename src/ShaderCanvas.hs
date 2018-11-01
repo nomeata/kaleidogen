@@ -29,7 +29,7 @@ import GHCJS.DOM.RequestAnimationFrameCallback
 import qualified GHCJS.DOM.EventTargetClosures as DOM (EventName, unsafeEventName)
 
 import Language.Javascript.JSaddle.Object hiding (array)
-import Control.Lens ((^.))
+-- import Control.Lens ((^.))
 
 
 vertexShaderSource :: Text
@@ -61,7 +61,7 @@ trivialFragmentShader = Text.unlines
   , "}"
   ]
 
-type Drawable = (Text, (Double, Double), Double)
+type Drawable = (Text, Double, (Double, Double), Double)
 
 paintGL :: MonadDOM m => (Text -> m ()) -> [Drawable] -> HTMLCanvasElement -> m ()
 paintGL printErr toDraw canvas =
@@ -98,7 +98,7 @@ paintGL printErr toDraw canvas =
       let array' = uncheckedCastTo ArrayBuffer array
       bufferData gl ARRAY_BUFFER (Just array') STATIC_DRAW
 
-      for_ toDraw $ \(fragmentShaderSource, (x,y), size) -> do
+      for_ toDraw $ \(fragmentShaderSource, extraData, (x,y), size) -> do
           vertexShader <- createShader gl VERTEX_SHADER
           shaderSource gl (Just vertexShader) vertexShaderSource
           compileShader gl (Just vertexShader)
@@ -132,6 +132,9 @@ paintGL printErr toDraw canvas =
           sizeLocation <- getUniformLocation gl (Just program) ("u_size" :: Text)
           uniform1f gl (Just sizeLocation) size
 
+          extraDataLocation <- getUniformLocation gl (Just program) ("u_extraData" :: Text)
+          uniform1f gl (Just extraDataLocation) extraData
+
           drawArrays gl TRIANGLES 0 6
 
 webglcontextrestored :: DOM.EventName HTMLCanvasElement WebGLContextEvent
@@ -140,51 +143,65 @@ webglcontextrestored = DOM.unsafeEventName "webglcontextrestored"
 webglcontextlost :: DOM.EventName HTMLCanvasElement WebGLContextEvent
 webglcontextlost = DOM.unsafeEventName "webglcontextlost"
 
+
+querySize :: (IsElement self, MonadJSM m) => self -> m (Double, Double)
+querySize domEl = liftJSM $ do
+      w <- getClientWidth domEl
+      h <- getClientHeight domEl
+      Just win <- currentWindow
+      r <- getDevicePixelRatio win
+      return (r * w, r * h)
+
+autoResizeCanvas ::
+    (MonadFix m, MonadHold t m,
+    MonadJSM (Performable m), MonadJSM m, PerformEvent t m,
+    TriggerEvent t m) =>
+    HTMLCanvasElement -> m (Dynamic t (Double, Double), Event t ())
+autoResizeCanvas domEl =  do
+  -- Automatically update the size when it changes
+  animationFrameE <- getAnimationFrameE
+  initialSize <- querySize domEl
+  eCanvasSize <- performEvent (querySize domEl <$ animationFrameE)
+  dCanvasSize <- holdUniqDyn =<< holdDyn initialSize eCanvasSize
+  eResized <- performEvent $ (<$> updated dCanvasSize) $ \(w,h) -> do
+    setWidth domEl (ceiling w)
+    setHeight domEl (ceiling h)
+    -- liftJSM $ jsg ("console"::Text) ^. jsf ("log"::Text) ("resize" :: Text, w, h)
+    return ()
+  return (dCanvasSize, eResized)
+
 shaderCanvas ::
     (MonadWidget t m) =>
     Dynamic t [Drawable] ->
-    m (Dynamic t Text, Dynamic t (Double, Double))
+    m (Event t (Int,Int), Dynamic t Text, Dynamic t (Double, Double))
 shaderCanvas toDraw
     = snd <$> shaderCanvas' toDraw
 
 shaderCanvas' ::
     (MonadWidget t m) =>
     Dynamic t [Drawable] ->
-    m (El t, (Dynamic t Text, Dynamic t (Double, Double)))
+    m (El t, (Event t (Int, Int), Dynamic t Text, Dynamic t (Double, Double)))
 shaderCanvas' toDraw = do
   (canvasEl, _) <- el' "canvas" blank
   (eError, reportError) <- newTriggerEvent
   pb <- getPostBuild
 
-  domEl <- unsafeCastTo HTMLCanvasElement $ _element_raw canvasEl
+  let eClick = domEvent Mousedown canvasEl
 
-  -- Automatically update the size when it changes
-  animationFrameE <- getAnimationFrameE
-  eCanvasSize <-
-      let query = do
-          w <- getClientWidth domEl
-          h <- getClientHeight domEl
-          Just win <- currentWindow
-          r <- getDevicePixelRatio win
-          return (r * w, r * h) in
-      performEvent (query <$ animationFrameE)
-  dCanvasSize <- holdUniqDyn =<< holdDyn (10,10) eCanvasSize
-  eResized <- performEvent $ (<$> updated dCanvasSize) $ \(w,h) -> do
-    setWidth domEl (ceiling w)
-    setHeight domEl (ceiling h)
-    liftJSM $ jsg ("console"::Text) ^. jsf ("log"::Text) ("resize" :: Text, w, h)
+  domEl <- unsafeCastTo HTMLCanvasElement $ _element_raw canvasEl
+  (dCanvasSize, eResized) <- autoResizeCanvas domEl
 
   let eDraw = leftmost
-        [ updated toDraw
+        [ tag (current toDraw) eResized
+        , updated toDraw
         , tag (current toDraw) pb
-        , tag (current toDraw) eResized
         ]
 
   _ <- performEvent $ (<$> eDraw) $ \src ->
     paintGL (liftIO . reportError) src domEl
 
   dErr <- holdDyn "" eError
-  return (canvasEl, (dErr, dCanvasSize))
+  return (canvasEl, (eClick, dErr, dCanvasSize))
 
 
 getAnimationFrameE :: (TriggerEvent t m, MonadJSM m) => m (Event t Double)
