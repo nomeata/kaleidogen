@@ -10,7 +10,7 @@
 {-# LANGUAGE DataKinds #-}
 module Kaleidogen where
 
-import Reflex.Dom.FragmentShaderCanvas
+import ShaderCanvas
 import Reflex.Dom
 import CanvasSave
 
@@ -69,23 +69,23 @@ scrollRightDivClass e cls act = do
     elDynAttr "div" attrs' act
 
 patternCanvans :: MonadWidget t m =>
-    Dynamic t DNA -> m (Dynamic t (Maybe T.Text))
+    Dynamic t DNA -> m (Dynamic t T.Text)
 patternCanvans dGenome = patternCanvansMay mempty (Just <$> dGenome)
 
 patternCanvansMay :: MonadWidget t m =>
-    Event t T.Text -> Dynamic t (Maybe DNA) -> m (Dynamic t (Maybe T.Text))
+    Event t T.Text -> Dynamic t (Maybe DNA) -> m (Dynamic t T.Text)
 patternCanvansMay eSave dGenome = do
-    let dShader = T.pack . maybe blankShader (toFragmentShader . dna2rna) <$> dGenome
     -- let showTitle dna = T.pack $ unlines [dna2hex dna, show (dna2rna dna)]
-    let showTitle dna = maybe "" dna2hex $ dna
-    elDynAttr "div" ((\dna -> "title" =: showTitle dna) <$> dGenome) $ do
-        let attrs = mconcat
-                [ "width"  =: "1000"
-                , "height" =: "1000"
-                ]
-        (e,dErr) <- fragmentShaderCanvas' attrs dShader
+    let showTitle = maybe "" dna2hex
+    elDynAttr "div" ((\dna -> "title" =: showTitle dna) <$> dGenome) $ mdo
+        let dShader = T.pack . maybe blankShader (toFragmentShader . dna2rna) <$> dGenome
+        let dDrawable = layoutLarge <$> dSize <*> dShader
+        (e,(dErr, dSize)) <- shaderCanvas' dDrawable
         _ <- performEvent $ (<$> eSave) $ \name -> CanvasSave.save name e
         return dErr
+
+layoutLarge :: (Double, Double) -> a -> [(a, (Double, Double), Double)]
+layoutLarge (w, h) x = [(x, (w/2, h/2), min (w/2) (h/2))]
 
 toFilename :: Maybe DNA -> T.Text
 toFilename (Just dna) = "kaleidogen-" <> dna2hex dna <> ".png"
@@ -227,10 +227,12 @@ css = T.unlines
     , "}"
     , ".patterns canvas {"
     , "  height:10vh;"
+    , "  width:10vh;"
     , "  margin:2vh;"
     , "}"
     , ".new-pat canvas {"
     , "  height:45vh;"
+    , "  width:45vh;"
     , "  margin:2vh;"
     , "}"
     , ".patterns canvas {"

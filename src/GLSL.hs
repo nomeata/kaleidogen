@@ -14,11 +14,10 @@ toFragmentShader rna = conclude $ go rna 0
 conclude :: (String, Integer) -> String
 conclude (pgm, r) = unlines
   [ "precision mediump float;"
-  , "uniform vec2 u_windowSize;"
+  , "varying vec2 vDrawCoord;"
   , "void main() {"
-  , "  float s = 2.0 / min(u_windowSize.x, u_windowSize.y);"
-  , "  vec2 pos0 = s * (gl_FragCoord.xy - 0.5 * u_windowSize);"
-  , "  if (length(pos0) > 1.0) { gl_FragColor = vec4(0,0,0,0); return; }"
+  , "  vec2 pos0 = vDrawCoord;"
+  , "  if (length(pos0) > 1.0) { gl_FragColor = vec4(0,0,0,0.0); return; }"
   , indent pgm
   , "  gl_FragColor = vec4(col" ++ show r ++ ", 1.0);"
   , "}"
