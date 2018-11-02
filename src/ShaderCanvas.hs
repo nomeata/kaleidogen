@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE ApplicativeDo #-}
@@ -18,6 +19,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Fix
 import Data.Foldable
 import Data.Bifunctor
+import Data.Int
 
 import GHCJS.DOM
 import GHCJS.DOM.Types hiding (Text, Event)
@@ -63,8 +65,6 @@ trivialFragmentShader = Text.unlines
   , "}"
   ]
 
-type Drawable = (Text, Double, (Double, Double), Double)
-
 type CommonStuff = WebGLShader
 
 commonSetup :: MonadJSM m => WebGLRenderingContext -> m CommonStuff
@@ -92,8 +92,41 @@ commonSetup gl = do
 
     return vertexShader
 
-paintGL :: MonadDOM m => (Text -> m ()) -> WebGLRenderingContext -> CommonStuff -> (Double, Double) -> [Drawable] -> m ()
-paintGL printErr gl vertexShader (w,h) toDraw = do
+data CompiledProgram = CompiledProgram
+    { compiledProgram :: WebGLProgram
+    , positionLocation :: Int32
+    , windowSizeLocation  :: WebGLUniformLocation
+    , posLocation :: WebGLUniformLocation
+    , sizeLocation :: WebGLUniformLocation
+    , extraDataLocation  :: WebGLUniformLocation
+    }
+
+compileFragmentShader :: MonadJSM m => WebGLRenderingContext -> WebGLShader -> Text -> m CompiledProgram
+compileFragmentShader gl vertexShader fragmentShaderSource = do
+    fragmentShader <- createShader gl FRAGMENT_SHADER
+    shaderSource gl (Just fragmentShader) fragmentShaderSource
+    compileShader gl (Just fragmentShader)
+    -- _ <- liftJSM $ jsg (T.pack "console") ^. js1 (T.pack "log") (gl ^. js1 (T.pack "getShaderInfoLog") fragmentShader)
+
+    program <- createProgram gl
+    attachShader gl (Just program) (Just vertexShader)
+    attachShader gl (Just program) (Just fragmentShader)
+    linkProgram gl (Just program)
+    -- _ <- liftJSM $ jsg (T.pack "console") ^. js1 (T.pack "log") (gl ^. js1 (T.pack "getProgramInfoLog") program)
+
+    positionLocation <- getAttribLocation gl (Just program) ("a_position" :: Text)
+    windowSizeLocation <- getUniformLocation gl (Just program) ("u_windowSize" :: Text)
+    posLocation <- getUniformLocation gl (Just program) ("u_pos" :: Text)
+    sizeLocation <- getUniformLocation gl (Just program) ("u_size" :: Text)
+    extraDataLocation <- getUniformLocation gl (Just program) ("u_extraData" :: Text)
+
+    let compiledProgram = program
+    return CompiledProgram {..}
+
+type Drawable = (Maybe CompiledProgram, Double, (Double, Double), Double)
+
+paintGL :: MonadDOM m => WebGLRenderingContext -> (Double, Double) -> [Drawable] -> m ()
+paintGL gl (w,h) toDraw = do
     bw <- getDrawingBufferWidth gl
     bh <- getDrawingBufferHeight gl
     viewport gl 0 0 bw bh
@@ -101,39 +134,20 @@ paintGL printErr gl vertexShader (w,h) toDraw = do
     clearColor gl 1 1 1 1
     clear gl COLOR_BUFFER_BIT
 
-    for_ toDraw $ \(fragmentShaderSource, extraData, (x,y), size) -> do
-        fragmentShader <- createShader gl FRAGMENT_SHADER
-        shaderSource gl (Just fragmentShader) fragmentShaderSource
-        compileShader gl (Just fragmentShader)
-        -- _ <- liftJSM $ jsg (T.pack "console") ^. js1 (T.pack "log") (gl ^. js1 (T.pack "getShaderInfoLog") fragmentShader)
-        err <- getShaderInfoLog gl (Just fragmentShader)
-        printErr (fromMaybe "" err)
+    for_ toDraw $ \case
+        (Just CompiledProgram {..}, extraData, (x,y), size) -> do
+            enableVertexAttribArray gl (fromIntegral positionLocation)
+            vertexAttribPointer gl (fromIntegral positionLocation) 2 FLOAT False 0 0
 
-        program <- createProgram gl
-        attachShader gl (Just program) (Just vertexShader)
-        attachShader gl (Just program) (Just fragmentShader)
-        linkProgram gl (Just program)
-        useProgram gl (Just program)
-        -- _ <- liftJSM $ jsg (T.pack "console") ^. js1 (T.pack "log") (gl ^. js1 (T.pack "getProgramInfoLog") program)
+            useProgram gl (Just compiledProgram)
 
-        positionLocation <- getAttribLocation gl (Just program) ("a_position" :: Text)
-        enableVertexAttribArray gl (fromIntegral positionLocation)
-        vertexAttribPointer gl (fromIntegral positionLocation) 2 FLOAT False 0 0
-        -- liftJSM $ jsg ("console"::Text) ^. js1 ("log"::Text) program
+            uniform2f gl (Just windowSizeLocation) w h
+            uniform2f gl (Just posLocation) x y
+            uniform1f gl (Just sizeLocation) size
+            uniform1f gl (Just extraDataLocation) extraData
 
-        windowSizeLocation <- getUniformLocation gl (Just program) ("u_windowSize" :: Text)
-        uniform2f gl (Just windowSizeLocation) w h
-
-        posLocation <- getUniformLocation gl (Just program) ("u_pos" :: Text)
-        uniform2f gl (Just posLocation) x y
-
-        sizeLocation <- getUniformLocation gl (Just program) ("u_size" :: Text)
-        uniform1f gl (Just sizeLocation) size
-
-        extraDataLocation <- getUniformLocation gl (Just program) ("u_extraData" :: Text)
-        uniform1f gl (Just extraDataLocation) extraData
-
-        drawArrays gl TRIANGLES 0 6
+            drawArrays gl TRIANGLES 0 6
+        _ -> return ()
 
 webglcontextrestored :: DOM.EventName HTMLCanvasElement WebGLContextEvent
 webglcontextrestored = DOM.unsafeEventName "webglcontextrestored"
@@ -166,22 +180,20 @@ autoResizeCanvas domEl =  do
     return ()
   return (dCanvasSize, eResized)
 
-shaderCanvas ::
-    (MonadWidget t m) =>
-    Dynamic t [Drawable] ->
-    m (Event t (Double,Double), Dynamic t Text, Dynamic t (Double, Double))
+type ResultStuff t =
+    ( Event t (Double,Double)
+    , Dynamic t (Double, Double)
+    , Text -> JSM (Maybe CompiledProgram)
+    )
+
+shaderCanvas :: (MonadWidget t m) => Dynamic t [Drawable] -> m (ResultStuff t)
 shaderCanvas toDraw
     = snd <$> shaderCanvas' toDraw
 
-shaderCanvas' ::
-    (MonadWidget t m) =>
-    Dynamic t [Drawable] ->
-    m (El t, (Event t (Double, Double), Dynamic t Text, Dynamic t (Double, Double)))
+shaderCanvas' :: (MonadWidget t m) => Dynamic t [Drawable] -> m (El t, ResultStuff t)
 shaderCanvas' toDraw = do
     (canvasEl, _) <- el' "canvas" blank
-    (eError, reportError) <- newTriggerEvent
     pb <- getPostBuild
-
 
     domEl <- unsafeCastTo HTMLCanvasElement $ _element_raw canvasEl
     (dCanvasSize, eResized) <- autoResizeCanvas domEl
@@ -195,20 +207,20 @@ shaderCanvas' toDraw = do
           , tag (current toDraw) pb
           ]
 
-    getContext domEl ("experimental-webgl"::Text) ([]::[()]) >>= \case
+    compile <- getContext domEl ("experimental-webgl"::Text) ([]::[()]) >>= \case
       Nothing ->
         -- jsg "console" ^. js1 "log" (gl ^. js1 "getShaderInfoLog" vertexShader)
-        return ()
+        return (\_ -> return Nothing)
       Just gl' -> do
         gl <- unsafeCastTo WebGLRenderingContext gl'
         cs <- commonSetup gl
 
-        _ <- performEvent $
-          paintGL (liftIO . reportError) gl cs <$> current dCanvasSize <@> eDraw 
-        return ()
+        performEvent_ $
+          paintGL gl <$> current dCanvasSize <@> eDraw
 
-    dErr <- holdDyn "" eError
-    return (canvasEl, (eClick, dErr, dCanvasSize))
+        return (fmap Just . compileFragmentShader gl cs)
+
+    return (canvasEl, (eClick, dCanvasSize, compile))
 
 
 getAnimationFrameE :: (TriggerEvent t m, MonadJSM m) => m (Event t Double)

@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE ApplicativeDo #-}
@@ -10,55 +11,67 @@
 {-# LANGUAGE DataKinds #-}
 module Kaleidogen where
 
-import ShaderCanvas
-import Reflex.Dom
-import CanvasSave
-
+import Control.Monad
 import qualified Data.Text as T
 import Data.Bifunctor
 import Data.Monoid
 import Data.List
 import Data.Maybe
+import Data.Function
 import Control.Monad.Fix
 
+import Reflex.Dom
+
+import ShaderCanvas
+import CanvasSave
 import Expression
 import GLSL
 import DNA
 import qualified SelectTwo as S2
 
+import Language.Javascript.JSaddle.Types (MonadJSM, liftJSM, JSM)
+
+performD :: (MonadHold t m, PostBuild t m, PerformEvent t m) =>
+    (a -> Performable m b) -> Dynamic t a -> m (Dynamic t (Maybe b))
+performD f d = do
+    pb <- getPostBuild
+    e1 <- performEvent (f <$> updated d)
+    e2 <- performEvent (f <$> current d <@ pb)
+    holdDyn Nothing $ Just <$> leftmost [ e1, e2 ]
+
 stateMachine :: (MonadFix m, MonadHold t m, Reflex t) =>
     a -> [Event t (a -> a)] -> m (Dynamic t a)
 stateMachine x es = foldDyn ($) x $ mergeWith (.) es
 
-patternCanvans :: MonadWidget t m =>
-    Dynamic t DNA -> m (Dynamic t T.Text)
-patternCanvans dGenome = patternCanvansMay mempty (Just <$> dGenome)
+patternCanvas :: (MonadWidget t m, MonadJSM (Performable m)) =>
+    Dynamic t DNAP -> m CompileFun
+patternCanvas dGenome = patternCanvasMay mempty (Just <$> dGenome)
 
-patternCanvansMay :: MonadWidget t m =>
-    Event t T.Text -> Dynamic t (Maybe DNA) -> m (Dynamic t T.Text)
-patternCanvansMay eSave dGenome = do
+patternCanvasMay :: (MonadWidget t m, MonadJSM (Performable m)) =>
+    Event t T.Text -> Dynamic t (Maybe DNAP) -> m CompileFun
+patternCanvasMay eSave dGenome = do
     -- let showTitle dna = T.pack $ unlines [dna2hex dna, show (dna2rna dna)]
     let showTitle = maybe "" dna2hex
-    elDynAttr "div" ((\dna -> "title" =: showTitle dna) <$> dGenome) $ mdo
-        let dShader = T.pack . maybe blankShader (toFragmentShader . dna2rna) <$> dGenome
-        let dDrawable = layoutLarge <$> dSize <*> dShader
-        (e,(_dClick, dErr, dSize)) <- shaderCanvas' dDrawable
-        _ <- performEvent $ (<$> eSave) $ \name -> CanvasSave.save name e
-        return dErr
+    elDynAttr "div" ((\dna -> "title" =: showTitle (fmap getDNA dna)) <$> dGenome) $ mdo
+        let dProgram = ((\(_,x,_)-> x) =<<) <$> dGenome
+        let dDrawable = layoutLarge <$> dSize <*> dProgram
+        (e,(_dClick, dSize, compile)) <- shaderCanvas' dDrawable
+        performEvent_ $ (<$> eSave) $ \name -> CanvasSave.save name e
+        return compile
 
-patternCanvasList :: MonadWidget t m =>
-    Dynamic t [(DNA, Bool)] ->
-    m (Event t (Double, Double), Dynamic t T.Text, Dynamic t (Double, Double))
+patternCanvasList :: (MonadWidget t m, MonadJSM (Performable m)) =>
+    Dynamic t [(DNAP, Bool)] ->
+    m (Event t (Double, Double), Dynamic t (Double, Double), CompileFun)
 patternCanvasList dGenomes = mdo
-    let dShaders = map (first (T.pack . toFragmentShader . dna2rna)) <$> dGenomes
-    let dDrawable = layoutGrid <$> dSize <*> dShaders
-    (dClick, dErr, dSize) <- shaderCanvas dDrawable
-    return (dClick, dErr, dSize)
+    let dPrograms = map (\((_,_,x),b) -> (x,b)) <$> dGenomes
+    let dDrawable = layoutGrid <$> dSize <*> dPrograms
+    (dClick, dSize, compile) <- shaderCanvas dDrawable
+    return (dClick, dSize, compile)
 
-patternCanvasSelectableList :: forall t m. MonadWidget t m =>
-    Event t () -> Dynamic t [DNA] -> m (Dynamic t (S2.SelectTwo DNA), Dynamic t T.Text)
+patternCanvasSelectableList :: forall t m. (MonadWidget t m, MonadJSM (Performable m)) =>
+    Event t () -> Dynamic t [DNAP] -> m (Dynamic t (S2.SelectTwo DNAP), CompileFun)
 patternCanvasSelectableList eClear dGenomes = mdo
-    (dClick, dErr, dSize) <- patternCanvasList dGenomesWithSelection
+    (dClick, dSize, compile) <- patternCanvasList dGenomesWithSelection
 
     let eSelectOne = fmapMaybe id $ locateClick <$> current dSize <@> dClick
 
@@ -76,7 +89,7 @@ patternCanvasSelectableList eClear dGenomes = mdo
 
     dSelection' <- holdDyn (S2.singleton 0) $ leftmost [ eSelection, S2.empty <$ eClear]
     let dSelectedGenomes = (\xs s -> fmap (xs!!) s) <$> dGenomes <*> dSelection'
-    return (dSelectedGenomes, dErr)
+    return (dSelectedGenomes, compile)
 
 layoutLarge :: (Double, Double) -> a -> [(a, Double, (Double, Double), Double)]
 layoutLarge (w, h) x = [(x, 0, (w/2, h/2), min (w/2) (h/2))]
@@ -119,6 +132,10 @@ divClass' :: DomBuilder t m =>
     m (Element EventResult (DomBuilderSpace m) t, a)
 divClass' cls = elAttr' "div" ("class" =: cls)
 
+type CompileFun = T.Text -> JSM (Maybe CompiledProgram)
+type DNAP = (DNA, Maybe CompiledProgram, Maybe CompiledProgram)
+getDNA :: DNAP -> DNA
+getDNA (x,_,_) = x
 
 type Seed = Int
 
@@ -126,6 +143,20 @@ preview :: Seed -> S2.SelectTwo DNA -> Maybe DNA
 preview _    S2.NoneSelected = Nothing
 preview _    (S2.OneSelected x)   = Just x
 preview seed (S2.TwoSelected x y) = Just $ crossover seed x y
+
+toDNAP :: (CompileFun, CompileFun) -> DNA -> JSM DNAP
+toDNAP (compile1, compile2) x = do
+    let t = T.pack $ toFragmentShader $ dna2rna x
+    p1 <- compile1 t
+    p2 <- compile2 t
+    return (x,p1,p2)
+
+previewPGM :: Seed -> (CompileFun, CompileFun) -> S2.SelectTwo DNAP -> JSM (Maybe DNAP)
+previewPGM _ _ S2.NoneSelected = return Nothing
+previewPGM _ _ (S2.OneSelected x) = return $ Just x
+previewPGM seed cfs (S2.TwoSelected (x,_,_) (y,_,_)) = do
+    let z = crossover seed x y
+    Just <$> toDNAP cfs z
 
 toolbarButton :: (DomBuilder t m, PostBuild t m) =>
     T.Text -> Dynamic t Bool -> m (Event t ())
@@ -145,46 +176,33 @@ main = do
             toolbarButton "🗑" dCanDel <*>
             toolbarButton "💾" dCanSave
 
-        (eAdded2, _) <- clickable $ divClass' "new-pat" $
-            patternCanvansMay eSaveAs dNewGenome
+        (eAdded2, compile1) <- clickable $ divClass' "new-pat" $
+            patternCanvasMay eSaveAs dMainGenome
 
         let eAdded = eAdded1 <> gate (current dCanAdd) eAdded2
-        let dFilename = toFilename <$> dNewGenome
+        let dFilename = toFilename . fmap getDNA <$> dMainGenome
         let eSaveAs = tag (current dFilename) eSave
 
-        let dCanAdd = (\new xs -> maybe False (`notElem` xs) new) <$> dNewGenome <*> dGenomes
-        let dCanDel = (\new xs -> maybe False (`elem`    xs) new) <$> dNewGenome <*> dGenomes
-        let dCanSave = isJust <$> dNewGenome
+        let dCanAdd =
+                (\new xs -> maybe False (`notElem` map getDNA xs) (getDNA <$> new)) <$>
+                dMainGenome <*> dGenomes
+        let dCanDel =
+                (\new xs -> maybe False (`elem`    map getDNA xs) (getDNA <$> new)) <$>
+                dMainGenome <*> dGenomes
+        let dCanSave = isJust <$> dMainGenome
 
-        (dPairSelected, _dErrors) <- divClass "patterns" $
+        (dPairSelected , compile2) <- divClass "patterns" $
             patternCanvasSelectableList (eAdded <> eDelete) dGenomes
 
-        {-
-        inp <- textArea $ def
-           & textAreaConfig_initialValue .~ "1 2"
-           & textAreaConfig_attributes .~ (return ("style"  =: "width:80%"))
-           -- & textAreaConfig_setValue .~ updated (T.unlines <$> genomes)
-        --let genomes = T.lines <$> _textArea_value inp
+        let cfs = (compile1, compile2)
+        dMainGenome <- fmap join <$> performD (liftJSM . previewPGM seed cfs) dPairSelected
 
-        el "pre" $ dynText (T.unlines <$> genomes)
-        -}
-
-        let dNewGenome = preview seed <$> dPairSelected
-
-        dGenomes <- stateMachine initialDNAs
-            [ (\new xs -> nub $ xs ++ [new]) <$>
-                    fmapMaybe id (tag (current dNewGenome) eAdded)
-            , delete <$> fmapMaybe id (tag (current dNewGenome) eDelete)
+        initialDNAPs <- liftJSM $ mapM (toDNAP cfs) initialDNAs
+        dGenomes <- stateMachine initialDNAPs
+            [ (\new xs -> xs ++ [new]) <$>
+                    fmapMaybe id (tag (current dMainGenome) eAdded)
+            , deleteBy ((==) `on` getDNA)  <$> fmapMaybe id (tag (current dMainGenome) eDelete)
             ]
-
-
-        {- WebGL debugging
-        el "br" blank
-        elAttr "div" (mconcat
-            [ ("style"  =: "width:80%; text-align: left; white-space:pre; font-family:mono")
-            ]) $
-          dynText (dErrors >>= sequence >>= return . foldMap (foldMap id))
-        -}
         return ()
   where
     htmlHead :: DomBuilder t m => m ()
