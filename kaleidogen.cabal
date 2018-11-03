@@ -52,6 +52,7 @@ common shader-canvas
     hs-source-dirs: src
     other-modules: ShaderCanvas
     other-modules: AnimationFrame
+    other-modules: Animate
     build-depends: base >=4.2 && <5
     build-depends: reflex-dom >= 0.4
     build-depends: MonadRandom ==0.5.*

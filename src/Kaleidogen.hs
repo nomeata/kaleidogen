@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE LambdaCase #-}
@@ -28,6 +29,7 @@ import GLSL
 import DNA
 import qualified SelectTwo as S2
 import Layout
+import Animate
 
 import Language.Javascript.JSaddle.Types (MonadJSM, liftJSM, JSM)
 
@@ -46,13 +48,15 @@ stateMachine x es = foldDyn ($) x $ mergeWith (.) es
 
 patternCanvasLayout :: (MonadWidget t m, MonadJSM (Performable m)) =>
     Event t () ->
-    Layout a (Maybe CompiledProgram, Double) c ->
+    Layout a (DNAP, Double) c ->
+    Morpher m t (DNAP, Double) ->
     Dynamic t a ->
     m (Event t c, CompileFun)
-patternCanvasLayout eSizeMayChange Layout{..} dData = mdo
-    (dClick, dSize, compile) <- shaderCanvas eSizeMayChange dLaidOut
+patternCanvasLayout eSizeMayChange Layout{..} morpher dData = mdo
+    (dClick, dSize, compile) <- shaderCanvas eSizeMayChange (getProgramD dMorphed)
     let eSelectOne = fmapMaybe id $ locate <$> current dSize <*> current dData <@> dClick
     let dLaidOut = layout <$> dSize <*> dData
+    dMorphed <- morpher dLaidOut
     return (eSelectOne, compile)
 
 
@@ -94,6 +98,9 @@ toDNAP compile x = do
     p <- compile t
     return $ DNAP x p
 
+getProgramD :: Functor f => f [((DNAP, a), b, c)] -> f [((Maybe CompiledProgram, a), b, c)]
+getProgramD = fmap $ map (\((x,b), p, s) -> ((getProgram x, b), p, s))
+
 toFilename :: Maybe DNA -> T.Text
 toFilename (Just dna) = "kaleidogen-" <> dna2hex dna <> ".png"
 toFilename Nothing    = "error.png"
@@ -125,19 +132,23 @@ main = do
   seed <- getRandom
   mainWidgetWithHead htmlHead $
     elAttr "div" ("align" =: "center") $ mdo
-        eSizeMayChange <- (() <$) <$> getAnimationFrameE
+        -- We could exchange this for a resize event on the window
+        dAnimationFrame <- getAnimationFrameD
+        let eSizeMayChange = () <$ updated dAnimationFrame
 
         (eAdded1, eDelete) <- divClass "toolbar" $
             (,) <$>
             toolbarButton "➕" dCanAdd <*>
             toolbarButton "🗑" dCanDel
 
-        let layoutTop = layoutMaybe $ mapLayout (\dnap -> (getProgram dnap,0)) (layoutLarge 1)
-        let layoutBottom = layoutGrid $ mapLayout (\(dnap,b)-> (getProgram dnap,if b then 1 else 0)) (layoutLarge 0.9)
+        let layoutTop = layoutMaybe $ mapLayout (,0) (layoutLarge 1)
+        let layoutBottom = layoutGrid $ mapLayout (\(dnap,b)-> (dnap,if b then 1 else 0)) (layoutLarge 0.9)
         let layoutCombined = layoutTop `layoutAbove` layoutBottom
 
+        let morpher = interpolate fst 1000 dAnimationFrame
+
         (eAdded2_SelectOne, compile) <-
-            patternCanvasLayout eSizeMayChange layoutCombined $
+            patternCanvasLayout eSizeMayChange layoutCombined morpher $
                 (,) <$> dMainGenome <*> dGenomesWithSelection
         let (eAdded2, eSelectOne) = fanEither eAdded2_SelectOne
 
