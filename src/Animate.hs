@@ -1,4 +1,6 @@
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Animate where
 
 import Control.Monad.Fix
@@ -22,31 +24,46 @@ doWiggle t as =
     | (a, (x,y), s) <- as]
 
 interpolate ::
+    forall m t a b.
     (MonadHold t m, MonadFix m, Reflex t, Ord b) =>
     (a -> b) ->
     Double ->
     Dynamic t Double ->
     Morpher m t a
 interpolate key speed dTime dInput = do
-    dPreviousPosition <- foldDyn id M.empty (go <$> current dTime <@> updated dInput)
-    return $ interp <$> dTime <*> dPreviousPosition <*> dInput
+    let eMap = toMap <$> current dTime <@> updated dInput
+    dChanges <- foldDyn keepChanges M.empty eMap
+    return $ interp <$> dTime <*> dChanges
   where
-    toMap t cur = M.fromList [ (key k, (t,(p,s))) | (k,p,s) <- cur ]
-    go t new lastChanged = M.unionWith update lastChanged (toMap t new)
-    update (t',x') (t,x)
-        | x == x'      = (t',x')
-        | t-t' < speed = (t',x')
-        | otherwise    = (t,x)
+    toMap t cur = M.fromList [ (key k, (k, t, (p,s))) | (k,p,s) <- cur ]
 
-    interp t lastChanged = map $ \(k,(x,y),s) ->
-        case M.lookup (key k) lastChanged of
-            Just (t',((x',y'),s'))
-                | let r = (t-t') / speed
-                , r < 1
-              -> let f a b = b in -- (1-r) * a + r * b in
-                 (k,(f x' x, f y' y), 2 * f s' s)
-            _ -> (k,(x,y),s)
+    keepChanges :: M.Map b (a, Double, ((Double,Double),Double))
+                -> M.Map b (a, ((Double,Double),Double), Double,((Double,Double),Double))
+                -> M.Map b (a, ((Double,Double),Double), Double,((Double,Double),Double))
+    keepChanges new old =
+        M.fromList [ (k, go v (M.lookup k old))  | (k,v) <- M.toList new ]
+      where
+        go (a,t,p) Nothing = (a,p,t,p)
+        go (a,t,p) (Just v@(_ ,p_cur, t', p'))
+            | p == p_cur = (a, p_cur, t', p') -- no change
+            | t - t' < speed = (a, p, t', p') -- in motion
+            | otherwise  = (a, p, t, (p_new,s_new)) -- shift
+               where
+                 (_,p_new,s_new) = interPos t v
 
+    interp :: Double ->
+              M.Map b (a, ((Double,Double),Double), Double,((Double,Double),Double)) ->
+              [(a, (Double,Double), Double)]
+    interp t = map (interPos t) . M.elems
+
+    interPos t (a,((x,y),s),t',((x',y'),s'))
+        | let r = (t-t') / speed, r < 1,
+          let f = tween r
+        = (a,(f x' x, f y' y), f s' s)
+        | otherwise
+        = (a,(x,y),s)
+
+    tween r a b = (1-r) * a + r * b
 
 
 highlightChanged :: (MonadHold t m, MonadFix m, Reflex t, Eq a) => Morpher m t a

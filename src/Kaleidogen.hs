@@ -145,7 +145,7 @@ main = do
         let layoutBottom = layoutGrid $ mapLayout (\(dnap,b)-> (dnap,if b then 1 else 0)) (layoutLarge 0.9)
         let layoutCombined = layoutTop `layoutAbove` layoutBottom
 
-        let morpher = interpolate fst 1000 dAnimationFrame
+        let morpher = interpolate fst 200 dAnimationFrame
 
         (eAdded2_SelectOne, compile) <-
             patternCanvasLayout eSizeMayChange layoutCombined morpher $

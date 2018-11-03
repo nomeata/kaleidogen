@@ -64,7 +64,7 @@ layoutGrid (Layout innerLayout innerLocate) = Layout {..}
         let n = i + j * per_row
         let x' = x - s * fromIntegral i
         let y' = y - s * fromIntegral j
-        guard (n < length as)
+        guard (0 <= n && n < length as)
         inner <- innerLocate (s,s) (as !! n) (x', y')
         return (n,inner)
       where
