@@ -64,6 +64,7 @@ common shader-canvas
 executable kaleidogen
     import: logic, canvas-save, shader-canvas
     main-is: Kaleidogen.hs
+    other-modules: Layout
     build-depends: base >=4.2 && <5
     build-depends: reflex-dom >= 0.4
     build-depends: MonadRandom ==0.5.*
