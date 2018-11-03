@@ -123,7 +123,7 @@ compileFragmentShader gl vertexShader fragmentShaderSource = do
     let compiledProgram = program
     return CompiledProgram {..}
 
-type Drawable = (Maybe CompiledProgram, Double, (Double, Double), Double)
+type Drawable = ((Maybe CompiledProgram, Double), (Double, Double), Double)
 
 paintGL :: MonadDOM m => WebGLRenderingContext -> (Double, Double) -> [Drawable] -> m ()
 paintGL gl (w,h) toDraw = do
@@ -135,7 +135,7 @@ paintGL gl (w,h) toDraw = do
     clear gl COLOR_BUFFER_BIT
 
     for_ toDraw $ \case
-        (Just CompiledProgram {..}, extraData, (x,y), size) -> do
+        ((Just CompiledProgram {..}, extraData), (x,y), size) -> do
             enableVertexAttribArray gl (fromIntegral positionLocation)
             vertexAttribPointer gl (fromIntegral positionLocation) 2 FLOAT False 0 0
 

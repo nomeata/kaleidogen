@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE RecursiveDo #-}
@@ -13,23 +14,77 @@ module Kaleidogen where
 
 import Control.Monad
 import qualified Data.Text as T
-import Data.Bifunctor
 import Data.Monoid
 import Data.List
-import Data.Maybe
 import Data.Function
 import Control.Monad.Fix
 
 import Reflex.Dom
 
 import ShaderCanvas
-import CanvasSave
+-- import CanvasSave
 import Expression
 import GLSL
 import DNA
 import qualified SelectTwo as S2
 
 import Language.Javascript.JSaddle.Types (MonadJSM, liftJSM, JSM)
+
+data Layout a b c = Layout
+    { layout :: (Double, Double) -> a -> [(b, (Double, Double), Double)]
+    , locate :: (Double, Double) -> a -> (Double,Double) -> Maybe c
+    }
+
+mapLayout :: (a -> a') -> Layout a' b c -> Layout a b c
+mapLayout f (Layout innerLayout innerLocate) = Layout {..}
+  where
+    layout (w, h) a = innerLayout (w,h) (f a)
+    locate (w,h) a (x,y) = innerLocate (w,h) (f a) (x,y)
+
+layoutMaybe :: Layout a b c -> Layout (Maybe a) b c
+layoutMaybe (Layout innerLayout innerLocate) = Layout {..}
+  where
+    layout _ Nothing = []
+    layout (w, h) (Just a) = innerLayout (w,h) a
+    locate _ Nothing _ = Nothing
+    locate (w,h) (Just a) (x,y) = innerLocate (w,h) a (x,y)
+
+layoutLarge :: Double -> Layout a a ()
+layoutLarge r = Layout {..}
+  where
+    layout (w, h) x = [(x, (w/2, h/2), s)]
+      where s = r * min (w/2) (h/2)
+    locate (w, h) _ (x, y)
+      | (x - w/2)**2 + (y - h/2)**2 <= s**2 = Just ()
+      | otherwise                           = Nothing
+      where s = r * min (w/2) (h/2)
+
+
+layoutGrid :: Layout a b c -> Layout [a] b (Int, c)
+layoutGrid (Layout innerLayout innerLocate) = Layout {..}
+  where
+    translate x' y' (a, (x,y), s) = (a, (x + x', y + y'), s)
+    layout (w,h) as = concat
+        [ translate x y <$> innerLayout (s,s) a
+        | (i,a) <- zip [0..] as
+        , let x = s * fromIntegral (i `mod` per_row)
+        , let y = s * fromIntegral (i `div` per_row)
+        ]
+      where
+        per_row = floor (w/(h/4)) :: Integer
+        s = w/fromIntegral per_row
+    locate (w,h) as (x,y) = do
+        let i = floor (x / s)
+        let j = floor (y / s)
+        let n = i + j * per_row
+        let x' = x - s * fromIntegral i
+        let y' = y - s * fromIntegral j
+        guard (n < length as)
+        inner <- innerLocate (s,s) (as !! n) (x', y')
+        return (n,inner)
+      where
+        per_row = floor (w/(h/4)) :: Int
+        s = w/fromIntegral per_row
 
 performD :: (MonadHold t m, PostBuild t m, PerformEvent t m) =>
     (a -> Performable m b) -> Dynamic t a -> m (Dynamic t (Maybe b))
@@ -43,37 +98,42 @@ stateMachine :: (MonadFix m, MonadHold t m, Reflex t) =>
     a -> [Event t (a -> a)] -> m (Dynamic t a)
 stateMachine x es = foldDyn ($) x $ mergeWith (.) es
 
-patternCanvas :: (MonadWidget t m, MonadJSM (Performable m)) =>
-    Dynamic t DNAP -> m CompileFun
-patternCanvas dGenome = patternCanvasMay mempty (Just <$> dGenome)
+type CompileFun = T.Text -> JSM (Maybe CompiledProgram)
+type DNAP = (DNA, Maybe CompiledProgram, Maybe CompiledProgram)
+getDNA :: DNAP -> DNA
+getDNA (x,_,_) = x
+
+patternCanvasLayout :: (MonadWidget t m, MonadJSM (Performable m)) =>
+    Layout a (Maybe CompiledProgram, Double) c ->
+    Dynamic t a ->
+    m (Event t c, CompileFun)
+patternCanvasLayout Layout{..} dData = mdo
+    (dClick, dSize, compile) <- shaderCanvas dLaidOut
+    let eSelectOne = fmapMaybe id $ locate <$> current dSize <*> current dData <@> dClick
+    let dLaidOut = layout <$> dSize <*> dData
+    return (eSelectOne, compile)
 
 patternCanvasMay :: (MonadWidget t m, MonadJSM (Performable m)) =>
-    Event t T.Text -> Dynamic t (Maybe DNAP) -> m CompileFun
-patternCanvasMay eSave dGenome = do
+    Dynamic t (Maybe DNAP) -> m (Event t (), CompileFun)
+patternCanvasMay dGenome = do
     -- let showTitle dna = T.pack $ unlines [dna2hex dna, show (dna2rna dna)]
     let showTitle = maybe "" dna2hex
+    let layout = layoutMaybe $ mapLayout (\(_,x,_)-> (x,0)) (layoutLarge 1)
     elDynAttr "div" ((\dna -> "title" =: showTitle (fmap getDNA dna)) <$> dGenome) $ mdo
-        let dProgram = ((\(_,x,_)-> x) =<<) <$> dGenome
-        let dDrawable = layoutLarge <$> dSize <*> dProgram
-        (e,(_dClick, dSize, compile)) <- shaderCanvas' dDrawable
-        performEvent_ $ (<$> eSave) $ \name -> CanvasSave.save name e
-        return compile
+        patternCanvasLayout layout dGenome
 
 patternCanvasList :: (MonadWidget t m, MonadJSM (Performable m)) =>
     Dynamic t [(DNAP, Bool)] ->
-    m (Event t (Double, Double), Dynamic t (Double, Double), CompileFun)
+    m (Event t Int, CompileFun)
 patternCanvasList dGenomes = mdo
-    let dPrograms = map (\((_,_,x),b) -> (x,b)) <$> dGenomes
-    let dDrawable = layoutGrid <$> dSize <*> dPrograms
-    (dClick, dSize, compile) <- shaderCanvas dDrawable
-    return (dClick, dSize, compile)
+    let layout = layoutGrid $ mapLayout (\((_,_,x),b)-> (x,if b then 1 else 0)) (layoutLarge 0.9)
+    (eClick, compile) <- patternCanvasLayout layout dGenomes
+    return (fst <$> eClick, compile)
 
 patternCanvasSelectableList :: forall t m. (MonadWidget t m, MonadJSM (Performable m)) =>
     Event t () -> Dynamic t [DNAP] -> m (Dynamic t (S2.SelectTwo DNAP), CompileFun)
 patternCanvasSelectableList eClear dGenomes = mdo
-    (dClick, dSize, compile) <- patternCanvasList dGenomesWithSelection
-
-    let eSelectOne = fmapMaybe id $ locateClick <$> current dSize <@> dClick
+    (eSelectOne, compile) <- patternCanvasList dGenomesWithSelection
 
     let eSelection :: Event t (S2.SelectTwo Int) =
             attachWith S2.flip (current dSelected) eSelectOne
@@ -91,51 +151,10 @@ patternCanvasSelectableList eClear dGenomes = mdo
     let dSelectedGenomes = (\xs s -> fmap (xs!!) s) <$> dGenomes <*> dSelection'
     return (dSelectedGenomes, compile)
 
-layoutLarge :: (Double, Double) -> a -> [(a, Double, (Double, Double), Double)]
-layoutLarge (w, h) x = [(x, 0, (w/2, h/2), min (w/2) (h/2))]
-
-layoutGrid :: (Double, Double) -> [(a, Bool)] -> [(a, Double, (Double, Double), Double)]
-layoutGrid (w,h) xs =
-    [ (a, if selected then 1 else 0, (x,y), 0.9 * (s/2))
-    | (i,(a, selected)) <- zip [0..] xs
-    , let x = 0.5 * s + s * fromIntegral (i `mod` per_row)
-    , let y = 0.5 * s + s * fromIntegral (i `div` per_row)
-    ]
-  where
-    per_row = floor (w/(h/4)) :: Integer
-    s = w/fromIntegral per_row
-
-locateClick :: (Double, Double) -> (Double, Double) -> Maybe Int
-locateClick (w,h) (x,y) =
-    let i = floor (x / s) in
-    let j = floor (y / s) in
-    let n = i + j * per_row in
-    if (x - (0.5 * s + s * fromIntegral i))**2 +
-       (y - (0.5 * s + s * fromIntegral j))**2 <= (s/2)**2
-    then Just n else Nothing
-  where
-    per_row = floor (w/(h/4)) :: Int
-    s = w/fromIntegral per_row
 
 toFilename :: Maybe DNA -> T.Text
 toFilename (Just dna) = "kaleidogen-" <> dna2hex dna <> ".png"
 toFilename Nothing    = "error.png"
-
-
-clickable :: (HasDomEvent t el 'ClickTag, Functor f) =>
-   f (el, c) -> f (Event t (DomEventType el 'ClickTag), c)
-clickable act = first (domEvent Click) <$> act
-
-divClass' :: DomBuilder t m =>
-    T.Text ->
-    m a ->
-    m (Element EventResult (DomBuilderSpace m) t, a)
-divClass' cls = elAttr' "div" ("class" =: cls)
-
-type CompileFun = T.Text -> JSM (Maybe CompiledProgram)
-type DNAP = (DNA, Maybe CompiledProgram, Maybe CompiledProgram)
-getDNA :: DNAP -> DNA
-getDNA (x,_,_) = x
 
 type Seed = Int
 
@@ -170,18 +189,17 @@ main = do
   seed <- getRandom
   mainWidgetWithHead htmlHead $
     elAttr "div" ("align" =: "center") $ mdo
-        (eAdded1, eDelete, eSave) <- divClass "toolbar" $
-            (,,) <$>
+        (eAdded1, eDelete) <- divClass "toolbar" $
+            (,) <$>
             toolbarButton "➕" dCanAdd <*>
-            toolbarButton "🗑" dCanDel <*>
-            toolbarButton "💾" dCanSave
+            toolbarButton "🗑" dCanDel
 
-        (eAdded2, compile1) <- clickable $ divClass' "new-pat" $
-            patternCanvasMay eSaveAs dMainGenome
+        (eAdded2, compile1) <- divClass "new-pat" $
+            patternCanvasMay dMainGenome
 
         let eAdded = eAdded1 <> gate (current dCanAdd) eAdded2
-        let dFilename = toFilename . fmap getDNA <$> dMainGenome
-        let eSaveAs = tag (current dFilename) eSave
+        -- let dFilename = toFilename . fmap getDNA <$> dMainGenome
+        -- let eSaveAs = tag (current dFilename) eSave
 
         let dCanAdd =
                 (\new xs -> maybe False (`notElem` map getDNA xs) (getDNA <$> new)) <$>
@@ -189,7 +207,7 @@ main = do
         let dCanDel =
                 (\new xs -> maybe False (`elem`    map getDNA xs) (getDNA <$> new)) <$>
                 dMainGenome <*> dGenomes
-        let dCanSave = isJust <$> dMainGenome
+        -- let dCanSave = isJust <$> dMainGenome
 
         (dPairSelected , compile2) <- divClass "patterns" $
             patternCanvasSelectableList (eAdded <> eDelete) dGenomes
@@ -252,5 +270,4 @@ css = T.unlines
     , "  width:100%;"
     , "}"
     ]
-
 
