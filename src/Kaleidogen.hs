@@ -58,22 +58,6 @@ patternCanvasLayout Layout{..} dData = mdo
     let dLaidOut = layout <$> dSize <*> dData
     return (eSelectOne, compile)
 
-patternCanvasMay :: (MonadWidget t m, MonadJSM (Performable m)) =>
-    Dynamic t (Maybe DNAP) -> m (Event t (), CompileFun)
-patternCanvasMay dGenome = do
-    -- let showTitle dna = T.pack $ unlines [dna2hex dna, show (dna2rna dna)]
-    let showTitle = maybe "" dna2hex
-    let layout = layoutMaybe $ mapLayout (\(_,x,_)-> (x,0)) (layoutLarge 1)
-    elDynAttr "div" ((\dna -> "title" =: showTitle (fmap getDNA dna)) <$> dGenome) $ mdo
-        patternCanvasLayout layout dGenome
-
-patternCanvasList :: (MonadWidget t m, MonadJSM (Performable m)) =>
-    Dynamic t [(DNAP, Bool)] ->
-    m (Event t Int, CompileFun)
-patternCanvasList dGenomes = mdo
-    let layout = layoutGrid $ mapLayout (\((_,_,x),b)-> (x,if b then 1 else 0)) (layoutLarge 0.9)
-    (eClick, compile) <- patternCanvasLayout layout dGenomes
-    return (fst <$> eClick, compile)
 
 selectTwoInteraction :: forall t m a.
     (MonadFix m, Reflex t, MonadHold t m) =>
@@ -138,11 +122,14 @@ main = do
             toolbarButton "➕" dCanAdd <*>
             toolbarButton "🗑" dCanDel
 
+        let layoutTop = layoutMaybe $ mapLayout (\(_,x,_)-> (x,0)) (layoutLarge 1)
+        let layoutBottom = layoutGrid $ mapLayout (\((_,_,x),b)-> (x,if b then 1 else 0)) (layoutLarge 0.9)
+
         (eAdded2, compile1) <- divClass "new-pat" $
-            patternCanvasMay dMainGenome
+            patternCanvasLayout layoutTop dMainGenome
 
         (eSelectOne, compile2) <- divClass "patterns" $
-            patternCanvasList dGenomesWithSelection
+            patternCanvasLayout layoutBottom dGenomesWithSelection
 
         let eAdded = eAdded1 <> gate (current dCanAdd) eAdded2
         -- let dFilename = toFilename . fmap getDNA <$> dMainGenome
@@ -159,7 +146,7 @@ main = do
         let eClear = eAdded <> eDelete
 
         (dPairSelected, dGenomesWithSelection)
-            <- selectTwoInteraction eClear eSelectOne dGenomes
+            <- selectTwoInteraction eClear (fst <$> eSelectOne) dGenomes
 
         let cfs = (compile1, compile2)
         dMainGenome <- fmap join <$> performD (liftJSM . previewPGM seed cfs) dPairSelected
