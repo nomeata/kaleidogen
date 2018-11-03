@@ -53,10 +53,11 @@ patternCanvasLayout :: (MonadWidget t m, MonadJSM (Performable m)) =>
     Dynamic t a ->
     m (Event t c, CompileFun)
 patternCanvasLayout eSizeMayChange Layout{..} morpher dData = mdo
-    (dClick, dSize, compile) <- shaderCanvas eSizeMayChange (getProgramD dMorphed)
+    (dClick, dSize, compile) <- shaderCanvas eSizeMayChange (getProgramD dUniqued)
     let eSelectOne = fmapMaybe id $ locate <$> current dSize <*> current dData <@> dClick
     let dLaidOut = layout <$> dSize <*> dData
     dMorphed <- morpher dLaidOut
+    dUniqued <- holdUniqDyn dMorphed
     return (eSelectOne, compile)
 
 
