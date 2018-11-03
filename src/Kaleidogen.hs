@@ -21,6 +21,7 @@ import Control.Monad.Fix
 import Reflex.Dom
 
 import ShaderCanvas
+import AnimationFrame
 -- import CanvasSave
 import Expression
 import GLSL
@@ -44,11 +45,12 @@ stateMachine :: (MonadFix m, MonadHold t m, Reflex t) =>
 stateMachine x es = foldDyn ($) x $ mergeWith (.) es
 
 patternCanvasLayout :: (MonadWidget t m, MonadJSM (Performable m)) =>
+    Event t () ->
     Layout a (Maybe CompiledProgram, Double) c ->
     Dynamic t a ->
     m (Event t c, CompileFun)
-patternCanvasLayout Layout{..} dData = mdo
-    (dClick, dSize, compile) <- shaderCanvas dLaidOut
+patternCanvasLayout eSizeMayChange Layout{..} dData = mdo
+    (dClick, dSize, compile) <- shaderCanvas eSizeMayChange dLaidOut
     let eSelectOne = fmapMaybe id $ locate <$> current dSize <*> current dData <@> dClick
     let dLaidOut = layout <$> dSize <*> dData
     return (eSelectOne, compile)
@@ -117,6 +119,8 @@ main = do
   seed <- getRandom
   mainWidgetWithHead htmlHead $
     elAttr "div" ("align" =: "center") $ mdo
+        eSizeMayChange <- (() <$) <$> getAnimationFrameE
+
         (eAdded1, eDelete) <- divClass "toolbar" $
             (,) <$>
             toolbarButton "➕" dCanAdd <*>
@@ -127,7 +131,7 @@ main = do
         let layoutCombined = layoutTop `layoutAbove` layoutBottom
 
         (eAdded2_SelectOne, compile) <-
-            patternCanvasLayout layoutCombined $
+            patternCanvasLayout eSizeMayChange layoutCombined $
                 (,) <$> dMainGenome <*> dGenomesWithSelection
         let (eAdded2, eSelectOne) = fanEither eAdded2_SelectOne
 

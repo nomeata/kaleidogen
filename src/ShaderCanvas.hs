@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE MonoLocalBinds #-}
-{-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -15,7 +14,6 @@ import Reflex.Dom
 
 import Data.Maybe
 import Data.Text as Text (Text, unlines)
-import Control.Monad.IO.Class
 import Control.Monad.Fix
 import Data.Foldable
 import Data.Bifunctor
@@ -27,14 +25,12 @@ import GHCJS.DOM.HTMLCanvasElement
 import GHCJS.DOM.WebGLRenderingContextBase
 import GHCJS.DOM.Window
 import GHCJS.DOM.Element
-import GHCJS.DOM.RequestAnimationFrameCallback
 import GHCJS.DOM.EventM (mouseOffsetXY)
 -- import GHCJS.DOM.EventM (on, preventDefault)
 import qualified GHCJS.DOM.EventTargetClosures as DOM (EventName, unsafeEventName)
 
 import Language.Javascript.JSaddle.Object hiding (array)
 -- import Control.Lens ((^.))
-
 
 vertexShaderSource :: Text
 vertexShaderSource = Text.unlines
@@ -166,13 +162,13 @@ autoResizeCanvas ::
     (MonadFix m, MonadHold t m,
     MonadJSM (Performable m), MonadJSM m, PerformEvent t m,
     TriggerEvent t m) =>
+    Event t () ->
     HTMLCanvasElement -> m (Dynamic t (Double, Double), Event t ())
-autoResizeCanvas domEl =  do
+autoResizeCanvas eMayHaveChanged domEl =  do
   -- Automatically update the size when it changes
-  animationFrameE <- getAnimationFrameE
   ratio <- liftJSM $ currentWindow >>= getDevicePixelRatio . fromJust
   initialSize <- querySize domEl
-  eCanvasSize <- performEvent (querySize domEl <$ animationFrameE)
+  eCanvasSize <- performEvent (querySize domEl <$ eMayHaveChanged)
   dCanvasSize <- holdUniqDyn =<< holdDyn initialSize eCanvasSize
   eResized <- performEvent $ (<$> updated dCanvasSize) $ \(w,h) -> do
     setWidth domEl (ceiling (ratio * w))
@@ -186,17 +182,23 @@ type ResultStuff t =
     , Text -> JSM (Maybe CompiledProgram)
     )
 
-shaderCanvas :: (MonadWidget t m) => Dynamic t [Drawable] -> m (ResultStuff t)
-shaderCanvas toDraw
-    = snd <$> shaderCanvas' toDraw
+shaderCanvas :: (MonadWidget t m) =>
+    Event t () ->
+    Dynamic t [Drawable] ->
+    m (ResultStuff t)
+shaderCanvas eMayHaveChanged toDraw
+    = snd <$> shaderCanvas' eMayHaveChanged toDraw
 
-shaderCanvas' :: (MonadWidget t m) => Dynamic t [Drawable] -> m (El t, ResultStuff t)
-shaderCanvas' toDraw = do
+shaderCanvas' :: (MonadWidget t m) =>
+    Event t () ->
+    Dynamic t [Drawable] ->
+    m (El t, ResultStuff t)
+shaderCanvas' eMayHaveChanged toDraw = do
     (canvasEl, _) <- el' "canvas" blank
     pb <- getPostBuild
 
     domEl <- unsafeCastTo HTMLCanvasElement $ _element_raw canvasEl
-    (dCanvasSize, eResized) <- autoResizeCanvas domEl
+    (dCanvasSize, eResized) <- autoResizeCanvas eMayHaveChanged domEl
 
     eClick <- wrapDomEvent domEl (onEventName Mousedown) $
       bimap fromIntegral fromIntegral <$> mouseOffsetXY
@@ -223,17 +225,3 @@ shaderCanvas' toDraw = do
     return (canvasEl, (eClick, dCanvasSize, compile))
 
 
-getAnimationFrameE :: (TriggerEvent t m, MonadJSM m) => m (Event t Double)
-getAnimationFrameE = mdo
-  (ev, trigger) <- newTriggerEvent
-  Just win <- currentWindow
-  let go d = do
-      liftIO $ trigger d
-      cb <- newRequestAnimationFrameCallback go
-      _ <- requestAnimationFrame win cb
-      return ()
-  liftJSM $ go 0.0
-  return ev
-
-getAnimationFrameD :: (Reflex t, MonadHold t m, MonadFix m, TriggerEvent t m, MonadJSM m) => m (Dynamic t Double)
-getAnimationFrameD = holdDyn 0 =<< getAnimationFrameE
