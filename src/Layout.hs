@@ -22,6 +22,17 @@ layoutMaybe (Layout innerLayout innerLocate) = Layout {..}
     locate _ Nothing _ = Nothing
     locate (w,h) (Just a) (x,y) = innerLocate (w,h) a (x,y)
 
+layoutAbove :: Layout a b c -> Layout a' b c' -> Layout (a,a') b (Either c c')
+layoutAbove (Layout innerLayout1 innerLocate1) (Layout innerLayout2 innerLocate2) = Layout {..}
+  where
+    layout (w, h) (a,b) =
+        innerLayout1 (w,h/2) a ++ translate 0 (h/2) (innerLayout2 (w,h/2) b)
+    locate (w,h) (a,b) (x,y) =
+        toEither (innerLocate1 (w,h/2) a (x,y)) (innerLocate2 (w,h/2) b (x,y-h/2))
+    toEither (Just x) _ = Just (Left x)
+    toEither Nothing (Just x) = Just (Right x)
+    toEither Nothing Nothing = Nothing
+
 layoutLarge :: Double -> Layout a a ()
 layoutLarge r = Layout {..}
   where
@@ -32,13 +43,14 @@ layoutLarge r = Layout {..}
       | otherwise                           = Nothing
       where s = r * min (w/2) (h/2)
 
+translate :: Double -> Double -> [(a, (Double, Double), Double)] -> [(a, (Double, Double), Double)]
+translate x' y' = map $ \(a, (x,y), s) -> (a, (x + x', y + y'), s)
 
 layoutGrid :: Layout a b c -> Layout [a] b (Int, c)
 layoutGrid (Layout innerLayout innerLocate) = Layout {..}
   where
-    translate x' y' (a, (x,y), s) = (a, (x + x', y + y'), s)
     layout (w,h) as = concat
-        [ translate x y <$> innerLayout (s,s) a
+        [ translate x y (innerLayout (s,s) a)
         | (i,a) <- zip [0..] as
         , let x = s * fromIntegral (i `mod` per_row)
         , let y = s * fromIntegral (i `div` per_row)

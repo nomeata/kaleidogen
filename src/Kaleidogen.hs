@@ -43,11 +43,6 @@ stateMachine :: (MonadFix m, MonadHold t m, Reflex t) =>
     a -> [Event t (a -> a)] -> m (Dynamic t a)
 stateMachine x es = foldDyn ($) x $ mergeWith (.) es
 
-type CompileFun = T.Text -> JSM (Maybe CompiledProgram)
-type DNAP = (DNA, Maybe CompiledProgram, Maybe CompiledProgram)
-getDNA :: DNAP -> DNA
-getDNA (x,_,_) = x
-
 patternCanvasLayout :: (MonadWidget t m, MonadJSM (Performable m)) =>
     Layout a (Maybe CompiledProgram, Double) c ->
     Dynamic t a ->
@@ -80,6 +75,17 @@ selectTwoInteraction eClear eSelectOne dData = mdo
     let dSelectedData = (\xs s -> fmap (xs!!) s) <$> dData <*> dSelection'
     return (dSelectedData, dDataWithSelection)
 
+type CompileFun = T.Text -> JSM (Maybe CompiledProgram)
+type DNAP = (DNA, Maybe CompiledProgram)
+getDNA :: DNAP -> DNA
+getDNA (x,_) = x
+
+toDNAP :: CompileFun -> DNA -> JSM DNAP
+toDNAP compile x = do
+    let t = T.pack $ toFragmentShader $ dna2rna x
+    p <- compile t
+    return (x,p)
+
 toFilename :: Maybe DNA -> T.Text
 toFilename (Just dna) = "kaleidogen-" <> dna2hex dna <> ".png"
 toFilename Nothing    = "error.png"
@@ -91,19 +97,13 @@ preview _    S2.NoneSelected = Nothing
 preview _    (S2.OneSelected x)   = Just x
 preview seed (S2.TwoSelected x y) = Just $ crossover seed x y
 
-toDNAP :: (CompileFun, CompileFun) -> DNA -> JSM DNAP
-toDNAP (compile1, compile2) x = do
-    let t = T.pack $ toFragmentShader $ dna2rna x
-    p1 <- compile1 t
-    p2 <- compile2 t
-    return (x,p1,p2)
 
-previewPGM :: Seed -> (CompileFun, CompileFun) -> S2.SelectTwo DNAP -> JSM (Maybe DNAP)
+previewPGM :: Seed -> CompileFun -> S2.SelectTwo DNAP -> JSM (Maybe DNAP)
 previewPGM _ _ S2.NoneSelected = return Nothing
 previewPGM _ _ (S2.OneSelected x) = return $ Just x
-previewPGM seed cfs (S2.TwoSelected (x,_,_) (y,_,_)) = do
-    let z = crossover seed x y
-    Just <$> toDNAP cfs z
+previewPGM seed compile (S2.TwoSelected x y) = do
+    let z = crossover seed (getDNA x) (getDNA y)
+    Just <$> toDNAP compile z
 
 toolbarButton :: (DomBuilder t m, PostBuild t m) =>
     T.Text -> Dynamic t Bool -> m (Event t ())
@@ -122,14 +122,14 @@ main = do
             toolbarButton "➕" dCanAdd <*>
             toolbarButton "🗑" dCanDel
 
-        let layoutTop = layoutMaybe $ mapLayout (\(_,x,_)-> (x,0)) (layoutLarge 1)
-        let layoutBottom = layoutGrid $ mapLayout (\((_,_,x),b)-> (x,if b then 1 else 0)) (layoutLarge 0.9)
+        let layoutTop = layoutMaybe $ mapLayout (\(_,x)-> (x,0)) (layoutLarge 1)
+        let layoutBottom = layoutGrid $ mapLayout (\((_,x),b)-> (x,if b then 1 else 0)) (layoutLarge 0.9)
+        let layoutCombined = layoutTop `layoutAbove` layoutBottom
 
-        (eAdded2, compile1) <- divClass "new-pat" $
-            patternCanvasLayout layoutTop dMainGenome
-
-        (eSelectOne, compile2) <- divClass "patterns" $
-            patternCanvasLayout layoutBottom dGenomesWithSelection
+        (eAdded2_SelectOne, compile) <-
+            patternCanvasLayout layoutCombined $
+                (,) <$> dMainGenome <*> dGenomesWithSelection
+        let (eAdded2, eSelectOne) = fanEither eAdded2_SelectOne
 
         let eAdded = eAdded1 <> gate (current dCanAdd) eAdded2
         -- let dFilename = toFilename . fmap getDNA <$> dMainGenome
@@ -148,10 +148,9 @@ main = do
         (dPairSelected, dGenomesWithSelection)
             <- selectTwoInteraction eClear (fst <$> eSelectOne) dGenomes
 
-        let cfs = (compile1, compile2)
-        dMainGenome <- fmap join <$> performD (liftJSM . previewPGM seed cfs) dPairSelected
+        dMainGenome <- fmap join <$> performD (liftJSM . previewPGM seed compile) dPairSelected
 
-        initialDNAPs <- liftJSM $ mapM (toDNAP cfs) initialDNAs
+        initialDNAPs <- liftJSM $ mapM (toDNAP compile) initialDNAs
         dGenomes <- stateMachine initialDNAPs
             [ (\new xs -> xs ++ [new]) <$>
                     fmapMaybe id (tag (current dMainGenome) eAdded)
@@ -179,6 +178,7 @@ css = T.unlines
     , "}"
     , ".toolbar {"
     , "  height:10vh;"
+    , "  margin:0;"
     , "}"
     , ".toolbar a {"
     , "  display:inline-block;"
@@ -195,15 +195,10 @@ css = T.unlines
     , "  background-color:lightgrey;"
     , "  color:white;"
     , "}"
-    , ".new-pat canvas {"
-    , "  height:45vh;"
-    , "  width:45vh;"
+    , "canvas {"
+    , "  height:90vh;"
+    , "  width:100vw;"
     , "  margin:0;"
-    , "}"
-    , ".patterns canvas {"
-    , "  margin:0;"
-    , "  height:40vh;"
-    , "  width:100%;"
     , "}"
     ]
 
