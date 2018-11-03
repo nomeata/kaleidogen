@@ -78,15 +78,21 @@ selectTwoInteraction eClear eSelectOne dData = mdo
     return (dSelectedData, dDataWithSelection)
 
 type CompileFun = T.Text -> JSM (Maybe CompiledProgram)
-type DNAP = (DNA, Maybe CompiledProgram)
+
+data DNAP = DNAP DNA (Maybe CompiledProgram)
+instance Eq DNAP where (==) = (==) `on` getDNA
+instance Ord DNAP where compare = compare `on` getDNA
+
 getDNA :: DNAP -> DNA
-getDNA (x,_) = x
+getDNA (DNAP x _) = x
+getProgram :: DNAP -> Maybe CompiledProgram
+getProgram (DNAP _ p) = p
 
 toDNAP :: CompileFun -> DNA -> JSM DNAP
 toDNAP compile x = do
     let t = T.pack $ toFragmentShader $ dna2rna x
     p <- compile t
-    return (x,p)
+    return $ DNAP x p
 
 toFilename :: Maybe DNA -> T.Text
 toFilename (Just dna) = "kaleidogen-" <> dna2hex dna <> ".png"
@@ -126,8 +132,8 @@ main = do
             toolbarButton "➕" dCanAdd <*>
             toolbarButton "🗑" dCanDel
 
-        let layoutTop = layoutMaybe $ mapLayout (\(_,x)-> (x,0)) (layoutLarge 1)
-        let layoutBottom = layoutGrid $ mapLayout (\((_,x),b)-> (x,if b then 1 else 0)) (layoutLarge 0.9)
+        let layoutTop = layoutMaybe $ mapLayout (\dnap -> (getProgram dnap,0)) (layoutLarge 1)
+        let layoutBottom = layoutGrid $ mapLayout (\(dnap,b)-> (getProgram dnap,if b then 1 else 0)) (layoutLarge 0.9)
         let layoutCombined = layoutTop `layoutAbove` layoutBottom
 
         (eAdded2_SelectOne, compile) <-
@@ -140,10 +146,10 @@ main = do
         -- let eSaveAs = tag (current dFilename) eSave
 
         let dCanAdd =
-                (\new xs -> maybe False (`notElem` map getDNA xs) (getDNA <$> new)) <$>
+                (\new xs -> maybe False (`notElem` xs) new) <$>
                 dMainGenome <*> dGenomes
         let dCanDel =
-                (\new xs -> maybe False (`elem`    map getDNA xs) (getDNA <$> new)) <$>
+                (\new xs -> maybe False (`elem`    xs) new) <$>
                 dMainGenome <*> dGenomes
         -- let dCanSave = isJust <$> dMainGenome
 
@@ -158,7 +164,7 @@ main = do
         dGenomes <- stateMachine initialDNAPs
             [ (\new xs -> xs ++ [new]) <$>
                     fmapMaybe id (tag (current dMainGenome) eAdded)
-            , deleteBy ((==) `on` getDNA)  <$> fmapMaybe id (tag (current dMainGenome) eDelete)
+            , delete <$> fmapMaybe id (tag (current dMainGenome) eDelete)
             ]
         return ()
   where
