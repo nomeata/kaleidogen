@@ -1,7 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE PatternGuards #-}
 module Layout where
 
 import Control.Monad
+import Prelude hiding (or)
 
 data Layout a b c = Layout
     { layout :: (Double, Double) -> a -> [(b, (Double, Double), Double)]
@@ -45,6 +47,45 @@ layoutLarge r = Layout {..}
 
 translate :: Double -> Double -> [(a, (Double, Double), Double)] -> [(a, (Double, Double), Double)]
 translate x' y' = map $ \(a, (x,y), s) -> (a, (x + x', y + y'), s)
+
+layoutCircular :: Layout a b c -> Layout a' b c' -> Layout (a,[a']) b (Either c (Int,c'))
+layoutCircular (Layout innerLayout1 innerLocate1) (Layout innerLayout2 innerLocate2) = Layout {..}
+  where
+    centric_and_square l radius x =
+        translate (- radius) (- radius) $ l (2*radius, 2*radius) x
+
+    layout (w,h) (i,os) = translate (w/2) (h/2) $
+        centric_and_square innerLayout1 ir i ++
+        concat [translate (       (ir + or) * sin α)
+                          (negate (ir + or) * cos α) $
+                centric_and_square innerLayout2 or o
+        | (n,o) <- zip [0::Int ..] os
+        , let α = fromIntegral n * 2 * pi / fromIntegral count - pi/2
+        ]
+      where
+        ir = min (0.25*w) (0.25*h)
+        count = max (length os) 10 :: Int
+        γ = 2*pi/fromIntegral count
+        or = ir * sin (γ/2) / (1 - sin (γ/2))
+    locate (w,h) (i,os) (x,y)
+        | Just r <- innerLocate1 (2*ir, 2*ir) i (x - w/2 + ir, y - h/2 + ir)
+        = Just (Left r)
+        | let β = atan2 (x - w/2) (negate (y - h/2)) + pi/2
+        , let n = round (β / γ) `mod` count
+        , let α = fromIntegral n * 2 * pi / fromIntegral count - pi/2
+        , n < length os
+        , Just r <- innerLocate2 (2*or, 2*or) (os !! n)
+            (x - w/2 -        (ir + or) * sin α + or,
+             y - h/2 - negate (ir + or) * cos α + or)
+        = Just (Right (n,r))
+        | otherwise
+        = Nothing
+      where
+        ir = min (0.25*w) (0.25*h)
+        count = max (length os) 10 :: Int
+        γ = 2*pi/fromIntegral count
+        or = ir * sin (γ/2) / (1 - sin (γ/2))
+
 
 layoutGrid :: Layout a b c -> Layout [a] b (Int, c)
 layoutGrid (Layout innerLayout innerLocate) = Layout {..}
