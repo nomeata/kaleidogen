@@ -68,7 +68,8 @@ layoutCircular (Layout innerLayout1 innerLocate1) (Layout innerLayout2 innerLoca
         γ = 2*pi/fromIntegral count
         or = ir * sin (γ/2) / (1 - sin (γ/2))
     locate (w,h) (i,os) (x,y)
-        | Just r <- innerLocate1 (2*ir, 2*ir) i (x - w/2 + ir, y - h/2 + ir)
+        | (x- w/2)**2 + (y - h/2)**2 <= ir**2
+        , Just r <- innerLocate1 (2*ir, 2*ir) i (x - w/2 + ir, y - h/2 + ir)
         = Just (Left r)
         | let β = atan2 (x - w/2) (negate (y - h/2)) + pi/2
         , let n = round (β / γ) `mod` count
