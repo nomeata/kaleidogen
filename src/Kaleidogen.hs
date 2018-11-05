@@ -142,8 +142,8 @@ main = do
             toolbarButton "➕" dCanAdd <*>
             toolbarButton "🗑" dCanDel
 
-        let layoutTop = layoutMaybe $ mapLayout (,0) (layoutLarge (1/0.9))
-        let layoutBottom = mapLayout (\(dnap,b)-> (dnap,if b then 1 else 0)) (layoutLarge 1)
+        let layoutTop = layoutMaybe $ mapLayout (,0) (layoutLarge 1)
+        let layoutBottom = mapLayout (\(dnap,b)-> (dnap,if b then 2 else 1)) (layoutLarge 1)
         let layoutCombined = layoutTop `layoutCircular` layoutBottom
 
         let morpher = interpolate fst 200 dAnimationFrame
