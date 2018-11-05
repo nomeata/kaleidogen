@@ -85,9 +85,9 @@ pointWiseHistory speed new old =
         | p == p_cur
         = (a, p_cur, t', p')    -- no change
         | let r = (t - t') / speed, r < 1
-        = (a, p, t, tween r p' p) -- a change during motion
+        = (a, p, t, tween r p' p_cur) -- a change during motion
         | otherwise
-        = (a, p, t', p')         -- shift
+        = (a, p, t, p_cur)         -- shift
 
 
 highlightChanged :: (MonadHold t m, MonadFix m, Reflex t, Eq a) => Morpher m t a
