@@ -41,12 +41,12 @@ interpolate ::
     Dynamic t Double ->
     Morpher m t a
 interpolate key speed dTime dInput = do
-    let eMap = toMap <$> current dTime <@> updated dInput
-    dChanges <- foldDyn (pointWiseHistory speed) M.empty eMap
+    let eMap = toMap <$> updated dInput
+    dChanges <- foldDyn id M.empty (pointWiseHistory speed <$> current dTime <@> eMap)
     return $ interp <$> dTime <*> dChanges
   where
-    toMap t cur = M.fromList $
-        labelDuplicatesRev [ (key k, (k, t, (p,s))) | (k,p,s) <- cur ]
+    toMap cur = M.fromList $
+        labelDuplicatesRev [ (key k, (k, (p,s))) | (k,p,s) <- cur ]
 
     interp :: Double ->
               M.Map (b,Int) (a, ((Double,Double),Double), Double,((Double,Double),Double)) ->
@@ -74,14 +74,15 @@ instance (Tweenable a, Tweenable b) => Tweenable (a,b) where
 pointWiseHistory ::
     (Ord b, Eq c, Tweenable c) =>
     Double ->
-    M.Map b (a, Double, c) ->
+    Double ->
+    M.Map b (a, c) ->
     M.Map b (a, c, Double, c) ->
     M.Map b (a, c, Double, c)
-pointWiseHistory speed new old =
+pointWiseHistory speed t new old =
     M.fromList [ (k, go v (M.lookup k old))  | (k,v) <- M.toList new ]
   where
-    go (a,t,p) Nothing = (a,p,t,p)
-    go (a,t,p) (Just (_ ,p_cur, t', p'))
+    go (a,p) Nothing = (a,p,t,p)
+    go (a,p) (Just (_ ,p_cur, t', p'))
         | p == p_cur
         = (a, p_cur, t', p')    -- no change
         | let r = (t - t') / speed, r < 1
