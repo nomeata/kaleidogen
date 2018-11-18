@@ -8,7 +8,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
-module ShaderCanvas where
+module ShaderCanvas
+    ( CompiledProgram
+    , trivialFragmentShader
+    , shaderCanvas
+    , shaderCanvas'
+    ) where
 
 import Reflex.Dom
 
@@ -27,7 +32,6 @@ import GHCJS.DOM.Window
 import GHCJS.DOM.Element
 import GHCJS.DOM.EventM (mouseOffsetXY)
 -- import GHCJS.DOM.EventM (on, preventDefault)
-import qualified GHCJS.DOM.EventTargetClosures as DOM (EventName, unsafeEventName)
 
 import Language.Javascript.JSaddle.Object hiding (array)
 -- import Control.Lens ((^.))
@@ -144,13 +148,6 @@ paintGL gl (w,h) toDraw = do
 
             drawArrays gl TRIANGLES 0 6
         _ -> return ()
-
-webglcontextrestored :: DOM.EventName HTMLCanvasElement WebGLContextEvent
-webglcontextrestored = DOM.unsafeEventName "webglcontextrestored"
-
-webglcontextlost :: DOM.EventName HTMLCanvasElement WebGLContextEvent
-webglcontextlost = DOM.unsafeEventName "webglcontextlost"
-
 
 querySize :: (IsElement self, MonadJSM m) => self -> m (Double, Double)
 querySize domEl = liftJSM $ do
