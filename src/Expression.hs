@@ -33,12 +33,11 @@ dna2rna (col1:col2:ops) = fst $ go ops colors
             [ Rotate  (0  … 2*pi)
             , Invert
             , Swirl   (-1 … 1)
-            , Dilated (2 …… 8)
+            , Dilated (from [2,3,4,8])
             ]
 
         op = x `div` 16
         arg = x `mod` 16
-
 
         (…) :: Double -> Double -> Double
         l … u = l + a01 * (u - l)
@@ -46,8 +45,11 @@ dna2rna (col1:col2:ops) = fst $ go ops colors
         (……) :: Int -> Int -> Int
         l …… u = min u $ floor $ fromIntegral l … (fromIntegral u+1)
 
+        from = indexMod arg
+
         a01 :: Double
         a01 = fromIntegral arg / 16
+
 
         binary f = (f r1 r2, cols2)
           where
