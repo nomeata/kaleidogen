@@ -65,7 +65,7 @@ jobs:
        provider: pages
        local-dir: gh-page
        fqdn: kaleidogen.nomeata.de
-       keep-history: true
+       keep-history: false
        allow-empty-commit: true
        skip-cleanup: true
        github-token: $GITHUB_TOKEN  # Set in the settings page of your repository, as a secure variable
