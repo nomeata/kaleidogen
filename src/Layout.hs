@@ -99,18 +99,26 @@ layoutGrid innerLayout as (w,h) =
     foldr overlay noElem
         [ mapElement (n,) $ translate x y $ innerLayout a (s,s)
         | (n,a) <- zip [0..] as
-        , let i = n `mod` per_row
-        , let j = n `div` per_row
+        , let i' = n `mod` per_double_row
+        , let j' = n `div` per_double_row
+
+        -- Move to upper half-row if needed
+        , let (i,j) | i' < per_row = (i',2 * j')
+                    | otherwise    = (i' - per_row, 2 * j' + 1)
+
         , let x | even j    = s * fromIntegral i
-                | otherwise = w - s * fromIntegral i -s
-        , let y = h - s * fromIntegral j - s
+                | otherwise = w - s * fromIntegral i - s - s/2
+        , let y = h - row_height * fromIntegral j - s
         ]
       where
         max_size = min (w/6) (h/2)
         min_per_row = ceiling (w / max_size)
         per_row = head
-            [ per_row'
-            | per_row' <- [min_per_row..]
-            , length as <= per_row' * floor (fromIntegral per_row' * h/w)
+            [ i | i <- [min_per_row..]
+            , let s' = w/fromIntegral i
+            , let rows = 1 + floor ((h - s') / (sqrt 3 / 2 * s'))
+            , length as <= i * rows - rows`div`2
             ]
+        per_double_row = per_row + per_row - 1
         s = w/fromIntegral per_row
+        row_height = sqrt 3 / 2 * s

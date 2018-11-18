@@ -223,7 +223,7 @@ css = T.unlines
     , "  color:white;"
     , "}"
     , "canvas {"
-    , "  height:85vh;"
+    , "  height:89vh;"
     , "  width:100%;"
     , "  margin:0;"
     , "  padding:0;"
