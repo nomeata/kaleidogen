@@ -16,6 +16,7 @@ import Control.Monad
 import qualified Data.Text as T
 import Data.Monoid
 import Data.List
+import Data.Maybe
 import Data.Function
 import Control.Monad.Fix
 
@@ -23,7 +24,6 @@ import Reflex.Dom
 
 import ShaderCanvas
 import AnimationFrame
--- import CanvasSave
 import Expression
 import GLSL
 import DNA
@@ -138,10 +138,11 @@ main = do
         dAnimationFrame <- getAnimationFrameD
         let eSizeMayChange = () <$ updated dAnimationFrame
 
-        (eAdded1, eDelete) <- divClass "toolbar" $
-            (,) <$>
+        (eAdded1, eDelete, eSave) <- divClass "toolbar" $
+            (,,) <$>
             toolbarButton "➕" dCanAdd <*>
-            toolbarButton "🗑" dCanDel
+            toolbarButton "🗑" dCanDel <*>
+            toolbarButton "💾" dCanSave
 
         let layoutTop = layoutMaybe $ mapLayout (,0) layoutFullCirlce
         let layoutBottom = mapLayout (\(dnap,b)-> (dnap,if b then 2 else 1)) layoutFullCirlce
@@ -155,8 +156,11 @@ main = do
         let (eAdded2, eSelectOne) = fanEither eAdded2_SelectOne
 
         let eAdded = eAdded1 <> gate (current dCanAdd) eAdded2
-        -- let dFilename = toFilename . fmap getDNA <$> dMainGenome
-        -- let eSaveAs = tag (current dFilename) eSave
+        let dFilename = toFilename . fmap getDNA <$> dMainGenome
+        let eSaveAs = tag (current dFilename) eSave
+
+        let dForSave = maybe [] (\x -> fst (layoutFullCirlce (T.pack $ toFragmentShader $ dna2rna $ getDNA x, 0) (1000, 1000))) <$> dMainGenome
+        performEvent_ (saveToPNG <$> current dForSave <@> eSaveAs)
 
         let dCanAdd =
                 (\new xs -> maybe False (`notElem` xs) new) <$>
@@ -164,7 +168,7 @@ main = do
         let dCanDel =
                 (\new xs -> maybe False (`elem`    xs) new) <$>
                 dMainGenome <*> dGenomes
-        -- let dCanSave = isJust <$> dMainGenome
+        let dCanSave = isJust <$> dMainGenome
 
         let eClear = eAdded <> eDelete
 

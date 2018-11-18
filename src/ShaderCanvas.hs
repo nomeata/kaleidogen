@@ -13,7 +13,10 @@ module ShaderCanvas
     , trivialFragmentShader
     , shaderCanvas
     , shaderCanvas'
+    , saveToPNG
     ) where
+
+import CanvasSave
 
 import Reflex.Dom
 
@@ -23,12 +26,14 @@ import Control.Monad.Fix
 import Data.Foldable
 import Data.Bifunctor
 import Data.Int
+import Control.Monad
 
 import GHCJS.DOM
 import GHCJS.DOM.Types hiding (Text, Event)
 import GHCJS.DOM.HTMLCanvasElement
 import GHCJS.DOM.WebGLRenderingContextBase
 import GHCJS.DOM.Window
+import GHCJS.DOM.Document
 import GHCJS.DOM.Element
 import GHCJS.DOM.EventM (mouseOffsetXY)
 -- import GHCJS.DOM.EventM (on, preventDefault)
@@ -131,7 +136,7 @@ paintGL gl (w,h) toDraw = do
     bh <- getDrawingBufferHeight gl
     viewport gl 0 0 bw bh
 
-    clearColor gl 1 1 1 1
+    clearColor gl 1 1 1 0
     clear gl COLOR_BUFFER_BIT
 
     for_ toDraw $ \case
@@ -221,4 +226,19 @@ shaderCanvas' eMayHaveChanged toDraw = do
 
     return (canvasEl, (eClick, dCanvasSize, compile))
 
-
+saveToPNG :: MonadJSM m => [((Text, Double), (Double, Double), Double)] -> Text -> m ()
+saveToPNG toDraw name = do
+    doc <- currentDocumentUnchecked
+    domEl <- uncheckedCastTo HTMLCanvasElement <$> createElement doc ("canvas" :: Text)
+    setWidth domEl 1000
+    setHeight domEl 1000
+    getContext domEl ("experimental-webgl"::Text) ([]::[()]) >>= \case
+      Nothing -> return ()
+      Just gl' -> do
+        gl <- unsafeCastTo WebGLRenderingContext gl'
+        cs <- commonSetup gl
+        toDraw' <- forM toDraw $ \((a,b),p,s) -> do
+            prog <- compileFragmentShader gl cs a
+            pure ((Just prog,b),p,s)
+        paintGL gl (1000, 1000) toDraw'
+    CanvasSave.save name domEl

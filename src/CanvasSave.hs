@@ -5,14 +5,15 @@ import Language.Javascript.JSaddle (toJSVal, liftJSM, MonadJSM)
 import Language.Javascript.JSaddle.Object
 import Control.Lens ((^.))
 import Reflex.Dom
+import GHCJS.DOM.HTMLCanvasElement
 
 header :: DomBuilder t m => m ()
 header = do
     elAttr (T.pack "script") (T.pack "src" =: T.pack "https://fastcdn.org/FileSaver.js/1.1.20151003/FileSaver.min.js") (return ())
 
-save :: MonadJSM m => T.Text -> El t -> m ()
+save :: MonadJSM m => T.Text -> HTMLCanvasElement -> m ()
 save name e = liftJSM $ do
-    domEl <- toJSVal (_element_raw e)
+    domEl <- toJSVal e
     _ <- domEl ^. js1 "toBlob" (fun $ \_ _ [blob] -> () <$ jsg2 "saveAs" blob name )
     return ()
 
