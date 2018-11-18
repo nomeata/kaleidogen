@@ -1,52 +1,57 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE TupleSections #-}
 module Layout where
 
 import Control.Monad
-import Prelude hiding (or)
 
-data Layout a b c = Layout
-    { layout :: (Double, Double) -> a -> [(b, (Double, Double), Double)]
-    , locate :: (Double, Double) -> a -> (Double,Double) -> Maybe c
-    }
+type Element b c = ( [(b, (Double, Double), Double)] , (Double,Double) -> Maybe c )
+
+type Layout a b c = a -> (Double, Double) -> Element b c
+
 
 mapLayout :: (a -> a') -> Layout a' b c -> Layout a b c
-mapLayout f (Layout innerLayout innerLocate) = Layout {..}
-  where
-    layout (w, h) a = innerLayout (w,h) (f a)
-    locate (w,h) a (x,y) = innerLocate (w,h) (f a) (x,y)
+mapLayout f innerLayout a = innerLayout (f a)
 
 layoutMaybe :: Layout a b c -> Layout (Maybe a) b c
-layoutMaybe (Layout innerLayout innerLocate) = Layout {..}
-  where
-    layout _ Nothing = []
-    layout (w, h) (Just a) = innerLayout (w,h) a
-    locate _ Nothing _ = Nothing
-    locate (w,h) (Just a) (x,y) = innerLocate (w,h) a (x,y)
+layoutMaybe _ Nothing = const noElem
+layoutMaybe innerLayout (Just a)= innerLayout a
+
+noElem :: Element b c
+noElem = ( [], const Nothing )
+
+translate :: Double -> Double -> Element b c -> Element b c
+translate x' y' (xs, click) =
+    ( map (\(a, (x,y), s) -> (a, (x + x', y + y'), s)) xs
+    , click . (\(x,y) -> (x - x', y - y'))
+    )
+
+overlay :: Element b c -> Element b c -> Element b c
+overlay (xs1, click1) (xs2, click2) = (xs1 ++ xs2, \p -> click1 p `mplus` click2 p)
+
+mapElement :: (c1 -> c2) -> Element b c1 -> Element b c2
+mapElement f (xs, click) = (xs, fmap f . click)
 
 layoutAbove :: Layout a b c -> Layout a' b c' -> Layout (a,a') b (Either c c')
-layoutAbove (Layout innerLayout1 innerLocate1) (Layout innerLayout2 innerLocate2) = Layout {..}
-  where
-    layout (w, h) (a,b) =
-        innerLayout1 (w,h/2) a ++ translate 0 (h/2) (innerLayout2 (w,h/2) b)
-    locate (w,h) (a,b) (x,y) =
-        toEither (innerLocate1 (w,h/2) a (x,y)) (innerLocate2 (w,h/2) b (x,y-h/2))
-    toEither (Just x) _ = Just (Left x)
-    toEither Nothing (Just x) = Just (Right x)
-    toEither Nothing Nothing = Nothing
+layoutAbove innerLayout1 innerLayout2 (a,b) (w,h) =
+    overlay
+        (mapElement Left $ innerLayout1 a (w,h/2))
+        (mapElement Right $ translate 0 (h/2) $ innerLayout2 b (w, h/2))
 
+layoutFullCirlce :: Layout a a ()
+layoutFullCirlce a (w, h) = ( xs, click )
+  where
+    xs = [(a, (w/2, h/2), s) ]
+    click (x, y) | (x - w/2)**2 + (y - h/2)**2 <= s**2 = Just ()
+                 | otherwise = Nothing
+    s = min (w/2) (h/2)
+
+{-
 layoutLarge :: Double -> Layout a a ()
 layoutLarge r = Layout {..}
   where
-    layout (w, h) x = [(x, (w/2, h/2), s)]
+    layout (w, h) x = []
       where s = r * min (w/2) (h/2)
     locate (w, h) _ (x, y)
-      | (x - w/2)**2 + (y - h/2)**2 <= s**2 = Just ()
-      | otherwise                           = Nothing
       where s = r * min (w/2) (h/2)
-
-translate :: Double -> Double -> [(a, (Double, Double), Double)] -> [(a, (Double, Double), Double)]
-translate x' y' = map $ \(a, (x,y), s) -> (a, (x + x', y + y'), s)
 
 layoutCircular :: Layout a b c -> Layout a' b c' -> Layout (a,[a']) b (Either c (Int,c'))
 layoutCircular (Layout innerLayout1 innerLocate1) (Layout innerLayout2 innerLocate2) = Layout {..}
@@ -86,29 +91,26 @@ layoutCircular (Layout innerLayout1 innerLocate1) (Layout innerLayout2 innerLoca
         count = max (length os) 10 :: Int
         γ = 2*pi/fromIntegral count
         or = ir * sin (γ/2) / (1 - sin (γ/2))
-
+-}
 
 layoutGrid :: Layout a b c -> Layout [a] b (Int, c)
-layoutGrid (Layout innerLayout innerLocate) = Layout {..}
-  where
-    layout (w,h) as = concat
-        [ translate x y (innerLayout (s,s) a)
-        | (i,a) <- zip [0..] as
-        , let x = s * fromIntegral (i `mod` per_row)
-        , let y = s * fromIntegral (i `div` per_row)
+layoutGrid _ _ (w,h) | w == 0 || h == 0 = noElem
+layoutGrid innerLayout as (w,h) =
+    foldr overlay noElem
+        [ mapElement (n,) $ translate x y $ innerLayout a (s,s)
+        | (n,a) <- zip [0..] as
+        , let i = n `mod` per_row
+        , let j = n `div` per_row
+        , let x | even j    = s * fromIntegral i
+                | otherwise = w - s * fromIntegral i -s
+        , let y = h - s * fromIntegral j - s
         ]
       where
-        per_row = floor (w/(h/4)) :: Integer
-        s = w/fromIntegral per_row
-    locate (w,h) as (x,y) = do
-        let i = floor (x / s)
-        let j = floor (y / s)
-        let n = i + j * per_row
-        let x' = x - s * fromIntegral i
-        let y' = y - s * fromIntegral j
-        guard (0 <= n && n < length as)
-        inner <- innerLocate (s,s) (as !! n) (x', y')
-        return (n,inner)
-      where
-        per_row = floor (w/(h/4)) :: Int
+        max_size = min (w/6) (h/2)
+        min_per_row = ceiling (w / max_size)
+        per_row = head
+            [ per_row'
+            | per_row' <- [min_per_row..]
+            , length as <= per_row' * floor (fromIntegral per_row' * h/w)
+            ]
         s = w/fromIntegral per_row

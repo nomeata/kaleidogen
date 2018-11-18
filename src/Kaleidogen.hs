@@ -52,11 +52,12 @@ patternCanvasLayout :: (MonadWidget t m, MonadJSM (Performable m)) =>
     Morpher m t (DNAP, Double) ->
     Dynamic t a ->
     m (Event t c, CompileFun)
-patternCanvasLayout eSizeMayChange Layout{..} morpher dData = mdo
+patternCanvasLayout eSizeMayChange layout morpher dData = mdo
     (dClick, dSize, compile) <- shaderCanvas eSizeMayChange (getProgramD dUniqued)
-    let eSelectOne = fmapMaybe id $ locate <$> current dSize <*> current dData <@> dClick
-    let dLaidOut = layout <$> dSize <*> dData
-    dMorphed <- morpher dLaidOut
+    let dLaidOut = layout <$> dData <*> dSize
+    let dLocate = snd <$> dLaidOut
+    let eSelectOne = fmapMaybe id $ current dLocate <@> dClick
+    dMorphed <- morpher (fst <$> dLaidOut)
     dUniqued <- holdUniqDyn dMorphed
     return (eSelectOne, compile)
 
@@ -142,9 +143,9 @@ main = do
             toolbarButton "➕" dCanAdd <*>
             toolbarButton "🗑" dCanDel
 
-        let layoutTop = layoutMaybe $ mapLayout (,0) (layoutLarge 1)
-        let layoutBottom = mapLayout (\(dnap,b)-> (dnap,if b then 2 else 1)) (layoutLarge 1)
-        let layoutCombined = layoutTop `layoutCircular` layoutBottom
+        let layoutTop = layoutMaybe $ mapLayout (,0) layoutFullCirlce
+        let layoutBottom = mapLayout (\(dnap,b)-> (dnap,if b then 2 else 1)) layoutFullCirlce
+        let layoutCombined = layoutTop `layoutAbove` layoutGrid layoutBottom
 
         let morpher = interpolate fst 200 dAnimationFrame
 
