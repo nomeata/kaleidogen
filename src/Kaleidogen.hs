@@ -50,12 +50,11 @@ patternCanvasLayout :: (MonadWidget t m, MonadJSM (Performable m)) =>
     Dynamic t a ->
     m (Event t c, CompileFun)
 patternCanvasLayout eSizeMayChange layout morpher dData = mdo
-    (dClick, dSize, compile) <- shaderCanvas eSizeMayChange (getProgramD dUniqued)
+    (dClick, dSize, compile) <- shaderCanvas eSizeMayChange (getProgramD dMorphed)
     let dLaidOut = layout <$> dData <*> dSize
     let dLocate = snd <$> dLaidOut
     let eSelectOne = fmapMaybe id $ current dLocate <@> dClick
     dMorphed <- morpher (fst <$> dLaidOut)
-    dUniqued <- holdUniqDyn dMorphed
     return (eSelectOne, compile)
 
 
@@ -96,8 +95,8 @@ toDNAP compile x = do
     p <- compile t
     return $ DNAP x p
 
-getProgramD :: Functor f => f [((DNAP, a), b, c)] -> f [((CompiledProgram, a), b, c)]
-getProgramD = fmap $ map (\((x,b), p, s) -> ((getProgram x, b), p, s))
+getProgramD :: Functor f => f [(((DNAP, a), d), b, c)] -> f [(((CompiledProgram, a), d), b, c)]
+getProgramD = fmap $ map (\(((x,b),mba), p, s) -> (((getProgram x, b), mba), p, s))
 
 toFilename :: Maybe DNA -> T.Text
 toFilename (Just dna) = "kaleidogen-" <> dna2hex dna <> ".png"
@@ -159,7 +158,8 @@ main = do
         let eSaveAs = tag (current dFilename) eSave
 
         let dForSave = maybe [] (\x -> fst (layoutFullCirlce (T.pack $ toFragmentShader $ dna2rna $ getDNA x, 0) (1000, 1000))) <$> dMainGenome
-        performEvent_ (saveToPNG <$> current dForSave <@> eSaveAs)
+        let dNoAnim = map (\((x,b), p, s) -> (((x, b), Nothing), p, s)) <$> dForSave
+        performEvent_ (saveToPNG <$> current dNoAnim <@> eSaveAs)
 
         let dCanAdd =
                 (\new xs -> maybe False (`notElem` xs) new) <$>
