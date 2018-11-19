@@ -17,6 +17,7 @@ module ShaderCanvas
     ) where
 
 import CanvasSave
+import AnimationFrame
 
 import Reflex.Dom
 
@@ -104,6 +105,7 @@ data CompiledProgram = CompiledProgram
     , posLocation :: WebGLUniformLocation
     , sizeLocation :: WebGLUniformLocation
     , extraDataLocation  :: WebGLUniformLocation
+    , timeLocation  :: WebGLUniformLocation
     }
 
 compileFragmentShader :: MonadJSM m => WebGLRenderingContext -> WebGLShader -> Text -> m CompiledProgram
@@ -124,14 +126,15 @@ compileFragmentShader gl vertexShader fragmentShaderSource = do
     posLocation <- getUniformLocation gl (Just program) ("u_pos" :: Text)
     sizeLocation <- getUniformLocation gl (Just program) ("u_size" :: Text)
     extraDataLocation <- getUniformLocation gl (Just program) ("u_extraData" :: Text)
+    timeLocation <- getUniformLocation gl (Just program) ("u_time" :: Text)
 
     let compiledProgram = program
     return CompiledProgram {..}
 
 type Drawable = ((CompiledProgram, Double), (Double, Double), Double)
 
-paintGL :: MonadDOM m => WebGLRenderingContext -> (Double, Double) -> [Drawable] -> m ()
-paintGL gl (w,h) toDraw = do
+paintGL :: MonadDOM m => WebGLRenderingContext -> (Double, Double) -> [Drawable] -> Double -> m ()
+paintGL gl (w,h) toDraw now = do
     bw <- getDrawingBufferWidth gl
     bh <- getDrawingBufferHeight gl
     viewport gl 0 0 bw bh
@@ -149,6 +152,7 @@ paintGL gl (w,h) toDraw = do
         uniform2f gl (Just posLocation) x y
         uniform1f gl (Just sizeLocation) size
         uniform1f gl (Just extraDataLocation) extraData
+        uniform1f gl (Just timeLocation) (now/1000)
 
         drawArrays gl TRIANGLES 0 6
 
@@ -195,19 +199,14 @@ shaderCanvas' :: (MonadWidget t m) =>
     m (El t, ResultStuff t)
 shaderCanvas' eMayHaveChanged toDraw = do
     (canvasEl, _) <- el' "canvas" blank
-    pb <- getPostBuild
 
     domEl <- unsafeCastTo HTMLCanvasElement $ _element_raw canvasEl
-    (dCanvasSize, eResized) <- autoResizeCanvas eMayHaveChanged domEl
+    (dCanvasSize, _eResized) <- autoResizeCanvas eMayHaveChanged domEl
 
     eClick <- wrapDomEvent domEl (onEventName Mousedown) $
       bimap fromIntegral fromIntegral <$> mouseOffsetXY
 
-    let eDraw = leftmost
-          [ tag (current toDraw) eResized
-          , updated toDraw
-          , tag (current toDraw) pb
-          ]
+    eAnimationFrame <- getAnimationFrameE
 
     compile <- getContext domEl ("experimental-webgl"::Text) ([]::[()]) >>= \case
       Nothing ->
@@ -218,7 +217,7 @@ shaderCanvas' eMayHaveChanged toDraw = do
         cs <- commonSetup gl
 
         performEvent_ $
-          paintGL gl <$> current dCanvasSize <@> eDraw
+          paintGL gl <$> current dCanvasSize <*> current toDraw <@> eAnimationFrame
 
         return (compileFragmentShader gl cs)
 
@@ -238,5 +237,5 @@ saveToPNG toDraw name = do
         toDraw' <- forM toDraw $ \((a,b),p,s) -> do
             prog <- compileFragmentShader gl cs a
             pure ((prog,b),p,s)
-        paintGL gl (1000, 1000) toDraw'
+        paintGL gl (1000, 1000) toDraw' 0
     CanvasSave.save name domEl

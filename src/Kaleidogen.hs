@@ -71,7 +71,7 @@ selectTwoInteraction eClear eSelectOne dData = mdo
     let eClearedSelection :: Event t (S2.SelectTwo Int)
             = leftmost [S2.empty <$ eClear, eSelection]
     dSelected :: Dynamic t (S2.SelectTwo Int)
-            <- holdDyn (S2.duolton 0 1) eClearedSelection
+            <- holdDyn (S2.duolton 0 3) eClearedSelection
     let dSelectedData :: Dynamic t (S2.SelectTwo a)
             = (\xs s -> fmap (xs!!) s) <$> dData <*> dSelected
     let dDataWithSelection :: Dynamic t [(a,Bool)]

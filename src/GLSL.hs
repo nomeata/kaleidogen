@@ -15,20 +15,18 @@ conclude :: (String, Integer) -> String
 conclude (pgm, r) = unlines
   [ "precision mediump float;"
   , "uniform float u_extraData;"
+  , "uniform float u_time;"
   , "varying vec2 vDrawCoord;"
   , "void main() {"
   , "  vec2 pos0 = vDrawCoord;"
-  , "  if (length(pos0) > 1.0) { gl_FragColor = vec4(0,0,0,0.0); return; }"
-  , "  if (u_extraData > 0.5) {" -- need a hightlighting border
-  , "    if (length(pos0) > 0.9) {"
-  , "      if (u_extraData > 1.5) {"
-  , "        gl_FragColor = vec4(0,0,1.0,1.0);"
-  , "      } else {"
-  , "        gl_FragColor = vec4(0,0,0,0.0);"
-  , "      };"
-  , "      return;"
-  , "    }"
-  , "    pos0 = pos0 / 0.9;"
+  , "  if (length(pos0) > 1.0) { gl_FragColor = vec4(0,0,0,0.0); return; };"
+  , "  if (u_extraData > 0.5) {" -- is selectable
+  , "    float s = 0.90;"
+  , "    if (u_extraData > 1.5) {" -- is selected
+  , "      s += 0.05 + 0.05 * cos(u_time * 3.14);"
+  , "    };"
+  , "    if (length(pos0) > s) { gl_FragColor = vec4(0,0,0,0.0); return; };"
+  , "    pos0 = pos0 / s;"
   , "  }"
   , indent pgm
   , "  gl_FragColor = vec4(col" ++ show r ++ ", 1.0);"
