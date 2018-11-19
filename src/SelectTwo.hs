@@ -16,6 +16,9 @@ empty = NoneSelected
 singleton :: a -> SelectTwo a
 singleton = OneSelected
 
+duolton :: a -> a -> SelectTwo a
+duolton = TwoSelected
+
 flip :: Eq a => SelectTwo a -> a -> SelectTwo a
 flip NoneSelected      x             = OneSelected x
 flip (OneSelected y)   x | x == y    = NoneSelected
@@ -28,3 +31,8 @@ member :: Eq a => a -> SelectTwo a -> Bool
 member _ NoneSelected = False
 member x (OneSelected y) = x == y
 member x (TwoSelected y z) = x == y || x == z
+
+isOneSelected :: SelectTwo a -> Bool
+isOneSelected (OneSelected _) = True
+isOneSelected _ = False
+

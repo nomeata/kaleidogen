@@ -1,10 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MonoLocalBinds #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -16,7 +14,6 @@ import Control.Monad
 import qualified Data.Text as T
 import Data.Monoid
 import Data.List
-import Data.Maybe
 import Data.Function
 import Control.Monad.Fix
 
@@ -67,20 +64,19 @@ selectTwoInteraction :: forall t m a.
     Event t () -> Event t Int -> Dynamic t [a] ->
     m (Dynamic t (S2.SelectTwo a), Dynamic t [(a,Bool)])
 selectTwoInteraction eClear eSelectOne dData = mdo
-    let eSelection :: Event t (S2.SelectTwo Int) =
-            attachWith S2.flip (current dSelected) eSelectOne
+    let eSelection :: Event t (S2.SelectTwo Int)
+            = attachWith S2.flip (current dSelected) eSelectOne
     -- This separation is necessary so that eClear may depend on the eSelectedN
     -- that we return; otherwise we get a loop
     let eClearedSelection :: Event t (S2.SelectTwo Int)
             = leftmost [S2.empty <$ eClear, eSelection]
     dSelected :: Dynamic t (S2.SelectTwo Int)
-            <- holdDyn (S2.singleton 0) eClearedSelection
+            <- holdDyn (S2.duolton 0 1) eClearedSelection
+    let dSelectedData :: Dynamic t (S2.SelectTwo a)
+            = (\xs s -> fmap (xs!!) s) <$> dData <*> dSelected
+    let dDataWithSelection :: Dynamic t [(a,Bool)]
+            = (\xs s -> zip xs (map (`S2.member` s) [0..])) <$> dData <*> dSelected
 
-    let dDataWithSelection =
-            (\xs s -> zip xs (map (`S2.member` s) [0..])) <$> dData <*> dSelected
-
-    dSelection' <- holdDyn (S2.singleton 0) $ leftmost [ eSelection, S2.empty <$ eClear]
-    let dSelectedData = (\xs s -> fmap (xs!!) s) <$> dData <*> dSelection'
     return (dSelectedData, dDataWithSelection)
 
 type CompileFun = T.Text -> JSM (Maybe CompiledProgram)
@@ -122,12 +118,15 @@ previewPGM seed compile (S2.TwoSelected x y) = do
     let z = crossover seed (getDNA x) (getDNA y)
     Just <$> toDNAP compile z
 
-toolbarButton :: (DomBuilder t m, PostBuild t m) =>
+toolbarButton :: forall m t. (DomBuilder t m, PostBuild t m) =>
     T.Text -> Dynamic t Bool -> m (Event t ())
-toolbarButton txt dActive = do
-    let dAttrs = (\case True -> mempty; False -> "class" =: "disabled") <$> dActive
-    (e,_) <- elDynAttr' "a" dAttrs (text txt)
-    return $ gate (current dActive) $ domEvent Click e
+toolbarButton txt dActive = coincidence <$> dyn (f <$> dActive)
+  where
+    f :: Bool -> m (Event t ())
+    f True = do
+        (e,()) <- el' "a" (text txt)
+        return $ () <$ domEvent Click e
+    f False = return never
 
 main :: IO ()
 main = do
@@ -138,9 +137,9 @@ main = do
         dAnimationFrame <- getAnimationFrameD
         let eSizeMayChange = () <$ updated dAnimationFrame
 
-        (eAdded1, eDelete, eSave) <- divClass "toolbar" $
-            (,,) <$>
-            toolbarButton "➕" dCanAdd <*>
+        (eDelete, eSave) <- divClass "toolbar" $
+            (,) <$>
+            -- toolbarButton "➕" dCanAdd <*>
             toolbarButton "🗑" dCanDel <*>
             toolbarButton "💾" dCanSave
 
@@ -155,7 +154,7 @@ main = do
                 (,) <$> dMainGenome <*> dGenomesWithSelection
         let (eAdded2, eSelectOne) = fanEither eAdded2_SelectOne
 
-        let eAdded = eAdded1 <> gate (current dCanAdd) eAdded2
+        let eAdded = gate (current dCanAdd) eAdded2
         let dFilename = toFilename . fmap getDNA <$> dMainGenome
         let eSaveAs = tag (current dFilename) eSave
 
@@ -165,10 +164,8 @@ main = do
         let dCanAdd =
                 (\new xs -> maybe False (`notElem` xs) new) <$>
                 dMainGenome <*> dGenomes
-        let dCanDel =
-                (\new xs -> maybe False (`elem`    xs) new) <$>
-                dMainGenome <*> dGenomes
-        let dCanSave = isJust <$> dMainGenome
+        let dCanDel = S2.isOneSelected <$> dPairSelected
+        let dCanSave = S2.isOneSelected <$> dPairSelected
 
         let eClear = eAdded <> eDelete
 
