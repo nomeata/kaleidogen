@@ -79,15 +79,15 @@ selectTwoInteraction eClear eSelectOne dData = mdo
 
     return (dSelectedData, dDataWithSelection)
 
-type CompileFun = T.Text -> JSM (Maybe CompiledProgram)
+type CompileFun = T.Text -> JSM CompiledProgram
 
-data DNAP = DNAP DNA (Maybe CompiledProgram)
+data DNAP = DNAP DNA CompiledProgram
 instance Eq DNAP where (==) = (==) `on` getDNA
 instance Ord DNAP where compare = compare `on` getDNA
 
 getDNA :: DNAP -> DNA
 getDNA (DNAP x _) = x
-getProgram :: DNAP -> Maybe CompiledProgram
+getProgram :: DNAP -> CompiledProgram
 getProgram (DNAP _ p) = p
 
 toDNAP :: CompileFun -> DNA -> JSM DNAP
@@ -96,7 +96,7 @@ toDNAP compile x = do
     p <- compile t
     return $ DNAP x p
 
-getProgramD :: Functor f => f [((DNAP, a), b, c)] -> f [((Maybe CompiledProgram, a), b, c)]
+getProgramD :: Functor f => f [((DNAP, a), b, c)] -> f [((CompiledProgram, a), b, c)]
 getProgramD = fmap $ map (\((x,b), p, s) -> ((getProgram x, b), p, s))
 
 toFilename :: Maybe DNA -> T.Text

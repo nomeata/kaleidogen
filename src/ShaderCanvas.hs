@@ -128,7 +128,7 @@ compileFragmentShader gl vertexShader fragmentShaderSource = do
     let compiledProgram = program
     return CompiledProgram {..}
 
-type Drawable = ((Maybe CompiledProgram, Double), (Double, Double), Double)
+type Drawable = ((CompiledProgram, Double), (Double, Double), Double)
 
 paintGL :: MonadDOM m => WebGLRenderingContext -> (Double, Double) -> [Drawable] -> m ()
 paintGL gl (w,h) toDraw = do
@@ -139,20 +139,18 @@ paintGL gl (w,h) toDraw = do
     clearColor gl 1 1 1 0
     clear gl COLOR_BUFFER_BIT
 
-    for_ toDraw $ \case
-        ((Just CompiledProgram {..}, extraData), (x,y), size) -> do
-            enableVertexAttribArray gl (fromIntegral positionLocation)
-            vertexAttribPointer gl (fromIntegral positionLocation) 2 FLOAT False 0 0
+    for_ toDraw $ \((CompiledProgram {..}, extraData), (x,y), size) -> do
+        enableVertexAttribArray gl (fromIntegral positionLocation)
+        vertexAttribPointer gl (fromIntegral positionLocation) 2 FLOAT False 0 0
 
-            useProgram gl (Just compiledProgram)
+        useProgram gl (Just compiledProgram)
 
-            uniform2f gl (Just windowSizeLocation) w h
-            uniform2f gl (Just posLocation) x y
-            uniform1f gl (Just sizeLocation) size
-            uniform1f gl (Just extraDataLocation) extraData
+        uniform2f gl (Just windowSizeLocation) w h
+        uniform2f gl (Just posLocation) x y
+        uniform1f gl (Just sizeLocation) size
+        uniform1f gl (Just extraDataLocation) extraData
 
-            drawArrays gl TRIANGLES 0 6
-        _ -> return ()
+        drawArrays gl TRIANGLES 0 6
 
 querySize :: (IsElement self, MonadJSM m) => self -> m (Double, Double)
 querySize domEl = liftJSM $ do
@@ -181,7 +179,7 @@ autoResizeCanvas eMayHaveChanged domEl =  do
 type ResultStuff t =
     ( Event t (Double,Double)
     , Dynamic t (Double, Double)
-    , Text -> JSM (Maybe CompiledProgram)
+    , Text -> JSM CompiledProgram
     )
 
 shaderCanvas :: (MonadWidget t m) =>
@@ -214,7 +212,7 @@ shaderCanvas' eMayHaveChanged toDraw = do
     compile <- getContext domEl ("experimental-webgl"::Text) ([]::[()]) >>= \case
       Nothing ->
         -- jsg "console" ^. js1 "log" (gl ^. js1 "getShaderInfoLog" vertexShader)
-        return (\_ -> return Nothing)
+        return (\_ -> return (error "no context"))
       Just gl' -> do
         gl <- unsafeCastTo WebGLRenderingContext gl'
         cs <- commonSetup gl
@@ -222,7 +220,7 @@ shaderCanvas' eMayHaveChanged toDraw = do
         performEvent_ $
           paintGL gl <$> current dCanvasSize <@> eDraw
 
-        return (fmap Just . compileFragmentShader gl cs)
+        return (compileFragmentShader gl cs)
 
     return (canvasEl, (eClick, dCanvasSize, compile))
 
@@ -239,6 +237,6 @@ saveToPNG toDraw name = do
         cs <- commonSetup gl
         toDraw' <- forM toDraw $ \((a,b),p,s) -> do
             prog <- compileFragmentShader gl cs a
-            pure ((Just prog,b),p,s)
+            pure ((prog,b),p,s)
         paintGL gl (1000, 1000) toDraw'
     CanvasSave.save name domEl
