@@ -106,7 +106,6 @@ data CompiledProgram = CompiledProgram
     , sizeLocation :: WebGLUniformLocation
     , extraDataLocation  :: WebGLUniformLocation
     , timeLocation  :: WebGLUniformLocation
-    , ageLocation  :: WebGLUniformLocation
     }
 
 compileFragmentShader :: MonadJSM m => WebGLRenderingContext -> WebGLShader -> Text -> m CompiledProgram
@@ -128,12 +127,11 @@ compileFragmentShader gl vertexShader fragmentShaderSource = do
     sizeLocation <- getUniformLocation gl (Just program) ("u_size" :: Text)
     extraDataLocation <- getUniformLocation gl (Just program) ("u_extraData" :: Text)
     timeLocation <- getUniformLocation gl (Just program) ("u_time" :: Text)
-    ageLocation <- getUniformLocation gl (Just program) ("u_age" :: Text)
 
     let compiledProgram = program
     return CompiledProgram {..}
 
-type Drawable = (((CompiledProgram, Double), Maybe Double), (Double, Double), Double)
+type Drawable = ((CompiledProgram, Double), (Double, Double), Double)
 
 paintGL :: MonadDOM m => WebGLRenderingContext -> (Double, Double) -> [Drawable] -> Double -> m ()
 paintGL gl (w,h) toDraw now = do
@@ -144,7 +142,7 @@ paintGL gl (w,h) toDraw now = do
     clearColor gl 1 1 1 0
     clear gl COLOR_BUFFER_BIT
 
-    for_ toDraw $ \(((CompiledProgram {..}, extraData), mbAge), (x,y), size) -> do
+    for_ toDraw $ \((CompiledProgram {..}, extraData), (x,y), size) -> do
         enableVertexAttribArray gl (fromIntegral positionLocation)
         vertexAttribPointer gl (fromIntegral positionLocation) 2 FLOAT False 0 0
 
@@ -155,7 +153,6 @@ paintGL gl (w,h) toDraw now = do
         uniform1f gl (Just sizeLocation) size
         uniform1f gl (Just extraDataLocation) extraData
         uniform1f gl (Just timeLocation) (now/1000)
-        uniform1f gl (Just ageLocation) (maybe 0 (/1000) mbAge)
 
         drawArrays gl TRIANGLES 0 6
 
@@ -226,7 +223,7 @@ shaderCanvas' eMayHaveChanged toDraw = do
 
     return (canvasEl, (eClick, dCanvasSize, compile))
 
-saveToPNG :: MonadJSM m => [(((Text, Double), Maybe Double), (Double, Double), Double)] -> Text -> m ()
+saveToPNG :: MonadJSM m => [((Text, Double), (Double, Double), Double)] -> Text -> m ()
 saveToPNG toDraw name = do
     doc <- currentDocumentUnchecked
     domEl <- uncheckedCastTo HTMLCanvasElement <$> createElement doc ("canvas" :: Text)
@@ -237,8 +234,8 @@ saveToPNG toDraw name = do
       Just gl' -> do
         gl <- unsafeCastTo WebGLRenderingContext gl'
         cs <- commonSetup gl
-        toDraw' <- forM toDraw $ \(((a,b),mba),p,s) -> do
+        toDraw' <- forM toDraw $ \((a,b),p,s) -> do
             prog <- compileFragmentShader gl cs a
-            pure (((prog,b),mba),p,s)
+            pure ((prog,b),p,s)
         paintGL gl (1000, 1000) toDraw' 0
     CanvasSave.save name domEl

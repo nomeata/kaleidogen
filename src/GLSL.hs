@@ -14,10 +14,8 @@ toFragmentShader rna = conclude $ go rna 0
 conclude :: (String, Integer) -> String
 conclude (pgm, r) = unlines
   [ "precision mediump float;"
-  -- extraData: 0 - bit circle, 1 - small circle, 2 - selected small circle
   , "uniform float u_extraData;"
   , "uniform float u_time;"
-  , "uniform float u_age;"
   , "varying vec2 vDrawCoord;"
   , "void main() {"
   , "  vec2 pos0 = vDrawCoord;"
@@ -29,12 +27,6 @@ conclude (pgm, r) = unlines
   , "    };"
   , "    if (length(pos0) > s) { gl_FragColor = vec4(0,0,0,0.0); return; };"
   , "    pos0 = pos0 / s;"
-  , "  }"
-  , "  if (u_extraData < 0.5 && u_age > 0.0 && u_time - u_age < 3.0) {"
-  , "    float s = (1.0 - pow(1.0 - (u_time - u_age) / 3.0,2.0));"
-  , "    float alpha = s * (2.0 * 3.14);"
-  , "    if (length(pos0) > s) { gl_FragColor = vec4(0,0,0,0.0); return; };"
-  , "    pos0 = 1.0/s * length(pos0) * vec2(sin(atan(pos0.x, pos0.y) + alpha),cos(atan(pos0.x, pos0.y) + alpha));"
   , "  }"
   , indent pgm
   , "  gl_FragColor = vec4(col" ++ show r ++ ", 1.0);"
