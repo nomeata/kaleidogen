@@ -118,14 +118,14 @@ previewPGM seed compile (S2.TwoSelected x y) = do
     let z = crossover seed (getDNA x) (getDNA y)
     Just <$> toDNAP compile z
 
-toolbarButton :: forall m t. (DomBuilder t m, PostBuild t m) =>
+toolbarButton :: forall m t. (DomBuilder t m, PostBuild t m, MonadHold t m) =>
     T.Text -> Dynamic t Bool -> m (Event t ())
-toolbarButton txt dActive = coincidence <$> dyn (f <$> dActive)
+toolbarButton txt dActive = switchDyn <$> widgetHold (return never) (updated (f <$> dActive))
   where
     f :: Bool -> m (Event t ())
     f True = do
         (e,()) <- el' "a" (text txt)
-        return $ () <$ domEvent Click e
+        return $ domEvent Click e
     f False = return never
 
 main :: IO ()
