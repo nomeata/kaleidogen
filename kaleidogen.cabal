@@ -35,6 +35,7 @@ common logic
     build-depends: containers
     build-depends: text
     build-depends: hex-text
+    build-depends: formatting >= 6.3
     build-depends: bytestring
     build-depends: colour
 

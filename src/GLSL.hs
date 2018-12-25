@@ -1,17 +1,23 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE OverloadedStrings #-}
 module GLSL where
 
-import Text.Printf
+import Prelude hiding (unlines)
+import Data.Monoid
+import Formatting.Buildable
+import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
+import Data.Text.Lazy.Builder
 import Data.Colour.SRGB
 import RNA
 
-indent :: String -> String
-indent = unlines . map ("  " ++) . lines
+toFragmentShader :: RNA -> T.Text
+toFragmentShader rna = TL.toStrict $ toLazyText $ conclude $ go rna 0
 
-toFragmentShader :: RNA -> String
-toFragmentShader rna = conclude $ go rna 0
+unlines :: [Builder] -> Builder
+unlines = foldMap (<> "\n")
 
-conclude :: (String, Integer) -> String
+conclude :: (Builder, Integer) -> Builder
 conclude (pgm, r) = unlines
   [ "precision mediump float;"
   , "uniform float u_extraData;"
@@ -30,13 +36,13 @@ conclude (pgm, r) = unlines
   , "    }"
   , "    pos0 = pos0 / 0.9;"
   , "  }"
-  , indent pgm
-  , "  gl_FragColor = vec4(col" ++ show r ++ ", 1.0);"
+  , pgm
+  , "  gl_FragColor = vec4(" <> col r <> ", 1.0);"
   , "}"
   ]
 
-blankShader :: String
-blankShader = conclude $ go (Solid (RGB 1 1 1)) 0
+blankShader :: T.Text
+blankShader = TL.toStrict $ toLazyText $ conclude $ go (Solid (RGB 1 1 1)) 0
 
 -- GLSL evaluator
 
@@ -48,66 +54,101 @@ blankShader = conclude $ go (Solid (RGB 1 1 1)) 0
 --    and writes a color to the variable posm
 --
 -- This could all be much nicer, and heavy refactoring is welcome.
-type GLSLGen = Integer -> (String, Integer)
+type GLSLGen = Integer -> (Builder, Integer)
+
+pos :: Integer -> Builder
+pos n = "pos" <> build n
+col :: Integer -> Builder
+col n = "col" <> build n
+tmp :: Integer -> Builder
+tmp n = "tmp" <> build n
+tmp2 :: Integer -> Builder
+tmp2 n = "tmp" <> build n <> "_2"
+tmp3 :: Integer -> Builder
+tmp3 n = "tmp" <> build n <> "_3"
+
+floatEq :: Builder -> Builder -> Builder
+x `floatEq` y = "float " <> x <> " = " <> y <> ";"
+vec2Eq :: Builder -> Builder -> Builder
+x `vec2Eq` y = "vec2 " <> x <> " = " <> y <> ";"
+vec3Eq :: Builder -> Builder -> Builder
+x `vec3Eq` y = "vec3 " <> x <> " = " <> y <> ";"
+
+phase, len :: Builder -> Builder
+phase x = "atan(" <> x <> ".x, " <> x <> ".y)"
+len x = "length(" <> x <> ")"
+mkPolar :: Builder -> Builder -> Builder
+mkPolar l x = "(" <> l <> " * vec2(cos(" <> x <> "),sin(" <> x <> ")))"
+float :: Int -> Builder
+float x = build (fromIntegral x :: Double)
 
 go :: RNA -> GLSLGen
 
-go (Solid col) n = (,n) $
-    printf "vec3 col%d = vec3(%f,%f,%f);\n" n r g b
-  where RGB r g b = col
+go (Solid color) n = (,n) $ unlines
+    [ col n `vec3Eq` ("vec3(" <> build r <> "," <> build g <> "," <> build b <> ")")
+    ]
+  where RGB r g b = color
 
 go (Blend x r1 r2) n = (,n2+1) $ unlines
-    [ printf "vec2 pos%d = pos%d;" (n+1) n
+    [ pos (n+1) `vec2Eq` pos n
     , src1
-    , printf "vec2 pos%d = pos%d;" (n1+1) n
+    , pos (n1+1) `vec2Eq` pos n
     , src2
-    , printf "vec3 col%d = %f * col%d + (1.0-%f) * col%d;" (n2+1) x n1 x n2
+    , col (n2+1) `vec3Eq` (build x <> " * " <> col n1 <> " + (1.0-" <> build x <> ") * " <> col n2)
     ]
   where
     (src1, n1) = go r1 (n+1)
     (src2, n2) = go r2 (n1+1)
 
 go (Checker x r1 r2) n = (,n2+1) $ unlines
-    [ printf "vec2 pos%d = pos%d;" (n+1) n
+    [ pos (n+1) `vec2Eq` pos n
     , src1
-    , printf "vec2 pos%d = pos%d;" (n1+1) n
+    , pos (n1+1) `vec2Eq` pos n
     , src2
-    , printf "vec2 tmp%d = %f*(1.0/sqrt(2.0)) * mat2(1.0,1.0,-1.0,1.0) * pos%d;" n x n
-    , printf "vec3 col%d;" (n2+1)
-    , printf "if (mod(tmp%d.x, 2.0) < 1.0 != mod(tmp%d.y, 2.0) < 1.0) {" n n
-    , printf "   col%d = col%d;" (n2+1) n1
-    , printf "} else {"
-    , printf "   col%d = col%d;" (n2+1) n2
-    , printf "};"
+    , tmp n `vec2Eq` (build x <> "*(1.0/sqrt(2.0)) * mat2(1.0,1.0,-1.0,1.0) * " <> pos n)
+    , "vec3 " <> col (n2+1) <> ";"
+    , "if (mod(" <> tmp n <> ".x, 2.0) < 1.0 != mod(" <> tmp n <> ".y, 2.0) < 1.0) {"
+    , "   " <> col (n2+1) <> " = " <> col n1 <> ";"
+    , "} else {"
+    , "   " <> col (n2+1) <> " = " <> col n2 <> ";"
+    , "};"
     ]
   where
     (src1, n1) = go r1 (n+1)
     (src2, n2) = go r2 (n1+1)
 
 go (Rotate x r1) n = (,n1) $ unlines
-    [ printf "vec2 pos%d = length(pos%d) * vec2(cos(atan(pos%d.x, pos%d.y) + %f),sin(atan(pos%d.x, pos%d.y) + %f));" (n+1) n n n x n n x
+    [ tmp n `floatEq` phase (pos n)
+    , tmp2 n `floatEq` len (pos n)
+    , tmp3 n `floatEq` (tmp n <> " + " <> build x)
+    , pos (n+1) `vec2Eq` mkPolar (tmp2 n) (tmp3 n)
     , src1
     ]
   where
     (src1, n1) = go r1 (n+1)
 
 go (Invert r1) n = (,n1) $ unlines
-    [ printf "vec2 pos%d = ((1.0-length(pos%d))/length(pos%d)) * pos%d;" (n+1) n n n
+    [ pos (n+1) `vec2Eq` ("((1.0-length(" <> pos n <> "))/length(" <> pos n <> ")) * " <> pos n)
     , src1
     ]
   where
     (src1, n1) = go r1 (n+1)
 
 go (Swirl x r1) n = (,n1) $ unlines
-    [ printf "vec2 pos%d = length(pos%d) * vec2(cos(atan(pos%d.x, pos%d.y) + (1.0-length(pos%d))*%f),sin(atan(pos%d.x, pos%d.y) + (1.0-length(pos%d))*%f));" (n+1) n n n n x n n n x
+    [ tmp n `floatEq` phase (pos n)
+    , tmp2 n `floatEq` len (pos n)
+    , tmp3 n `floatEq` (tmp n <> " + (1.0 - " <> tmp2 n <> ") * " <> build x)
+    , pos (n+1) `vec2Eq` mkPolar (tmp2 n) (tmp3 n)
     , src1
     ]
   where
     (src1, n1) = go r1 (n+1)
 
 go (Dilated r r1) n = (,n1) $ unlines
-    [ printf "float tmp%d = atan(pos%d.x, pos%d.y);" n n n
-    , printf "vec2 pos%d = length(pos%d) * vec2(cos(tmp%d + 1.0/%d.0 * sin(tmp%d * %d.0)),sin(tmp%d + 1.0/%d.0 * sin(tmp%d * %d.0)));" (n+1) n n r n r n r n r
+    [ tmp n `floatEq` phase (pos n)
+    , tmp2 n `floatEq` len (pos n)
+    , tmp3 n `floatEq` (tmp n <> " + 1.0/" <> float r <> " * sin(" <> tmp n <> " * " <> float r <> ")")
+    , pos (n+1) `vec2Eq` mkPolar (tmp2 n) (tmp3 n)
     , src1
     ]
   where
@@ -115,41 +156,42 @@ go (Dilated r r1) n = (,n1) $ unlines
 
 go (Rays r r1 r2) n = (,n2+1) $ unlines
     [ src1
-    , printf "vec2 pos%d = pos%d;" (n1+1) n
+    , pos (n1+1) `vec2Eq` pos n
     , src2
-    , printf "vec3 col%d;" (n2+1)
-    , printf "if (mod(atan(pos%d.x, pos%d.y)/%f * %f, 2.0) < 1.0) {" n n (pi::Double) (fromIntegral r :: Double)
-    , printf "   col%d = col%d;" (n2+1) n1
-    , printf "} else {"
-    , printf "   col%d = col%d;" (n2+1) n2
-    , printf "};"
+    , "vec3 " <> col (n2+1) <> ";"
+    , "if (mod( " <> phase (pos n) <> "/" <> build (pi :: Double) <> " * " <> float r <> ", 2.0) < 1.0) {"
+    , "   " <> col (n2+1) <> " = " <> col n1 <> ";"
+    , "} else {"
+    , "   " <> col (n2+1) <> " = " <> col n2 <> ";"
+    , "};"
     ]
   where
     (src1, n1) = go r1 n
     (src2, n2) = go r2 (n1+1)
 
 go (Gradient r1 r2) n = (,n2+1) $ unlines
-    [ printf "vec2 pos%d = pos%d;" (n+1) n
+    [ pos (n+1) `vec2Eq` pos n
     , src1
-    , printf "vec2 pos%d = pos%d;" (n1+1) n
+    , pos (n1+1) `vec2Eq` pos n
     , src2
-    , printf "vec3 col%d = length(pos%d) * col%d + (1.0-length(pos%d)) * col%d;" (n2+1) n n1 n n2
+    , tmp2 n `floatEq` len (pos n)
+    , col (n2+1) `vec3Eq` (tmp2 n <> " * " <> col n1 <> " + (1.0 - " <> tmp2 n <> ") * " <> col n2)
     ]
   where
     (src1, n1) = go r1 (n+1)
     (src2, n2) = go r2 (n1+1)
 
 go (Ontop x r1 r2) n = (,n2+1) $ unlines
-    [ printf "vec2 pos%d = pos%d/0.8;" (n+1) n
+    [ pos (n+1) `vec2Eq` (pos n <> "/" <> build x)
     , src1
-    , printf "vec2 pos%d = pos%d;" (n1+1) n
+    , pos (n1+1) `vec2Eq` pos n
     , src2
-    , printf "vec3 col%d;" (n2+1)
-    , printf "if (length(pos%d) < %f) {" n x
-    , printf "   col%d = col%d;" (n2+1) n1
-    , printf "} else {"
-    , printf "   col%d = col%d;" (n2+1) n2
-    , printf "};"
+    , "vec3 " <> col (n2+1) <> ";"
+    , "if (length(" <> pos n <> ") < " <> build x <> ") {"
+    , "   " <> col (n2+1) <> " = " <> col n1 <> ";"
+    , "} else {"
+    , "   " <> col (n2+1) <> " = " <> col n2 <> ";"
+    , "};"
     ]
   where
     (src1, n1) = go r1 (n+1)

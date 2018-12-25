@@ -92,7 +92,7 @@ getProgram (DNAP _ p) = p
 
 toDNAP :: CompileFun -> DNA -> JSM DNAP
 toDNAP compile x = do
-    let t = T.pack $ toFragmentShader $ dna2rna x
+    let t = toFragmentShader $ dna2rna x
     p <- compile t
     return $ DNAP x p
 
@@ -158,7 +158,7 @@ main = do
         let dFilename = toFilename . fmap getDNA <$> dMainGenome
         let eSaveAs = tag (current dFilename) eSave
 
-        let dForSave = maybe [] (\x -> fst (layoutFullCirlce (T.pack $ toFragmentShader $ dna2rna $ getDNA x, 0) (1000, 1000))) <$> dMainGenome
+        let dForSave = maybe [] (\x -> fst (layoutFullCirlce (toFragmentShader $ dna2rna $ getDNA x, 0) (1000, 1000))) <$> dMainGenome
         performEvent_ (saveToPNG <$> current dForSave <@> eSaveAs)
 
         let dCanAdd =
