@@ -21,7 +21,6 @@ import CanvasSave
 import Reflex.Dom
 
 import Data.Maybe
-import qualified Data.Text as T
 import Data.Text as Text (Text, unlines)
 import Control.Monad.Fix
 import Data.Foldable
@@ -40,7 +39,7 @@ import GHCJS.DOM.EventM (mouseOffsetXY)
 -- import GHCJS.DOM.EventM (on, preventDefault)
 
 import Language.Javascript.JSaddle.Object hiding (array)
-import Control.Lens ((^.))
+-- import Control.Lens ((^.))
 
 vertexShaderSource :: Text
 vertexShaderSource = Text.unlines
@@ -109,12 +108,10 @@ data CompiledProgram = CompiledProgram
 
 compileFragmentShader :: MonadJSM m => WebGLRenderingContext -> WebGLShader -> Text -> m CompiledProgram
 compileFragmentShader gl vertexShader fragmentShaderSource = do
-    _ <- liftJSM $ jsg (T.pack "console") ^. js1 (T.pack "log") fragmentShaderSource
-
     fragmentShader <- createShader gl FRAGMENT_SHADER
     shaderSource gl (Just fragmentShader) fragmentShaderSource
     compileShader gl (Just fragmentShader)
-    _ <- liftJSM $ jsg (T.pack "console") ^. js1 (T.pack "log") (gl ^. js1 (T.pack "getShaderInfoLog") fragmentShader)
+    -- _ <- liftJSM $ jsg (T.pack "console") ^. js1 (T.pack "log") (gl ^. js1 (T.pack "getShaderInfoLog") fragmentShader)
 
     program <- createProgram gl
     attachShader gl (Just program) (Just vertexShader)
