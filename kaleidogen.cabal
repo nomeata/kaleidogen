@@ -25,6 +25,7 @@ source-repository head
 common logic
     hs-source-dirs: src
     other-modules: DNA
+    other-modules: Logic
     other-modules: RNA
     other-modules: GLSL
     other-modules: Expression

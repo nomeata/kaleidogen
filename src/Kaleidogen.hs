@@ -15,9 +15,9 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Monoid
 import Data.IORef
-import Control.Monad
 import Control.Monad.IO.Class
 import Data.Bifunctor
+import Data.Foldable
 
 import GHCJS.DOM.Types hiding (Text)
 import GHCJS.DOM
@@ -35,6 +35,7 @@ import qualified SelectTwo as S2
 import Layout hiding (Element)
 import qualified CanvasSave
 import Animate
+import Logic
 
 #if defined(ghcjs_HOST_OS)
 run :: a -> a
@@ -52,27 +53,6 @@ reorderExtraData = map $ \((d,b), (x,y), s) -> (d, (b, x, y, s))
 
 toFilename :: DNA -> T.Text
 toFilename dna = "kaleidogen-" <> dna2hex dna <> ".png"
-
-type Seed = Int
-
-preview :: Seed -> S2.SelectTwo DNA -> Maybe DNA
-preview _    S2.NoneSelected = Nothing
-preview _    (S2.OneSelected x)   = Just x
-preview seed (S2.TwoSelected x y) = Just $ crossover seed x y
-
-data AppState = AppState
-    { seed :: Seed
-    , canvasSize :: (Double, Double)
-    , dnas :: [DNA]
-    , sel :: S2.SelectTwo Int
-    }
-
-initialAppState :: Seed -> AppState
-initialAppState seed = AppState {..}
-  where
-    canvasSize = (1000, 1000)
-    dnas = initialDNAs
-    sel = S2.duolton 0 1
 
 layoutState :: AppState -> ([((DNA, Double), (Double, Double), Double)], (Double, Double) -> Maybe (Either () (Int, ())))
 layoutState AppState{..} = (toDraw, locate)
@@ -105,43 +85,23 @@ main = run $ do
         let (toDraw, _locate) = layoutState as
         drawAnimated toDraw
 
+    let handeEvent e = do
+        as <- liftIO (readIORef s)
+        liftIO $ writeIORef s $ handle as e
+        liftJSM render
+
     _ <- on canvas click $ liftIO (readIORef s) >>= \as@AppState{..} -> do
         pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
         case snd (layoutState as) pos of
             Nothing -> return ()
-            Just (Left ()) -> do
-                let selectedTwo = (dnas!!) <$> sel
-                case preview seed selectedTwo of
-                    Nothing -> return ()
-                    Just new -> unless (new `elem` dnas) $ do
-                        liftIO $ writeIORef s as
-                            { sel = S2.empty
-                            , dnas = dnas ++ [new]
-                            }
-                        liftJSM render
-            Just (Right (n, ())) -> do
-                let sel' = S2.flip sel n
-                liftIO $ writeIORef s $ as { sel = sel' }
-                liftJSM render
-        return ()
-    _ <- on del click $ liftIO (readIORef s) >>= \as@AppState{..} ->
-        case sel of
-            S2.OneSelected n -> do
-                liftIO $ writeIORef s $ as
-                    { dnas = take n dnas ++ drop (n+1) dnas
-                    , sel = S2.empty }
-                liftJSM render
-            _ -> return ()
-    _ <- on save click $ liftIO (readIORef s) >>= \AppState{..} ->
-        case sel of
-            S2.OneSelected n -> do
-                let dna = dnas !! n
-                let toDraw = reorderExtraData $ fst $ layoutFullCirlce (dna, 0) (1000, 1000)
-                saveToPNG
-                    (toFragmentShader . dna2rna)
-                    toDraw
-                    (toFilename dna)
-            _ -> return ()
+            Just (Left ()) -> handeEvent ClickMain
+            Just (Right (n, ())) -> handeEvent (ClickSmall n)
+    _ <- on del click $ handeEvent Delete
+    _ <- on save click $ do
+        as <- liftIO (readIORef s)
+        for_ (selectedDNA as) $ \dna -> do
+            let toDraw = reorderExtraData $ fst $ layoutFullCirlce (dna, 0) (1000, 1000)
+            saveToPNG (toFragmentShader . dna2rna) toDraw (toFilename dna)
 
     let canvasResized size = do
         liftIO $ modifyIORef' s (\as -> as { canvasSize = size })
