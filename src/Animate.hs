@@ -2,27 +2,23 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Animate where
 
-import Control.Monad.Fix
+import Control.Monad.IO.Class
 import qualified Data.Map as M
 import Data.List
 import Data.Maybe
+import Data.IORef
+import Data.Function
 
-import Reflex.Dom
+import GHCJS.DOM
+import GHCJS.DOM.Types hiding (Text)
+import GHCJS.DOM.Performance
+import GHCJS.DOM.GlobalPerformance
 
 type LaidOut a = [(a, (Double, Double), Double)]
 
-type Morpher m t a = Dynamic t (LaidOut a) -> m (Dynamic t (LaidOut a))
-
-idMorpher :: Monad m => Morpher m t a
-idMorpher = return
-
-wiggle :: (Monad m, Reflex t) => Dynamic t Double -> Morpher m t a
-wiggle dt das = return $ zipDynWith doWiggle dt das
-
-doWiggle :: Double -> LaidOut a -> LaidOut a
-doWiggle t as =
-    [ (a, (x + 10 * sin (t/1000),y + 10 * cos (t/1000)), s)
-    | (a, (x,y), s) <- as]
+type Morpher a =
+    (LaidOut a -> JSM ()) ->
+    JSM (LaidOut a -> JSM ())
 
 labelDuplicatesRev :: Ord a => [(a,b)] -> [((a,Int),b)]
 labelDuplicatesRev = labelDuplicates . reverse
@@ -34,16 +30,27 @@ labelDuplicates = snd . mapAccumL go M.empty
                  (M.insert k (n+1) m, ((k,n),v))
 
 interpolate ::
-    forall m t a b.
-    (MonadHold t m, MonadFix m, Reflex t, Ord b) =>
+    forall a b.
+    Ord b =>
     (a -> b) ->
     Double ->
-    Dynamic t Double ->
-    Morpher m t a
-interpolate key speed dTime dInput = do
-    let eMap = toMap <$> updated dInput
-    dChanges <- foldDyn id M.empty (pointWiseHistory speed <$> current dTime <@> eMap)
-    return $ interp <$> dTime <*> dChanges
+    Morpher a
+interpolate key speed draw = do
+    Just win <- currentWindow
+    perf <- getPerformance win
+    s <- liftIO $ newIORef M.empty
+
+    let drawCurrent t = do
+        changes <- liftIO $ readIORef s
+        draw (interp t changes)
+
+    fix (\go -> () <$ inAnimationFrame' (\t -> drawCurrent t >> go))
+
+    return $ \input -> do
+        t <- now perf
+        let dm = toMap input
+        liftIO $ modifyIORef s (pointWiseHistory speed t dm)
+        drawCurrent t
   where
     toMap cur = M.fromList $
         labelDuplicatesRev [ (key k, (k, (p,s))) | (k,p,s) <- cur ]
@@ -90,13 +97,6 @@ pointWiseHistory speed t new old =
         | otherwise
         = (a, p, t, p_cur)         -- shift
 
-
-highlightChanged :: (MonadHold t m, MonadFix m, Reflex t, Eq a) => Morpher m t a
-highlightChanged dInput = do
-    dPrev <- fmap fst <$> foldDyn go ([],[]) (updated dInput)
-    return $ zipDynWith compareLaidOut dPrev dInput
-  where
-    go now (_, prev) = (prev,now)
 
 compareLaidOut :: Eq a => LaidOut a -> LaidOut a -> LaidOut a
 compareLaidOut [] news =  news

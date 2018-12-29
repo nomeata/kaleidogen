@@ -35,7 +35,7 @@ import DNA
 import qualified SelectTwo as S2
 import Layout hiding (Element)
 import qualified CanvasSave
--- import Animate
+import Animate
 
 #if defined(ghcjs_HOST_OS)
 run :: a -> a
@@ -118,13 +118,14 @@ main = run $ do
     del <- getElementByIdUnsafe doc ("delete" :: Text) >>= unsafeCastTo HTMLAnchorElement
 
     drawOnCanvas <- shaderCanvas (toFragmentShader . dna2rna) canvas
+    drawAnimated <- Animate.interpolate fst 200 (drawOnCanvas . reorderExtraData)
 
     let render = liftIO (readIORef s) >>= \as@AppState{..} -> do
         let cls :: Text = if S2.isOneSelected sel then "" else "hidden"
         setClassName save cls
         setClassName del cls
         let (toDraw, _locate) = layoutState as
-        drawOnCanvas (reorderExtraData toDraw)
+        drawAnimated toDraw
 
     _ <- on canvas click $ liftIO (readIORef s) >>= \as@AppState{..} -> do
         pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
@@ -158,12 +159,10 @@ main = run $ do
             S2.OneSelected n -> do
                 let dna = dnas !! n
                 let toDraw = reorderExtraData $ fst $ layoutFullCirlce (dna, 0) (1000, 1000)
-                liftIO $ putStrLn "Foo"
                 saveToPNG
                     (toFragmentShader . dna2rna)
                     toDraw
                     (toFilename dna)
-                liftIO $ putStrLn "Bar"
             _ -> return ()
 
     let canvasResized size = do
