@@ -110,7 +110,8 @@ go (Checker x r1 r2) = \pos -> do
         col1 col2
 
 go (Rotate x r1) = \pos -> do
-    pos' <- vec2 "pos" $ mkPolar (len pos) (phase pos <> " + " <> build x)
+    p' <- fl "phase" $ phase pos <> " + " <> build x
+    pos' <- vec2 "pos" $ mkPolar (len pos) p'
     go r1 pos'
 
 go (Invert r1) = \pos -> do
@@ -134,7 +135,7 @@ go (Rays r r1 r2) = \pos -> do
     col1 <- go r1 pos
     col2 <- go r2 pos
     vec3 "col" $ ifThenElse
-        ("(mod( " <> phase pos <> "/" <> build (pi :: Double) <> " * " <> float r <> ", 2.0) < 1.0)")
+        ("mod( " <> phase pos <> "/" <> build (pi :: Double) <> " * " <> float r <> ", 2.0) < 1.0")
         col1 col2
 
 go (Gradient r1 r2) = \pos -> do
