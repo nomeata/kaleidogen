@@ -7,7 +7,7 @@ import GHCJS.DOM.HTMLScriptElement
 import GHCJS.DOM.Types hiding (Text)
 
 import qualified Data.Text as T
-import Language.Javascript.JSaddle (toJSVal, liftJSM, MonadJSM)
+import Language.Javascript.JSaddle (toJSVal)
 import Language.Javascript.JSaddle.Object
 import Control.Lens ((^.))
 

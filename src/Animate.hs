@@ -2,12 +2,12 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Animate where
 
+import Control.Monad
 import Control.Monad.IO.Class
 import qualified Data.Map as M
 import Data.List
 import Data.Maybe
 import Data.IORef
-import Data.Function
 
 import GHCJS.DOM
 import GHCJS.DOM.Types hiding (Text)
@@ -39,18 +39,33 @@ interpolate key speed draw = do
     Just win <- currentWindow
     perf <- getPerformance win
     s <- liftIO $ newIORef M.empty
+    animating <- liftIO $ newIORef False
 
-    let drawCurrent t = do
+    let animate t = do
         changes <- liftIO $ readIORef s
         draw (interp t changes)
+        if needsAnimation t changes
+          then () <$ inAnimationFrame' animate
+          else liftIO $ writeIORef animating False
 
-    fix (\go -> () <$ inAnimationFrame' (\t -> drawCurrent t >> go))
+
+    let drawAndAnimate t = do
+        -- Draw curren state
+        changes <- liftIO $ readIORef s
+        draw (interp t changes)
+        -- If there is something to animate
+        when (needsAnimation t changes) $ do
+           -- And no animation loop is running
+            isAnimating <- liftIO (readIORef animating)
+            unless isAnimating $ do
+                liftIO $ writeIORef animating True
+                () <$ inAnimationFrame' animate
 
     return $ \input -> do
         t <- now perf
         let dm = toMap input
         liftIO $ modifyIORef s (pointWiseHistory speed t dm)
-        drawCurrent t
+        drawAndAnimate t
   where
     toMap cur = M.fromList $
         labelDuplicatesRev [ (key k, (k, (p,s))) | (k,p,s) <- cur ]
@@ -66,6 +81,11 @@ interpolate key speed draw = do
         = (a,(f x' x, f y' y), f s' s)
         | otherwise
         = (a,(x,y),s)
+
+    needsAnimation t = any (isChanging t) . M.elems
+
+    isChanging t (_, _, t',_)
+        = let r = (t-t') / speed in r < 1
 
 class Tweenable a where
     tween :: Double -> a -> a -> a
