@@ -23,7 +23,7 @@ initialAppState :: Seed -> AppState
 initialAppState seed = AppState {..}
   where
     canvasSize = (1000, 1000)
-    dnas = map (,[0]) initialDNAs
+    dnas = map (,[-1e10]) initialDNAs
     sel = S2.duolton 0 1
 
 dnaAt :: AppState -> Int -> DNA

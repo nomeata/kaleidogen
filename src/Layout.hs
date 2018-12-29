@@ -7,6 +7,9 @@ type PosAndScale = ((Double,Double), Double)
 type ClickPos = (Double, Double)
 type ClickFun a = ClickPos -> Maybe a
 
+noPas :: PosAndScale
+noPas = ((0,0),0)
+
 type Element a = (a -> PosAndScale, ClickFun a)
 type Layout a = (Double, Double) -> Element a
 

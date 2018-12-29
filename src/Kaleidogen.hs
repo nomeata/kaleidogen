@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -56,15 +55,20 @@ reorderExtraData = map $ \((d,b),((x,y),s)) -> (d, (b, x, y, s))
 toFilename :: DNA -> T.Text
 toFilename dna = "kaleidogen-" <> dna2hex dna <> ".png"
 
-layoutState :: AppState -> ([((DNA, Double), PosAndScale)], ClickFun (Either () Int))
+layoutState :: AppState ->
+    ( [((DNA, Double), PosAndScale, Double, PosAndScale)]
+    , ClickFun (Either () Int)
+    )
 layoutState as@AppState{..} = (toDraw, locate)
   where mainDNA = preview as
         (toPos, locate) = layout (length dnas) canvasSize
         toDraw =
-            [ ((dna, 0), toPos (Left ())) | dna <- toList mainDNA ] ++
-            zipWith
-                (\n (dna,_) -> ((dna, if n `S2.member` sel then 2 else 1), toPos (Right n)))
-                [0..] dnas
+            [ ((dna, 0), topPos, -1e10, noPas) | dna <- toList mainDNA ] ++
+            [ ( (dna, if n `S2.member` sel then 2 else 1)
+              , toPos (Right n), t, topPos)
+            | (n, (dna,ts)) <- zip [0.. ] dnas, t <- ts ]
+          where
+            topPos = toPos (Left ())
 
 main :: IO ()
 main = run $ do
@@ -81,7 +85,7 @@ main = run $ do
     del <- getElementByIdUnsafe doc ("delete" :: Text) >>= unsafeCastTo HTMLAnchorElement
 
     drawOnCanvas <- shaderCanvas (toFragmentShader . dna2rna) canvas
-    drawAnimated <- Animate.interpolate fst 200 (drawOnCanvas . reorderExtraData)
+    drawAnimated <- Animate.interpolate 200 (drawOnCanvas . reorderExtraData)
 
     let render = liftIO (readIORef s) >>= \as@AppState{..} -> do
         let cls :: Text = if S2.isOneSelected sel then "" else "hidden"
