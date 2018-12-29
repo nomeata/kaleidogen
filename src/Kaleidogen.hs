@@ -23,6 +23,8 @@ import GHCJS.DOM.Types hiding (Text)
 import GHCJS.DOM
 import GHCJS.DOM.Element
 import GHCJS.DOM.Document
+import GHCJS.DOM.Performance
+import GHCJS.DOM.GlobalPerformance
 import GHCJS.DOM.NonElementParentNode
 import GHCJS.DOM.EventM
 import GHCJS.DOM.GlobalEventHandlers (click)
@@ -48,18 +50,21 @@ run :: JSM () -> IO ()
 run = Language.Javascript.JSaddle.Warp.run 3003
 #endif
 
-reorderExtraData :: [((DNA, a), (b,c), d)] -> [(DNA, (a, b, c, d))]
-reorderExtraData = map $ \((d,b), (x,y), s) -> (d, (b, x, y, s))
+reorderExtraData :: [((DNA, a), ((b,c),d))] -> [(DNA, (a, b, c, d))]
+reorderExtraData = map $ \((d,b),((x,y),s)) -> (d, (b, x, y, s))
 
 toFilename :: DNA -> T.Text
 toFilename dna = "kaleidogen-" <> dna2hex dna <> ".png"
 
-layoutState :: AppState -> ([((DNA, Double), (Double, Double), Double)], (Double, Double) -> Maybe (Either () (Int, ())))
-layoutState AppState{..} = (toDraw, locate)
-  where selectedTwo = (dnas!!) <$> sel
-        mainDNA = preview seed selectedTwo
-        withSelection = zip dnas (map (`S2.member` sel) [0..])
-        (toDraw, locate) = layout (mainDNA, withSelection) canvasSize
+layoutState :: AppState -> ([((DNA, Double), PosAndScale)], ClickFun (Either () Int))
+layoutState as@AppState{..} = (toDraw, locate)
+  where mainDNA = preview as
+        (toPos, locate) = layout (length dnas) canvasSize
+        toDraw =
+            [ ((dna, 0), toPos (Left ())) | dna <- toList mainDNA ] ++
+            zipWith
+                (\n (dna,_) -> ((dna, if n `S2.member` sel then 2 else 1), toPos (Right n)))
+                [0..] dnas
 
 main :: IO ()
 main = run $ do
@@ -85,9 +90,12 @@ main = run $ do
         let (toDraw, _locate) = layoutState as
         drawAnimated toDraw
 
+    Just win <- currentWindow
+    perf <- getPerformance win
     let handeEvent e = do
+        t <- now perf
         as <- liftIO (readIORef s)
-        liftIO $ writeIORef s $ handle as e
+        liftIO $ writeIORef s $ handle as e t
         liftJSM render
 
     _ <- on canvas click $ liftIO (readIORef s) >>= \as@AppState{..} -> do
@@ -95,12 +103,13 @@ main = run $ do
         case snd (layoutState as) pos of
             Nothing -> return ()
             Just (Left ()) -> handeEvent ClickMain
-            Just (Right (n, ())) -> handeEvent (ClickSmall n)
+            Just (Right n) -> handeEvent (ClickSmall n)
     _ <- on del click $ handeEvent Delete
     _ <- on save click $ do
         as <- liftIO (readIORef s)
         for_ (selectedDNA as) $ \dna -> do
-            let toDraw = reorderExtraData $ fst $ layoutFullCirlce (dna, 0) (1000, 1000)
+            let toDraw = reorderExtraData
+                    [ ((dna,0), fst (layoutFullCirlce (1000, 1000)) ()) ]
             saveToPNG (toFragmentShader . dna2rna) toDraw (toFilename dna)
 
     let canvasResized size = do
@@ -115,12 +124,12 @@ main = run $ do
     regularlyCheckSize -- should trigger the initial render as well
     return ()
 
-layout :: Layout (Maybe t, [(t, Bool)]) (t, Double) (Either () (Int, ()))
-layout = layoutCombined
+layout :: Int -> Layout (Either () Int)
+layout count = layoutCombined
   where
-    layoutTop = layoutMaybe $ mapLayout (,0) layoutFullCirlce
-    layoutBottom = mapLayout (\(d,b)-> (d,if b then 2 else 1)) layoutFullCirlce
-    layoutCombined = layoutTop `layoutAbove` layoutGrid layoutBottom
+    layoutTop = layoutFullCirlce
+    layoutBottom = layoutFullCirlce
+    layoutCombined = layoutTop `layoutAbove` layoutGrid count layoutBottom
 
 html :: T.Text
 html = T.unlines

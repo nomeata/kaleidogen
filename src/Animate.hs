@@ -14,7 +14,9 @@ import GHCJS.DOM.Types hiding (Text)
 import GHCJS.DOM.Performance
 import GHCJS.DOM.GlobalPerformance
 
-type LaidOut a = [(a, (Double, Double), Double)]
+import Layout (PosAndScale)
+
+type LaidOut a = [(a, PosAndScale)]
 
 type Morpher a =
     (LaidOut a -> JSM ()) ->
@@ -29,12 +31,7 @@ labelDuplicates = snd . mapAccumL go M.empty
     go m (k,v) = let n = fromMaybe 0 $ M.lookup k m in
                  (M.insert k (n+1) m, ((k,n),v))
 
-interpolate ::
-    forall a b.
-    Ord b =>
-    (a -> b) ->
-    Double ->
-    Morpher a
+interpolate :: Ord b => (a -> b) -> Double -> Morpher a
 interpolate key speed draw = do
     Just win <- currentWindow
     perf <- getPerformance win
@@ -68,19 +65,19 @@ interpolate key speed draw = do
         drawAndAnimate t
   where
     toMap cur = M.fromList $
-        labelDuplicatesRev [ (key k, (k, (p,s))) | (k,p,s) <- cur ]
+        labelDuplicatesRev [ (key k, (k, pas)) | (k,pas) <- cur ]
 
     interp :: Double ->
-              M.Map (b,Int) (a, ((Double,Double),Double), Double,((Double,Double),Double)) ->
-              [(a, (Double,Double), Double)]
+              M.Map (b,Int) (a, PosAndScale, Double, PosAndScale) ->
+              [(a, PosAndScale)]
     interp t = map (interPos t) . M.elems
 
     interPos t (a, ((x,y),s), t',((x',y'), s'))
         | let r = (t-t') / speed, r < 1,
           let f = tween r
-        = (a,(f x' x, f y' y), f s' s)
+        = (a,((f x' x, f y' y), f s' s))
         | otherwise
-        = (a,(x,y),s)
+        = (a,((x,y),s))
 
     needsAnimation t = any (isChanging t) . M.elems
 
@@ -121,6 +118,6 @@ pointWiseHistory speed t new old =
 compareLaidOut :: Eq a => LaidOut a -> LaidOut a -> LaidOut a
 compareLaidOut [] news =  news
 compareLaidOut _ [] = []
-compareLaidOut ((a1, (_x1, _y1), _s1) : olds) ((a2,(x2,y2),s2):news)
-    | a1 == a2 = (a2, (x2, y2), s2)  : compareLaidOut olds news
-    | otherwise = (a2, (x2,y2), 2*s2) : compareLaidOut olds news
+compareLaidOut ((a1, ((_x1, _y1), _s1)) : olds) ((a2,((x2,y2),s2)):news)
+    | a1 == a2 = (a2, ((x2, y2), s2))  : compareLaidOut olds news
+    | otherwise = (a2, ((x2,y2), 2*s2)) : compareLaidOut olds news
