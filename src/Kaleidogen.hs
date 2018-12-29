@@ -12,7 +12,9 @@ module Kaleidogen where
 
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Map as M
 import Data.Monoid
+import Data.Maybe
 import Data.IORef
 import Control.Monad.IO.Class
 import Data.Bifunctor
@@ -64,9 +66,19 @@ layoutState as@AppState{..} = (toDraw, locate)
         (toPos, locate) = layout (length dnas) canvasSize
         toDraw =
             [ ((dna, 0), topPos, -1e10, noPas) | dna <- toList mainDNA ] ++
-            [ ( (dna, if n `S2.member` sel then 2 else 1)
+            -- Non-deleted patterns
+            [ ( (dna ds, if k `S2.member` sel then 2 else 1)
               , toPos (Right n), t, topPos)
-            | (n, (dna,ts)) <- zip [0.. ] dnas, t <- ts ]
+            | (n, (k, ds)) <- zip [0..] (M.toList dnas)
+            , isNothing (deleted ds), t <- added ds
+            ] ++
+            -- Deleted patterns
+            [ ( (dna ds, if k `S2.member` sel then 2 else 1)
+              , (p,0), t, (p,s) )
+            | (n, (k, ds)) <- zip [0..] (M.toList dnas)
+            , Just t <- return $ deleted ds
+            , let (p,s) = toPos (Right n)
+            ]
           where
             topPos = toPos (Left ())
 
@@ -85,7 +97,7 @@ main = run $ do
     del <- getElementByIdUnsafe doc ("delete" :: Text) >>= unsafeCastTo HTMLAnchorElement
 
     drawOnCanvas <- shaderCanvas (toFragmentShader . dna2rna) canvas
-    drawAnimated <- Animate.interpolate 200 (drawOnCanvas . reorderExtraData)
+    drawAnimated <- Animate.interpolate animationSpeed (drawOnCanvas . reorderExtraData)
 
     let render = liftIO (readIORef s) >>= \as@AppState{..} -> do
         let cls :: Text = if S2.isOneSelected sel then "" else "hidden"
