@@ -38,6 +38,7 @@ common logic
     build-depends: formatting >= 6.3
     build-depends: bytestring
     build-depends: colour
+    build-depends: mtl
 
 common canvas-save
     hs-source-dirs: src
