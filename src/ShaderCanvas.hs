@@ -27,6 +27,11 @@ import Data.Foldable
 import Data.Bifunctor
 import Data.Int
 import Control.Monad
+import Data.IORef
+import Control.Monad.IO.Class
+
+import qualified Data.Map.Strict as M
+import qualified Data.Map.Merge.Strict as M
 
 import GHCJS.DOM
 import GHCJS.DOM.Types hiding (Text, Event)
@@ -128,9 +133,17 @@ compileFragmentShader gl vertexShader fragmentShaderSource = do
     let compiledProgram = program
     return CompiledProgram {..}
 
-type Drawable = ((CompiledProgram, Double), (Double, Double), Double)
+type ExtraData = (Double, (Double, Double), Double)
 
-paintGL :: MonadDOM m => WebGLRenderingContext -> (Double, Double) -> [Drawable] -> m ()
+paintGLCached :: (Ord a, MonadDOM m) =>
+    Cache m a CompiledProgram ->
+    WebGLRenderingContext -> (Double, Double) -> [(a, ExtraData)] -> m ()
+paintGLCached pgmCache gl pos toDraw = do
+    pgms <- compileCached pgmCache toDraw
+    paintGL gl pos pgms
+
+paintGL :: MonadDOM m =>
+    WebGLRenderingContext -> (Double, Double) -> [(CompiledProgram, ExtraData)] -> m ()
 paintGL gl (w,h) toDraw = do
     bw <- getDrawingBufferWidth gl
     bh <- getDrawingBufferHeight gl
@@ -139,7 +152,7 @@ paintGL gl (w,h) toDraw = do
     clearColor gl 1 1 1 0
     clear gl COLOR_BUFFER_BIT
 
-    for_ toDraw $ \((CompiledProgram {..}, extraData), (x,y), size) -> do
+    for_ toDraw $ \(CompiledProgram {..}, (extraData, (x,y), size)) -> do
         enableVertexAttribArray gl (fromIntegral positionLocation)
         vertexAttribPointer gl (fromIntegral positionLocation) 2 FLOAT False 0 0
 
@@ -179,21 +192,26 @@ autoResizeCanvas eMayHaveChanged domEl =  do
 type ResultStuff t =
     ( Event t (Double,Double)
     , Dynamic t (Double, Double)
-    , Text -> JSM CompiledProgram
     )
 
-shaderCanvas :: (MonadWidget t m) =>
+shaderCanvas ::
+    Ord a =>
+    MonadWidget t m =>
+    (a -> Text) ->
     Event t () ->
-    Dynamic t [Drawable] ->
+    Dynamic t [(a, ExtraData)] ->
     m (ResultStuff t)
-shaderCanvas eMayHaveChanged toDraw
-    = snd <$> shaderCanvas' eMayHaveChanged toDraw
+shaderCanvas toGLSL eMayHaveChanged toDraw
+    = snd <$> shaderCanvas' toGLSL eMayHaveChanged toDraw
 
-shaderCanvas' :: (MonadWidget t m) =>
+shaderCanvas' ::
+    Ord a =>
+    MonadWidget t m =>
+    (a -> Text) ->
     Event t () ->
-    Dynamic t [Drawable] ->
+    Dynamic t [(a,ExtraData)] ->
     m (El t, ResultStuff t)
-shaderCanvas' eMayHaveChanged toDraw = do
+shaderCanvas' toGLSL eMayHaveChanged toDraw = do
     (canvasEl, _) <- el' "canvas" blank
     pb <- getPostBuild
 
@@ -209,23 +227,23 @@ shaderCanvas' eMayHaveChanged toDraw = do
           , tag (current toDraw) pb
           ]
 
-    compile <- getContext domEl ("experimental-webgl"::Text) ([]::[()]) >>= \case
+    getContext domEl ("experimental-webgl"::Text) ([]::[()]) >>= \case
       Nothing ->
         -- jsg "console" ^. js1 "log" (gl ^. js1 "getShaderInfoLog" vertexShader)
-        return (\_ -> return (error "no context"))
+        return ()
       Just gl' -> do
         gl <- unsafeCastTo WebGLRenderingContext gl'
         cs <- commonSetup gl
 
+        pgmCache <- newCache (compileFragmentShader gl cs . toGLSL)
+
         performEvent_ $
-          paintGL gl <$> current dCanvasSize <@> eDraw
+          paintGLCached pgmCache gl <$> current dCanvasSize <@> eDraw
 
-        return (compileFragmentShader gl cs)
+    return (canvasEl, (eClick, dCanvasSize))
 
-    return (canvasEl, (eClick, dCanvasSize, compile))
-
-saveToPNG :: MonadJSM m => [((Text, Double), (Double, Double), Double)] -> Text -> m ()
-saveToPNG toDraw name = do
+saveToPNG :: MonadJSM m => (a -> Text) -> [(a, ExtraData)] -> Text -> m ()
+saveToPNG toGLSL toDraw name = do
     doc <- currentDocumentUnchecked
     domEl <- uncheckedCastTo HTMLCanvasElement <$> createElement doc ("canvas" :: Text)
     setWidth domEl 1000
@@ -235,8 +253,28 @@ saveToPNG toDraw name = do
       Just gl' -> do
         gl <- unsafeCastTo WebGLRenderingContext gl'
         cs <- commonSetup gl
-        toDraw' <- forM toDraw $ \((a,b),p,s) -> do
-            prog <- compileFragmentShader gl cs a
-            pure ((prog,b),p,s)
+        toDraw' <- forM toDraw $ \(a,x) -> do
+            prog <- compileFragmentShader gl cs (toGLSL a)
+            pure (prog,x)
         paintGL gl (1000, 1000) toDraw'
     CanvasSave.save name domEl
+
+-- A compiled program cache
+
+type Compiler m a b = a -> m b
+type Cache m a b = IORef (Compiler m a b, M.Map a b)
+
+newCache :: MonadIO m => (a -> m2 b) -> m (Cache m2 a b)
+newCache f = liftIO $ newIORef (f, M.empty)
+
+compileCached :: (Ord a, MonadIO m) => Cache m a b -> [(a,c)] -> m [(b,c)]
+compileCached c xs = do
+    (f, oldC) <- liftIO $ readIORef c
+    let newMap = M.fromList $ map (()<$) xs
+    newC <- M.mergeA
+        M.dropMissing
+        (M.traverseMissing (\k () -> f k))
+        (M.zipWithMatched (\_ p _ -> p))
+        oldC newMap
+    liftIO $ writeIORef c (f, newC)
+    return [(newC M.! k,d) | (k,d) <- xs]

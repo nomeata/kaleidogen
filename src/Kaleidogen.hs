@@ -10,11 +10,9 @@
 {-# LANGUAGE DataKinds #-}
 module Kaleidogen where
 
-import Control.Monad
 import qualified Data.Text as T
 import Data.Monoid
 import Data.List
-import Data.Function
 import Control.Monad.Fix
 
 import Reflex.Dom
@@ -28,7 +26,7 @@ import qualified SelectTwo as S2
 import Layout
 import Animate
 
-import Language.Javascript.JSaddle.Types (MonadJSM, liftJSM, JSM)
+import Language.Javascript.JSaddle.Types (MonadJSM)
 
 
 performD :: (MonadHold t m, PostBuild t m, PerformEvent t m) =>
@@ -45,19 +43,24 @@ stateMachine x es = foldDyn ($) x $ mergeWith (.) es
 
 patternCanvasLayout :: (MonadWidget t m, MonadJSM (Performable m)) =>
     Event t () ->
-    Layout a (DNAP, Double) c ->
-    Morpher m t (DNAP, Double) ->
+    Layout a (DNA, Double) c ->
+    Morpher m t (DNA, Double) ->
     Dynamic t a ->
-    m (Event t c, CompileFun)
+    m (Event t c)
 patternCanvasLayout eSizeMayChange layout morpher dData = mdo
-    (dClick, dSize, compile) <- shaderCanvas eSizeMayChange (getProgramD dUniqued)
+    (dClick, dSize) <- shaderCanvas
+        (toFragmentShader . dna2rna)
+        eSizeMayChange
+        (reorderExtraData <$> dUniqued)
     let dLaidOut = layout <$> dData <*> dSize
     let dLocate = snd <$> dLaidOut
     let eSelectOne = fmapMaybe id $ current dLocate <@> dClick
     dMorphed <- morpher (fst <$> dLaidOut)
     dUniqued <- holdUniqDyn dMorphed
-    return (eSelectOne, compile)
+    return eSelectOne
 
+reorderExtraData :: [((DNA, a), b, c)] -> [(DNA, (a, b, c))]
+reorderExtraData = map $ \((x,b), p, s) -> (x, (b, p, s))
 
 selectTwoInteraction :: forall t m a.
     (MonadFix m, Reflex t, MonadHold t m) =>
@@ -79,26 +82,6 @@ selectTwoInteraction eClear eSelectOne dData = mdo
 
     return (dSelectedData, dDataWithSelection)
 
-type CompileFun = T.Text -> JSM CompiledProgram
-
-data DNAP = DNAP DNA CompiledProgram
-instance Eq DNAP where (==) = (==) `on` getDNA
-instance Ord DNAP where compare = compare `on` getDNA
-
-getDNA :: DNAP -> DNA
-getDNA (DNAP x _) = x
-getProgram :: DNAP -> CompiledProgram
-getProgram (DNAP _ p) = p
-
-toDNAP :: CompileFun -> DNA -> JSM DNAP
-toDNAP compile x = do
-    let t = toFragmentShader $ dna2rna x
-    p <- compile t
-    return $ DNAP x p
-
-getProgramD :: Functor f => f [((DNAP, a), b, c)] -> f [((CompiledProgram, a), b, c)]
-getProgramD = fmap $ map (\((x,b), p, s) -> ((getProgram x, b), p, s))
-
 toFilename :: Maybe DNA -> T.Text
 toFilename (Just dna) = "kaleidogen-" <> dna2hex dna <> ".png"
 toFilename Nothing    = "error.png"
@@ -109,14 +92,6 @@ preview :: Seed -> S2.SelectTwo DNA -> Maybe DNA
 preview _    S2.NoneSelected = Nothing
 preview _    (S2.OneSelected x)   = Just x
 preview seed (S2.TwoSelected x y) = Just $ crossover seed x y
-
-
-previewPGM :: Seed -> CompileFun -> S2.SelectTwo DNAP -> JSM (Maybe DNAP)
-previewPGM _ _ S2.NoneSelected = return Nothing
-previewPGM _ _ (S2.OneSelected x) = return $ Just x
-previewPGM seed compile (S2.TwoSelected x y) = do
-    let z = crossover seed (getDNA x) (getDNA y)
-    Just <$> toDNAP compile z
 
 toolbarButton :: forall m t. (DomBuilder t m, PostBuild t m, MonadHold t m) =>
     T.Text -> Dynamic t Bool -> m (Event t ())
@@ -149,17 +124,17 @@ main = do
 
         let morpher = interpolate fst 200 dAnimationFrame
 
-        (eAdded2_SelectOne, compile) <-
+        eAdded2_SelectOne <-
             patternCanvasLayout eSizeMayChange layoutCombined morpher $
                 (,) <$> dMainGenome <*> dGenomesWithSelection
         let (eAdded2, eSelectOne) = fanEither eAdded2_SelectOne
 
         let eAdded = gate (current dCanAdd) eAdded2
-        let dFilename = toFilename . fmap getDNA <$> dMainGenome
+        let dFilename = toFilename <$> dMainGenome
         let eSaveAs = tag (current dFilename) eSave
 
-        let dForSave = maybe [] (\x -> fst (layoutFullCirlce (toFragmentShader $ dna2rna $ getDNA x, 0) (1000, 1000))) <$> dMainGenome
-        performEvent_ (saveToPNG <$> current dForSave <@> eSaveAs)
+        let dForSave = reorderExtraData . maybe [] (\x -> fst (layoutFullCirlce (x, 0) (1000, 1000))) <$> dMainGenome
+        performEvent_ (saveToPNG (toFragmentShader . dna2rna) <$> current dForSave <@> eSaveAs)
 
         let dCanAdd =
                 (\new xs -> maybe False (`notElem` xs) new) <$>
@@ -172,10 +147,9 @@ main = do
         (dPairSelected, dGenomesWithSelection)
             <- selectTwoInteraction eClear (fst <$> eSelectOne) dGenomes
 
-        dMainGenome <- fmap join <$> performD (liftJSM . previewPGM seed compile) dPairSelected
+        let dMainGenome = preview seed <$> dPairSelected
 
-        initialDNAPs <- liftJSM $ mapM (toDNAP compile) initialDNAs
-        dGenomes <- stateMachine initialDNAPs
+        dGenomes <- stateMachine initialDNAs
             [ (\new xs -> xs ++ [new]) <$>
                     fmapMaybe id (tag (current dMainGenome) eAdded)
             , delete <$> fmapMaybe id (tag (current dMainGenome) eDelete)
