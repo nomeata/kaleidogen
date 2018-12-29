@@ -2,7 +2,6 @@
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -44,30 +43,9 @@ run = id
 import Language.Javascript.JSaddle.WKWebView (run)
 #else
 import qualified Language.Javascript.JSaddle.Warp (run)
-run :: JSM () -> IO () 
+run :: JSM () -> IO ()
 run = Language.Javascript.JSaddle.Warp.run 3003
 #endif
-
-
-{-
-patternCanvasLayout :: (MonadWidget t m, MonadJSM (Performable m)) =>
-    Event t () ->
-    Layout a (DNA, Double) c ->
-    Morpher m t (DNA, Double) ->
-    Dynamic t a ->
-    m (Event t c)
-patternCanvasLayout eSizeMayChange layout morpher dData = mdo
-    (dClick, dSize) <- shaderCanvas
-        (toFragmentShader . dna2rna)
-        eSizeMayChange
-        (reorderExtraData <$> dUniqued)
-    let dLaidOut = layout <$> dData <*> dSize
-    let dLocate = snd <$> dLaidOut
-    let eSelectOne = fmapMaybe id $ current dLocate <@> dClick
-    dMorphed <- morpher (fst <$> dLaidOut)
-    dUniqued <- holdUniqDyn dMorphed
-    return eSelectOne
--}
 
 reorderExtraData :: [((DNA, a), (b,c), d)] -> [(DNA, (a, b, c, d))]
 reorderExtraData = map $ \((d,b), (x,y), s) -> (d, (b, x, y, s))
@@ -183,59 +161,6 @@ layout = layoutCombined
     layoutTop = layoutMaybe $ mapLayout (,0) layoutFullCirlce
     layoutBottom = mapLayout (\(d,b)-> (d,if b then 2 else 1)) layoutFullCirlce
     layoutCombined = layoutTop `layoutAbove` layoutGrid layoutBottom
-
-
-  {-
-  mainWidgetWithHead htmlHead $
-    elAttr "div" ("align" =: "center") $ mdo
-        -- We could exchange this for a resize event on the window
-        dAnimationFrame <- getAnimationFrameD
-        let eSizeMayChange = () <$ updated dAnimationFrame
-
-        (eDelete, eSave) <- divClass "toolbar" $
-            (,) <$>
-            -- toolbarButton "➕" dCanAdd <*>
-            toolbarButton "🗑" dCanDel <*>
-            toolbarButton "💾" dCanSave
-
-        let layoutTop = layoutMaybe $ mapLayout (,0) layoutFullCirlce
-        let layoutBottom = mapLayout (\(dnap,b)-> (dnap,if b then 2 else 1)) layoutFullCirlce
-        let layoutCombined = layoutTop `layoutAbove` layoutGrid layoutBottom
-
-        let morpher = interpolate fst 200 dAnimationFrame
-
-        eAdded2_SelectOne <-
-            patternCanvasLayout eSizeMayChange layoutCombined morpher $
-                (,) <$> dMainGenome <*> dGenomesWithSelection
-        let (eAdded2, eSelectOne) = fanEither eAdded2_SelectOne
-
-        let eAdded = gate (current dCanAdd) eAdded2
-        let dFilename = toFilename <$> dMainGenome
-        let eSaveAs = tag (current dFilename) eSave
-
-        let dForSave = reorderExtraData . maybe [] (\x -> fst (layoutFullCirlce (x, 0) (1000, 1000))) <$> dMainGenome
-        performEvent_ (saveToPNG (toFragmentShader . dna2rna) <$> current dForSave <@> eSaveAs)
-
-        let dCanAdd =
-                (\new xs -> maybe False (`notElem` xs) new) <$>
-                dMainGenome <*> dGenomes
-        let dCanDel = S2.isOneSelected <$> dPairSelected
-        let dCanSave = S2.isOneSelected <$> dPairSelected
-
-        let eClear = eAdded <> eDelete
-
-        (dPairSelected, dGenomesWithSelection)
-            <- selectTwoInteraction eClear (fst <$> eSelectOne) dGenomes
-
-        let dMainGenome = preview seed <$> dPairSelected
-
-        dGenomes <- stateMachine initialDNAs
-            [ (\new xs -> xs ++ [new]) <$>
-                    fmapMaybe id (tag (current dMainGenome) eAdded)
-            , delete <$> fmapMaybe id (tag (current dMainGenome) eDelete)
-            ]
-        return ()
-    -}
 
 html :: T.Text
 html = T.unlines
