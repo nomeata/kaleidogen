@@ -48,15 +48,17 @@ import Language.Javascript.JSaddle.Object hiding (array)
 
 vertexShaderSource :: Text
 vertexShaderSource = Text.unlines
-  [ "attribute vec2 a_position;"
+  [ "precision mediump float;"
+  , "attribute vec2 a_position;"
   , "uniform vec2 u_windowSize;"
-  , "uniform float u_size;"
-  , "uniform vec2 u_pos;"
+  , "uniform vec4 u_extraData;"
   , "varying vec2 vDrawCoord;"
   , "void main() {"
-  , "  vDrawCoord = vec2(a_position); "
-  , "  vec2 pos = vec2(1.0,-1.0) * (2.0 * (u_size * a_position + u_pos)/u_windowSize - vec2(1,1));"
-  , "  gl_Position = vec4(pos, 0, 1);"
+  , "  vec2 pos = u_extraData.yz;"
+  , "  float size = u_extraData.w;"
+  , "  vDrawCoord = vec2(a_position);"
+  , "  vec2 scaled_pos = vec2(1.0,-1.0) * (2.0 * (size * a_position + pos)/u_windowSize - vec2(1,1));"
+  , "  gl_Position = vec4(scaled_pos, 0, 1);"
   , "}"
   ]
 
@@ -98,7 +100,7 @@ commonSetup gl = do
     vertexShader <- createShader gl VERTEX_SHADER
     shaderSource gl (Just vertexShader) vertexShaderSource
     compileShader gl (Just vertexShader)
-    -- _ <- liftJSM $ jsg (T.pack "console") ^. js1 (T.pack "log") (gl ^. js1 (T.pack "getShaderInfoLog") vertexShader)
+    -- _ <- liftJSM $ jsg (Text.pack "console") ^. js1 (Text.pack "log") (gl ^. js1 (Text.pack "getShaderInfoLog") vertexShader)
 
     return vertexShader
 
@@ -106,8 +108,6 @@ data CompiledProgram = CompiledProgram
     { compiledProgram :: WebGLProgram
     , positionLocation :: Int32
     , windowSizeLocation  :: WebGLUniformLocation
-    , posLocation :: WebGLUniformLocation
-    , sizeLocation :: WebGLUniformLocation
     , extraDataLocation  :: WebGLUniformLocation
     }
 
@@ -116,24 +116,23 @@ compileFragmentShader gl vertexShader fragmentShaderSource = do
     fragmentShader <- createShader gl FRAGMENT_SHADER
     shaderSource gl (Just fragmentShader) fragmentShaderSource
     compileShader gl (Just fragmentShader)
-    -- _ <- liftJSM $ jsg (T.pack "console") ^. js1 (T.pack "log") (gl ^. js1 (T.pack "getShaderInfoLog") fragmentShader)
+    -- _ <- liftJSM $ jsg (Text.pack "console") ^. js1 (Text.pack "log") (gl ^. js1 (Text.pack "getShaderInfoLog") fragmentShader)
 
     program <- createProgram gl
     attachShader gl (Just program) (Just vertexShader)
     attachShader gl (Just program) (Just fragmentShader)
     linkProgram gl (Just program)
-    -- _ <- liftJSM $ jsg (T.pack "console") ^. js1 (T.pack "log") (gl ^. js1 (T.pack "getProgramInfoLog") program)
+    -- _ <- liftJSM $ jsg (Text.pack "console") ^. js1 (Text.pack "log") (gl ^. js1 (Text.pack "getProgramInfoLog") program)
 
     positionLocation <- getAttribLocation gl (Just program) ("a_position" :: Text)
     windowSizeLocation <- getUniformLocation gl (Just program) ("u_windowSize" :: Text)
-    posLocation <- getUniformLocation gl (Just program) ("u_pos" :: Text)
-    sizeLocation <- getUniformLocation gl (Just program) ("u_size" :: Text)
     extraDataLocation <- getUniformLocation gl (Just program) ("u_extraData" :: Text)
 
     let compiledProgram = program
     return CompiledProgram {..}
 
-type ExtraData = (Double, (Double, Double), Double)
+-- A single vec4 of extra data
+type ExtraData = (Double, Double, Double, Double)
 
 paintGLCached :: (Ord a, MonadDOM m) =>
     Cache m a CompiledProgram ->
@@ -152,16 +151,14 @@ paintGL gl (w,h) toDraw = do
     clearColor gl 1 1 1 0
     clear gl COLOR_BUFFER_BIT
 
-    for_ toDraw $ \(CompiledProgram {..}, (extraData, (x,y), size)) -> do
+    for_ toDraw $ \(CompiledProgram {..}, (a,b,c,d)) -> do
         enableVertexAttribArray gl (fromIntegral positionLocation)
         vertexAttribPointer gl (fromIntegral positionLocation) 2 FLOAT False 0 0
 
         useProgram gl (Just compiledProgram)
 
         uniform2f gl (Just windowSizeLocation) w h
-        uniform2f gl (Just posLocation) x y
-        uniform1f gl (Just sizeLocation) size
-        uniform1f gl (Just extraDataLocation) extraData
+        uniform4f gl (Just extraDataLocation) a b c d
 
         drawArrays gl TRIANGLES 0 6
 

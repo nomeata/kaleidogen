@@ -20,14 +20,15 @@ unlines = foldMap (<> "\n")
 conclude :: (Builder, Integer) -> Builder
 conclude (pgm, r) = unlines
   [ "precision mediump float;"
-  , "uniform float u_extraData;"
+  , "uniform vec4 u_extraData;"
   , "varying vec2 vDrawCoord;"
   , "void main() {"
+  , "  float extraData = u_extraData.x;"
   , "  vec2 pos0 = vDrawCoord;"
   , "  if (length(pos0) > 1.0) { gl_FragColor = vec4(0,0,0,0.0); return; }"
-  , "  if (u_extraData > 0.5) {" -- need a hightlighting border
+  , "  if (extraData > 0.5) {" -- need a hightlighting border
   , "    if (length(pos0) > 0.9) {"
-  , "      if (u_extraData > 1.5) {"
+  , "      if (extraData > 1.5) {"
   , "        gl_FragColor = vec4(0,0,1.0,1.0);"
   , "      } else {"
   , "        gl_FragColor = vec4(0,0,0,0.0);"

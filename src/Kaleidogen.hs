@@ -59,8 +59,8 @@ patternCanvasLayout eSizeMayChange layout morpher dData = mdo
     dUniqued <- holdUniqDyn dMorphed
     return eSelectOne
 
-reorderExtraData :: [((DNA, a), b, c)] -> [(DNA, (a, b, c))]
-reorderExtraData = map $ \((x,b), p, s) -> (x, (b, p, s))
+reorderExtraData :: [((DNA, a), (b,c), d)] -> [(DNA, (a, b, c, d))]
+reorderExtraData = map $ \((d,b), (x,y), s) -> (d, (b, x, y, s))
 
 selectTwoInteraction :: forall t m a.
     (MonadFix m, Reflex t, MonadHold t m) =>
