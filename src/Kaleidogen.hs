@@ -26,7 +26,7 @@ import GHCJS.DOM.Element
 import GHCJS.DOM.Document
 import GHCJS.DOM.NonElementParentNode
 import GHCJS.DOM.EventM
-import GHCJS.DOM.GlobalEventHandlers (resize, click)
+import GHCJS.DOM.GlobalEventHandlers (click)
 
 import ShaderCanvas
 import Expression
@@ -170,12 +170,11 @@ main = run $ do
         render
     checkResize <- autoResizeCanvas canvas canvasResized
 
-    body <- getBodyUnchecked doc
-    _ <- on body resize $ do
-        liftIO $ putStrLn "onResize"
-        liftJSM checkResize
-
-    checkResize -- should trigger the initial render as well
+    -- Wish I could use onResize on body, but that does not work somehow
+    let regularlyCheckSize = do
+        checkResize
+        () <$ inAnimationFrame' (const regularlyCheckSize)
+    regularlyCheckSize -- should trigger the initial render as well
     return ()
 
 layout :: Layout (Maybe t, [(t, Bool)]) (t, Double) (Either () (Int, ()))
