@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MonoLocalBinds #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE ApplicativeDo #-}
@@ -8,39 +9,47 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE CPP #-}
 module Kaleidogen where
 
+import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Monoid
-import Data.List
-import Control.Monad.Fix
+import Data.IORef
+import Control.Monad
+import Control.Monad.IO.Class
+import Data.Bifunctor
 
-import Reflex.Dom
+import GHCJS.DOM.Types hiding (Text)
+import GHCJS.DOM
+import GHCJS.DOM.Element
+import GHCJS.DOM.Document
+import GHCJS.DOM.NonElementParentNode
+import GHCJS.DOM.EventM
+import GHCJS.DOM.GlobalEventHandlers (resize, click)
 
 import ShaderCanvas
-import AnimationFrame
 import Expression
 import GLSL
 import DNA
 import qualified SelectTwo as S2
-import Layout
-import Animate
+import Layout hiding (Element)
+import qualified CanvasSave
+-- import Animate
 
-import Language.Javascript.JSaddle.Types (MonadJSM)
+#if defined(ghcjs_HOST_OS)
+run :: a -> a
+run = id
+#elif defined(MIN_VERSION_jsaddle_wkwebview)
+import Language.Javascript.JSaddle.WKWebView (run)
+#else
+import qualified Language.Javascript.JSaddle.Warp (run)
+run :: JSM () -> IO () 
+run = Language.Javascript.JSaddle.Warp.run 3003
+#endif
 
 
-performD :: (MonadHold t m, PostBuild t m, PerformEvent t m) =>
-    (a -> Performable m b) -> Dynamic t a -> m (Dynamic t (Maybe b))
-performD f d = do
-    pb <- getPostBuild
-    e1 <- performEvent (f <$> updated d)
-    e2 <- performEvent (f <$> current d <@ pb)
-    holdDyn Nothing $ Just <$> leftmost [ e1, e2 ]
-
-stateMachine :: (MonadFix m, MonadHold t m, Reflex t) =>
-    a -> [Event t (a -> a)] -> m (Dynamic t a)
-stateMachine x es = foldDyn ($) x $ mergeWith (.) es
-
+{-
 patternCanvasLayout :: (MonadWidget t m, MonadJSM (Performable m)) =>
     Event t () ->
     Layout a (DNA, Double) c ->
@@ -58,33 +67,13 @@ patternCanvasLayout eSizeMayChange layout morpher dData = mdo
     dMorphed <- morpher (fst <$> dLaidOut)
     dUniqued <- holdUniqDyn dMorphed
     return eSelectOne
+-}
 
 reorderExtraData :: [((DNA, a), (b,c), d)] -> [(DNA, (a, b, c, d))]
 reorderExtraData = map $ \((d,b), (x,y), s) -> (d, (b, x, y, s))
 
-selectTwoInteraction :: forall t m a.
-    (MonadFix m, Reflex t, MonadHold t m) =>
-    Event t () -> Event t Int -> Dynamic t [a] ->
-    m (Dynamic t (S2.SelectTwo a), Dynamic t [(a,Bool)])
-selectTwoInteraction eClear eSelectOne dData = mdo
-    let eSelection :: Event t (S2.SelectTwo Int)
-            = attachWith S2.flip (current dSelected) eSelectOne
-    -- This separation is necessary so that eClear may depend on the eSelectedN
-    -- that we return; otherwise we get a loop
-    let eClearedSelection :: Event t (S2.SelectTwo Int)
-            = leftmost [S2.empty <$ eClear, eSelection]
-    dSelected :: Dynamic t (S2.SelectTwo Int)
-            <- holdDyn (S2.duolton 0 1) eClearedSelection
-    let dSelectedData :: Dynamic t (S2.SelectTwo a)
-            = (\xs s -> fmap (xs!!) s) <$> dData <*> dSelected
-    let dDataWithSelection :: Dynamic t [(a,Bool)]
-            = (\xs s -> zip xs (map (`S2.member` s) [0..])) <$> dData <*> dSelected
-
-    return (dSelectedData, dDataWithSelection)
-
-toFilename :: Maybe DNA -> T.Text
-toFilename (Just dna) = "kaleidogen-" <> dna2hex dna <> ".png"
-toFilename Nothing    = "error.png"
+toFilename :: DNA -> T.Text
+toFilename dna = "kaleidogen-" <> dna2hex dna <> ".png"
 
 type Seed = Int
 
@@ -93,19 +82,112 @@ preview _    S2.NoneSelected = Nothing
 preview _    (S2.OneSelected x)   = Just x
 preview seed (S2.TwoSelected x y) = Just $ crossover seed x y
 
-toolbarButton :: forall m t. (DomBuilder t m, PostBuild t m, MonadHold t m) =>
-    T.Text -> Dynamic t Bool -> m (Event t ())
-toolbarButton txt dActive = switchDyn <$> widgetHold (return never) (updated (f <$> dActive))
+data AppState = AppState
+    { seed :: Seed
+    , canvasSize :: (Double, Double)
+    , dnas :: [DNA]
+    , sel :: S2.SelectTwo Int
+    }
+
+initialAppState :: Seed -> AppState
+initialAppState seed = AppState {..}
   where
-    f :: Bool -> m (Event t ())
-    f True = do
-        (e,()) <- el' "a" (text txt)
-        return $ domEvent Click e
-    f False = return never
+    canvasSize = (1000, 1000)
+    dnas = initialDNAs
+    sel = S2.duolton 0 1
+
+layoutState :: AppState -> ([((DNA, Double), (Double, Double), Double)], (Double, Double) -> Maybe (Either () (Int, ())))
+layoutState AppState{..} = (toDraw, locate)
+  where selectedTwo = (dnas!!) <$> sel
+        mainDNA = preview seed selectedTwo
+        withSelection = zip dnas (map (`S2.member` sel) [0..])
+        (toDraw, locate) = layout (mainDNA, withSelection) canvasSize
 
 main :: IO ()
-main = do
-  seed <- getRandom
+main = run $ do
+    doc <- currentDocumentUnchecked
+    docEl <- getDocumentElementUnchecked doc
+    setInnerHTML docEl html
+    CanvasSave.register
+
+    seed0 <- liftIO getRandom
+    s <- liftIO $ newIORef (initialAppState seed0)
+
+    canvas <- getElementByIdUnsafe doc ("canvas" :: Text) >>= unsafeCastTo HTMLCanvasElement
+    save <- getElementByIdUnsafe doc ("save" :: Text) >>= unsafeCastTo HTMLAnchorElement
+    del <- getElementByIdUnsafe doc ("delete" :: Text) >>= unsafeCastTo HTMLAnchorElement
+
+    drawOnCanvas <- shaderCanvas (toFragmentShader . dna2rna) canvas
+
+    let render = liftIO (readIORef s) >>= \as@AppState{..} -> do
+        let cls :: Text = if S2.isOneSelected sel then "" else "hidden"
+        setClassName save cls
+        setClassName del cls
+        let (toDraw, _locate) = layoutState as
+        drawOnCanvas (reorderExtraData toDraw)
+
+    _ <- on canvas click $ liftIO (readIORef s) >>= \as@AppState{..} -> do
+        pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
+        case snd (layoutState as) pos of
+            Nothing -> return ()
+            Just (Left ()) -> do
+                let selectedTwo = (dnas!!) <$> sel
+                case preview seed selectedTwo of
+                    Nothing -> return ()
+                    Just new -> unless (new `elem` dnas) $ do
+                        liftIO $ writeIORef s as
+                            { sel = S2.empty
+                            , dnas = dnas ++ [new]
+                            }
+                        liftJSM render
+            Just (Right (n, ())) -> do
+                let sel' = S2.flip sel n
+                liftIO $ writeIORef s $ as { sel = sel' }
+                liftJSM render
+        return ()
+    _ <- on del click $ liftIO (readIORef s) >>= \as@AppState{..} ->
+        case sel of
+            S2.OneSelected n -> do
+                liftIO $ writeIORef s $ as
+                    { dnas = take n dnas ++ drop (n+1) dnas
+                    , sel = S2.empty }
+                liftJSM render
+            _ -> return ()
+    _ <- on save click $ liftIO (readIORef s) >>= \AppState{..} ->
+        case sel of
+            S2.OneSelected n -> do
+                let dna = dnas !! n
+                let toDraw = reorderExtraData $ fst $ layoutFullCirlce (dna, 0) (1000, 1000)
+                liftIO $ putStrLn "Foo"
+                saveToPNG
+                    (toFragmentShader . dna2rna)
+                    toDraw
+                    (toFilename dna)
+                liftIO $ putStrLn "Bar"
+            _ -> return ()
+
+    let canvasResized size = do
+        liftIO $ modifyIORef' s (\as -> as { canvasSize = size })
+        render
+    checkResize <- autoResizeCanvas canvas canvasResized
+
+    body <- getBodyUnchecked doc
+    _ <- on body resize $ do
+        liftIO $ putStrLn "onResize"
+        liftJSM checkResize
+
+    checkResize -- should trigger the initial render as well
+    return ()
+
+layout :: Layout (Maybe t, [(t, Bool)]) (t, Double) (Either () (Int, ()))
+layout = layoutCombined
+  where
+    layoutTop = layoutMaybe $ mapLayout (,0) layoutFullCirlce
+    layoutBottom = mapLayout (\(d,b)-> (d,if b then 2 else 1)) layoutFullCirlce
+    layoutCombined = layoutTop `layoutAbove` layoutGrid layoutBottom
+
+
+  {-
   mainWidgetWithHead htmlHead $
     elAttr "div" ("align" =: "center") $ mdo
         -- We could exchange this for a resize event on the window
@@ -155,12 +237,26 @@ main = do
             , delete <$> fmapMaybe id (tag (current dMainGenome) eDelete)
             ]
         return ()
-  where
-    htmlHead :: DomBuilder t m => m ()
-    htmlHead = do
-        el "style" (text css)
-        el "title" (text "Kaleidogen")
-        elAttr "script" ("src" =: "https://fastcdn.org/FileSaver.js/1.1.20151003/FileSaver.min.js") (return ())
+    -}
+
+html :: T.Text
+html = T.unlines
+    [ "<html>"
+    , " <head>"
+    , "  <style>" <> css <> "</style>"
+    , "  <title>Kaleidogen</title>"
+    , " </head>"
+    , " <body>"
+    , "  <div align='center'>"
+    , "   <div class='toolbar'>"
+    , "    <a id='delete'>🗑</a>"
+    , "    <a id='save'>💾</a>"
+    , "   </div>"
+    , "   <canvas id='canvas'></canvas>"
+    , "  </div>"
+    , " </body>"
+    , "</html>"
+    ]
 
 css :: T.Text
 css = T.unlines
@@ -181,6 +277,9 @@ css = T.unlines
     , "  width:95vw;"
     , "  margin:0;"
     , "  padding:0;"
+    , "}"
+    , ".toolbar a.hidden {"
+    , "  display:none"
     , "}"
     , ".toolbar a {"
     , "  display:inline-block;"

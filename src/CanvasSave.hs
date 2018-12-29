@@ -1,15 +1,26 @@
 module CanvasSave where
 
+import GHCJS.DOM
+import GHCJS.DOM.Document
+import GHCJS.DOM.Node
+import GHCJS.DOM.HTMLScriptElement
+import GHCJS.DOM.Types hiding (Text)
+
 import qualified Data.Text as T
 import Language.Javascript.JSaddle (toJSVal, liftJSM, MonadJSM)
 import Language.Javascript.JSaddle.Object
 import Control.Lens ((^.))
-import Reflex.Dom
-import GHCJS.DOM.HTMLCanvasElement
 
-header :: DomBuilder t m => m ()
-header = do
-    elAttr (T.pack "script") (T.pack "src" =: T.pack "https://fastcdn.org/FileSaver.js/1.1.20151003/FileSaver.min.js") (return ())
+src :: T.Text
+src = T.pack "https://fastcdn.org/FileSaver.js/1.1.20151003/FileSaver.min.js"
+
+register :: MonadJSM m => m ()
+register = do
+    doc <- currentDocumentUnchecked
+    headEl <- getHeadUnchecked doc
+    script <- uncheckedCastTo HTMLScriptElement <$> createElement doc "script"
+    setSrc script src
+    appendChild_ headEl script
 
 save :: MonadJSM m => T.Text -> HTMLCanvasElement -> m ()
 save name e = liftJSM $ do

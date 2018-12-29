@@ -11,20 +11,16 @@
 module ShaderCanvas
     ( CompiledProgram
     , trivialFragmentShader
+    , autoResizeCanvas
     , shaderCanvas
-    , shaderCanvas'
     , saveToPNG
     ) where
 
 import CanvasSave
 
-import Reflex.Dom
-
 import Data.Maybe
 import Data.Text as Text (Text, unlines)
-import Control.Monad.Fix
 import Data.Foldable
-import Data.Bifunctor
 import Data.Int
 import Control.Monad
 import Data.IORef
@@ -40,8 +36,6 @@ import GHCJS.DOM.WebGLRenderingContextBase
 import GHCJS.DOM.Window
 import GHCJS.DOM.Document
 import GHCJS.DOM.Element
-import GHCJS.DOM.EventM (mouseOffsetXY)
--- import GHCJS.DOM.EventM (on, preventDefault)
 
 import Language.Javascript.JSaddle.Object hiding (array)
 -- import Control.Lens ((^.))
@@ -168,76 +162,38 @@ querySize domEl = liftJSM $ do
       h <- getClientHeight domEl
       return (w,h)
 
-autoResizeCanvas ::
-    (MonadFix m, MonadHold t m,
-    MonadJSM (Performable m), MonadJSM m, PerformEvent t m,
-    TriggerEvent t m) =>
-    Event t () ->
-    HTMLCanvasElement -> m (Dynamic t (Double, Double), Event t ())
-autoResizeCanvas eMayHaveChanged domEl =  do
-  -- Automatically update the size when it changes
+autoResizeCanvas :: MonadJSM m => HTMLCanvasElement -> ((Double, Double) -> m ()) -> m (m ())
+autoResizeCanvas domEl onResize =  do
   ratio <- liftJSM $ currentWindow >>= getDevicePixelRatio . fromJust
-  initialSize <- querySize domEl
-  eCanvasSize <- performEvent (querySize domEl <$ eMayHaveChanged)
-  dCanvasSize <- holdUniqDyn =<< holdDyn initialSize eCanvasSize
-  eResized <- performEvent $ (<$> updated dCanvasSize) $ \(w,h) -> do
-    setWidth domEl (ceiling (ratio * w))
-    setHeight domEl (ceiling (ratio * h))
-    return ()
-  return (dCanvasSize, eResized)
-
-type ResultStuff t =
-    ( Event t (Double,Double)
-    , Dynamic t (Double, Double)
-    )
+  sizeRef <- liftIO $ newIORef (0,0)
+  return $ do
+    lastSize <- liftIO $ readIORef sizeRef
+    currentSize@(w,h) <- querySize domEl
+    when (lastSize /= currentSize) $ do
+        setWidth domEl (ceiling (ratio * w))
+        setHeight domEl (ceiling (ratio * h))
+        liftIO $ writeIORef sizeRef currentSize
+        onResize currentSize
 
 shaderCanvas ::
     Ord a =>
-    MonadWidget t m =>
+    MonadJSM m =>
     (a -> Text) ->
-    Event t () ->
-    Dynamic t [(a, ExtraData)] ->
-    m (ResultStuff t)
-shaderCanvas toGLSL eMayHaveChanged toDraw
-    = snd <$> shaderCanvas' toGLSL eMayHaveChanged toDraw
-
-shaderCanvas' ::
-    Ord a =>
-    MonadWidget t m =>
-    (a -> Text) ->
-    Event t () ->
-    Dynamic t [(a,ExtraData)] ->
-    m (El t, ResultStuff t)
-shaderCanvas' toGLSL eMayHaveChanged toDraw = do
-    (canvasEl, _) <- el' "canvas" blank
-    pb <- getPostBuild
-
-    domEl <- unsafeCastTo HTMLCanvasElement $ _element_raw canvasEl
-    (dCanvasSize, eResized) <- autoResizeCanvas eMayHaveChanged domEl
-
-    eClick <- wrapDomEvent domEl (onEventName Mousedown) $
-      bimap fromIntegral fromIntegral <$> mouseOffsetXY
-
-    let eDraw = leftmost
-          [ tag (current toDraw) eResized
-          , updated toDraw
-          , tag (current toDraw) pb
-          ]
-
+    HTMLCanvasElement ->
+    m ([(a,ExtraData)] -> m ())
+shaderCanvas toGLSL domEl =
     getContext domEl ("experimental-webgl"::Text) ([]::[()]) >>= \case
       Nothing ->
         -- jsg "console" ^. js1 "log" (gl ^. js1 "getShaderInfoLog" vertexShader)
-        return ()
+        return (\_ -> return ())
       Just gl' -> do
         gl <- unsafeCastTo WebGLRenderingContext gl'
         cs <- commonSetup gl
-
         pgmCache <- newCache (compileFragmentShader gl cs . toGLSL)
-
-        performEvent_ $
-          paintGLCached pgmCache gl <$> current dCanvasSize <@> eDraw
-
-    return (canvasEl, (eClick, dCanvasSize))
+        -- performEvent_ $ paintGLCached pgmCache gl <$> current dCanvasSize <@> eDraw
+        return $ \toDraw -> do
+            size <- querySize domEl
+            paintGLCached pgmCache gl size toDraw
 
 saveToPNG :: MonadJSM m => (a -> Text) -> [(a, ExtraData)] -> Text -> m ()
 saveToPNG toGLSL toDraw name = do
