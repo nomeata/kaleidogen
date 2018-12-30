@@ -61,10 +61,9 @@ layoutFun :: (Double, Double) -> AbstractPos -> PosAndScale
 layoutFun size MainPos
     = topHalf layoutFullCirlce size ()
 layoutFun size (SmallPos c n)
-    = bottomHalf (layoutGrid c) size n
+    = bottomHalf (layoutGrid False c) size n
 layoutFun size (DeletedPos c n)
-    = (\(p,_) -> (p,0)) $
-      bottomHalf (layoutGrid c) size n
+    = bottomHalf (layoutGrid True c) size n
 
 getLayoutFun :: IORef (Double, Double) -> IO Presentation.LayoutFun
 getLayoutFun r = do
