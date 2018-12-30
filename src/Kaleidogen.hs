@@ -14,10 +14,9 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Map as M
 import Data.Monoid
-import Data.Maybe
 import Data.IORef
-import Control.Monad.IO.Class
 import Data.Bifunctor
+import Control.Monad.IO.Class
 import Data.Foldable
 
 import GHCJS.DOM.Types hiding (Text)
@@ -35,10 +34,11 @@ import Expression
 import GLSL
 import DNA
 import qualified SelectTwo as S2
-import Layout hiding (Element)
+import Layout
 import qualified CanvasSave
 import Animate
 import Logic
+import qualified Presentation
 
 #if defined(ghcjs_HOST_OS)
 run :: a -> a
@@ -57,30 +57,19 @@ reorderExtraData = map $ \((d,b),((x,y),s)) -> (d, (b, x, y, s))
 toFilename :: DNA -> T.Text
 toFilename dna = "kaleidogen-" <> dna2hex dna <> ".png"
 
-layoutState :: AppState ->
-    ( [((DNA, Double), PosAndScale, Double, PosAndScale)]
-    , ClickFun (Either () Int)
-    )
-layoutState as@AppState{..} = (toDraw, locate)
-  where mainDNA = preview as
-        (toPos, locate) = layout (length dnas) canvasSize
-        toDraw =
-            [ ((dna, 0), topPos, -1e10, noPas) | dna <- toList mainDNA ] ++
-            -- Non-deleted patterns
-            [ ( (dna ds, if k `S2.member` sel then 2 else 1)
-              , toPos (Right n), t, topPos)
-            | (n, (k, ds)) <- zip [0..] (M.toList dnas)
-            , isNothing (deleted ds), t <- added ds
-            ] ++
-            -- Deleted patterns
-            [ ( (dna ds, if k `S2.member` sel then 2 else 1)
-              , (p,0), t, (p,s) )
-            | (n, (k, ds)) <- zip [0..] (M.toList dnas)
-            , Just t <- return $ deleted ds
-            , let (p,s) = toPos (Right n)
-            ]
-          where
-            topPos = toPos (Left ())
+layoutFun :: (Double, Double) -> AbstractPos -> PosAndScale
+layoutFun size MainPos
+    = topHalf layoutFullCirlce size ()
+layoutFun size (SmallPos c n)
+    = bottomHalf (layoutGrid c) size n
+layoutFun size (DeletedPos c n)
+    = (\(p,_) -> (p,0)) $
+      bottomHalf (layoutGrid c) size n
+
+getLayoutFun :: IORef (Double, Double) -> IO Presentation.LayoutFun
+getLayoutFun r = do
+    size <- readIORef r
+    return (layoutFun size)
 
 main :: IO ()
 main = run $ do
@@ -89,47 +78,68 @@ main = run $ do
     setInnerHTML docEl html
     CanvasSave.register
 
-    seed0 <- liftIO getRandom
-    s <- liftIO $ newIORef (initialAppState seed0)
+    Just win <- currentWindow
+    perf <- getPerformance win
 
+    -- Get Dom elements
     canvas <- getElementByIdUnsafe doc ("canvas" :: Text) >>= unsafeCastTo HTMLCanvasElement
     save <- getElementByIdUnsafe doc ("save" :: Text) >>= unsafeCastTo HTMLAnchorElement
     del <- getElementByIdUnsafe doc ("delete" :: Text) >>= unsafeCastTo HTMLAnchorElement
 
-    drawOnCanvas <- shaderCanvas (toFragmentShader . dna2rna) canvas
-    drawAnimated <- Animate.interpolate animationSpeed (drawOnCanvas . reorderExtraData)
+    -- Set up global state
+    seed0 <- liftIO getRandom
+    let as0 = initialAppState seed0
+    asRef <- liftIO $ newIORef as0
+    size0 <- querySize canvas
+    sizeRef <- liftIO $ newIORef size0
+    pRef <- liftIO Presentation.initRef
+    let handleCmds cs = do
+        t <- now perf
+        lf <- liftIO $ getLayoutFun sizeRef
+        liftIO $ Presentation.handleCmdsRef t lf cs pRef
+    handleCmds (initialCommands as0)
 
-    let render = liftIO (readIORef s) >>= \as@AppState{..} -> do
+    drawOnCanvas <- shaderCanvas (toFragmentShader . dna2rna) canvas
+    let draw t = do
+        as <- liftIO $ readIORef asRef
+        (p, continue) <- liftIO (Presentation.presentAtRef t (isSelected as) pRef)
+        drawOnCanvas [ (key2dna k, (e,x,y,s)) | (k,(e,((x,y),s))) <- M.toList p ]
+        return continue
+    drawAnimated <- Animate.animate draw
+
+    let render = liftIO (readIORef asRef) >>= \AppState{..} -> do
         let cls :: Text = if S2.isOneSelected sel then "" else "hidden"
         setClassName save cls
         setClassName del cls
-        let (toDraw, _locate) = layoutState as
-        drawAnimated toDraw
+        drawAnimated
 
-    Just win <- currentWindow
-    perf <- getPerformance win
     let handeEvent e = do
-        t <- now perf
-        as <- liftIO (readIORef s)
-        liftIO $ writeIORef s $ handle as e t
+        as <- liftIO (readIORef asRef)
+        let (as', cs) = handle as e
+        liftIO $ writeIORef asRef as'
+        liftJSM $ handleCmds cs
         liftJSM render
 
-    _ <- on canvas click $ liftIO (readIORef s) >>= \as@AppState{..} -> do
+    _ <- on canvas click $ do
+        t <- now perf
+        as@AppState{..} <- liftIO (readIORef asRef)
+        (p, _continue) <- liftIO (Presentation.presentAtRef t (isSelected as) pRef)
         pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
-        case snd (layoutState as) pos of
+        case Presentation.locateClick p pos of
+            Just k -> handeEvent (Click k)
             Nothing -> return ()
-            Just (Left ()) -> handeEvent ClickMain
-            Just (Right n) -> handeEvent (ClickSmall n)
     _ <- on del click $ handeEvent Delete
     _ <- on save click $ do
-        as <- liftIO (readIORef s)
+        as <- liftIO (readIORef asRef)
         for_ (selectedDNA as) $ \dna -> do
             let toDraw = reorderExtraData
-                    [ ((dna,0), fst (layoutFullCirlce (1000, 1000)) ()) ]
+                    [ ((dna,0), layoutFullCirlce (1000, 1000) ()) ]
             saveToPNG (toFragmentShader . dna2rna) toDraw (toFilename dna)
 
     let canvasResized size = do
-        liftIO $ modifyIORef' s (\as -> as { canvasSize = size })
+        liftIO $ writeIORef sizeRef size
+        as <- liftIO $ readIORef asRef
+        handleCmds (initialCommands as)
         render
     checkResize <- autoResizeCanvas canvas canvasResized
 
@@ -139,13 +149,6 @@ main = run $ do
         () <$ inAnimationFrame' (const regularlyCheckSize)
     regularlyCheckSize -- should trigger the initial render as well
     return ()
-
-layout :: Int -> Layout (Either () Int)
-layout count = layoutCombined
-  where
-    layoutTop = layoutFullCirlce
-    layoutBottom = layoutFullCirlce
-    layoutCombined = layoutTop `layoutAbove` layoutGrid count layoutBottom
 
 html :: T.Text
 html = T.unlines

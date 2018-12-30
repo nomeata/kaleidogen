@@ -12,6 +12,7 @@ module ShaderCanvas
     ( CompiledProgram
     , trivialFragmentShader
     , autoResizeCanvas
+    , querySize
     , shaderCanvas
     , saveToPNG
     ) where

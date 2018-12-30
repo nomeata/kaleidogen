@@ -1,56 +1,32 @@
 module Layout where
 
-import Control.Monad
-import Data.Foldable (asum)
-
 type PosAndScale = ((Double,Double), Double)
-type ClickPos = (Double, Double)
-type ClickFun a = ClickPos -> Maybe a
 
 noPas :: PosAndScale
 noPas = ((0,0),0)
 
-type Element a = (a -> PosAndScale, ClickFun a)
-type Layout a = (Double, Double) -> Element a
+type Layout a = (Double, Double) -> a -> PosAndScale
 
-translate :: (Double, Double) -> Element a -> Element a
-translate (x', y') (pas, click) =
-    ( (\((x,y), s) -> ((x + x', y + y'), s)) . pas
-    , click . (\(x,y) -> (x - x', y - y'))
-    )
-noElem :: Element a
-noElem = (const ((0,0),0), const Nothing)
+translate :: (Double, Double) -> PosAndScale -> PosAndScale
+translate (x', y') ((x,y),s) = ((x + x', y + y'), s)
 
-overlay :: Element a -> Element b -> Element (Either a b)
-overlay (pas1, click1) (pas2, click2) =
-    ( either pas1 pas2
-    , \p -> (Left <$> click1 p) `mplus` (Right <$> click2 p)
-    )
+topHalf :: Layout a -> Layout a
+topHalf l (w,h) = l (w,h/2)
 
-layoutAbove :: Layout a -> Layout b -> Layout (Either a b)
-layoutAbove innerLayout1 innerLayout2 (w,h) =
-    overlay
-        (innerLayout1 (w,h/2))
-        (translate (0, h/2) $ innerLayout2 (w, h/2))
+bottomHalf :: Layout a -> Layout a
+bottomHalf l (w,h) = translate (0, h/2) . l (w,h/2)
 
 layoutFullCirlce :: Layout ()
-layoutFullCirlce (w, h) = ( \() -> pas, click )
+layoutFullCirlce (w, h) = \() -> pas
   where
     pas = ((w/2, h/2), s)
-    click (x, y) | (x - w/2)**2 + (y - h/2)**2 <= s**2 = Just ()
-                 | otherwise = Nothing
     s = min (w/2) (h/2)
 
-layoutGrid :: Int -> Layout () -> Layout Int
-layoutGrid _ _ (w,h) | w == 0 || h == 0 = noElem
-layoutGrid count innerLayout (w,h) =
-    ( \n -> fst (layouts !! n) ()
-    , \p -> asum $ zipWith (\n (_,click) -> n <$ click p) [0..] layouts
-    )
+layoutGrid :: Int -> Layout Int
+layoutGrid _ (w,h) | w == 0 || h == 0 = const ((0,0),0)
+layoutGrid count (w,h) =
+    \n -> translate (toPos n) ((s/2, s/2), s/2)
   where
-    layouts :: [Element ()]
-    layouts = [ translate (toPos n) (innerLayout (s,s)) | n <- [0..count-1] ]
-
     max_size = min (w/6) (h/2)
     min_per_row = ceiling (w / max_size)
     per_row = head

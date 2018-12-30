@@ -4,9 +4,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Logic where
 
-import Data.Maybe
 import Control.Applicative
 import qualified Data.Map as M
+import Data.List
 
 import DNA
 import qualified SelectTwo as S2
@@ -21,30 +21,37 @@ animationSpeed = 200
 
 data AppState = AppState
     { seed :: Seed
-    , canvasSize :: (Double, Double)
-    , dnas :: M.Map Key SmallDNA
+    , dnas :: M.Map Key DNA
     , sel :: S2.SelectTwo Key
     }
 
-data SmallDNA = SmallDNA
-    { dna :: DNA
-    , added :: [Time]
-    , deleted :: Maybe Time
-    }
+-- Events passed on to the presentation layer
+data AbstractPos = MainPos | SmallPos Int Int | DeletedPos Int Int
+-- The main instance can be selected, the preview instance not
+data CmdKey = PreviewInstance DNA | MainInstance DNA deriving (Eq, Ord)
 
-type Time = Double
+key2dna :: CmdKey -> DNA
+key2dna (MainInstance d) = d
+key2dna (PreviewInstance d) = d
+
+data Cmd
+    = SummonAt CmdKey AbstractPos
+    | MoveTo CmdKey AbstractPos
+    | FadeOut CmdKey AbstractPos
+    | Remove CmdKey
+type Cmds = [Cmd]
 
 initialAppState :: Seed -> AppState
 initialAppState seed = AppState {..}
   where
-    canvasSize = (1000, 1000)
-    dnas = M.fromList $ zipWith (\n d -> (n,SmallDNA d [-1e10] Nothing)) [0..] initialDNAs
+    dnas = M.fromList $ zipWith (\n d -> (n,d)) [0..] initialDNAs
     sel = S2.duolton 0 1
 
-dnaAtKey :: AppState -> Key -> DNA
-dnaAtKey AppState{..} k = dna (dnas M.! k)
 
-at :: AppState -> Int -> SmallDNA
+dnaAtKey :: AppState -> Key -> DNA
+dnaAtKey AppState{..} k = dnas M.! k
+
+at :: AppState -> Int -> DNA
 at AppState{..} n = snd (M.elemAt n dnas)
 
 keyAt :: AppState -> Int -> Key
@@ -61,47 +68,77 @@ selectedDNA as@AppState{..}
     | S2.OneSelected x <- sel = Just $ as `dnaAtKey` x
     | otherwise = Nothing
 
-data Event = ClickMain | ClickSmall Int | Delete
-
-handle :: AppState -> Event -> Time -> AppState
-handle as@AppState{..} e t = cleanup t $ case e of
-    ClickMain
-        | Just new <- newDNA as, new `notElem` map dna (M.elems dnas)
-        -> as { sel = S2.empty
-              , dnas = M.insert newKey (SmallDNA new [t] Nothing) dnas }
-    ClickMain
-        | Just new <- newDNA as
-        -> let dnas' = flip fmap dnas $ \sd ->
-                 if | dna sd == new -> sd { added = t : added sd }
-                    | otherwise     -> sd
-           in as { sel = S2.empty, dnas = dnas' }
-    ClickSmall n
-        | n < M.size dnas
-        , isNothing (deleted (as `at` n))
-        -> as { sel = S2.flip sel (as `keyAt` n) }
-    Delete
-        | S2.OneSelected k <- sel
-        , isNothing (deleted (dnas M.! k))
-        -> as { sel = S2.empty
-              , dnas = M.insert k ((dnas M.! k) { deleted = Just t }) dnas }
-    _ -> as
-  where newKey = succ (fst (M.findMax dnas))
-
-cleanup :: Double -> AppState -> AppState
-cleanup t as =
-    as { dnas = M.mapMaybe go (dnas as) }
-  where
-    go sd | isDeleted sd = Nothing
-          | otherwise = Just $ sd { added = prune (added sd) }
-
-    prune [] = [] -- should not happen
-    prune [t'] = [t'] -- we need to keep the creation time
-    prune (t':ts) | stillRelevant t' = t' : prune ts
-                  | otherwise        = prune ts
-    stillRelevant t' = (t - t') < animationSpeed
-
-    isDeleted sd | Just t' <- deleted sd = not $ stillRelevant t'
-                 | otherwise             = False
-
 preview :: AppState -> Maybe DNA
 preview as = newDNA as <|> selectedDNA as
+
+isSelected :: AppState -> DNA -> Bool
+isSelected as@AppState{..} = case sel of
+    S2.TwoSelected x y -> \d -> d `elem` [as `dnaAtKey` x, as `dnaAtKey` y]
+    S2.OneSelected x -> \d -> d == (as `dnaAtKey` x)
+    _ -> const False
+
+moveAllSmall :: AppState -> Cmds
+moveAllSmall as =
+    [ MoveTo (MainInstance d) (SmallPos c n)
+    | (n, d) <- zip [0..] (M.elems (dnas as))
+    ]
+  where
+    c = length (dnas as)
+
+moveMain :: AppState -> Cmds
+moveMain as =
+    [ MoveTo (PreviewInstance d) MainPos
+    | Just d <- return $ newDNA as ]
+
+initialCommands :: AppState -> Cmds
+initialCommands as = moveAllSmall as ++ moveMain as
+
+data Event = Click CmdKey | Delete
+
+handle :: AppState -> Event -> (AppState, Cmds)
+handle as@AppState{..} e = case e of
+    -- Adding a new pattern
+    Click (PreviewInstance d)
+        | Just new <- newDNA as, d == new
+        , new `notElem` M.elems dnas
+        , let newKey = succ (fst (M.findMax dnas))
+        , let dnas' = M.insert newKey new dnas
+        , let as' = as { sel = S2.empty, dnas = dnas' }
+        -> ( as'
+           , [ Remove (PreviewInstance new)
+             , SummonAt (MainInstance new) MainPos 
+             ] ++
+             moveAllSmall as'
+           )
+    -- Clicking an already added pattern
+    Click (PreviewInstance d)
+        | Just new <- newDNA as, d == new
+        , Just i <- elemIndex d (M.elems dnas)
+        -> -- send preview move event
+           ( as { sel = S2.empty, dnas = dnas }
+           , [ FadeOut (PreviewInstance new) (SmallPos (length dnas) i) ] )
+    -- Changing selection
+    Click (MainInstance d)
+        | (k:_) <- [ k | (k,d') <- M.toList dnas, d == d' ]
+        -> let as' = as { sel = S2.flip sel k } in
+           ( as'
+           , [ Remove (PreviewInstance d')
+             | Just d' <- pure $ preview as
+             ] ++
+             [ SummonAt (PreviewInstance d') MainPos
+             | Just d' <- pure $ preview as'
+             ]
+           )
+    Delete
+        | S2.OneSelected k <- sel
+        , Just i <- M.lookupIndex k dnas
+        , let d = as `dnaAtKey` k
+        , let as' = as { sel = S2.empty, dnas = M.delete k dnas }
+        -> ( as'
+           , [ Remove (PreviewInstance d)
+             , FadeOut (MainInstance d) (DeletedPos (length dnas) i)
+             ] ++
+             moveAllSmall as'
+           )
+    _ -> (as, [])
+

@@ -1,6 +1,5 @@
-{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Animate (interpolate) where
+module Animate (animate, tween) where
 
 import Control.Monad
 import Control.Monad.IO.Class
@@ -11,58 +10,31 @@ import GHCJS.DOM.Types hiding (Text)
 import GHCJS.DOM.Performance
 import GHCJS.DOM.GlobalPerformance
 
-import Layout (PosAndScale)
-
-type Moving a = [(a, PosAndScale, Double, PosAndScale)]
-type LaidOut a = [(a, PosAndScale)]
-
-interpolate :: Double -> (LaidOut a -> JSM ()) -> JSM (Moving a -> JSM ())
-interpolate speed draw = do
+animate :: (Double -> JSM Bool) -> JSM (JSM ())
+animate draw = do
     Just win <- currentWindow
     perf <- getPerformance win
-    s <- liftIO $ newIORef []
     animating <- liftIO $ newIORef False
 
-    let drawInterp t = do
-        moving <- liftIO $ readIORef s
-        draw (interp t moving)
-        return $ needsAnimation t moving
-
-    let animate t = do
-        continue <- drawInterp t
-        if continue then () <$ inAnimationFrame' animate
+    let continueAnimation t = do
+        continue <- draw t
+        if continue then () <$ inAnimationFrame' continueAnimation
                     else liftIO $ writeIORef animating False
 
 
     let drawAndAnimate t = do
-        -- Draw current state
-        continue <- drawInterp t
+        continue <- draw t
         -- If there is something to animate
         when continue $ do
            -- And no animation loop is running
             isAnimating <- liftIO (readIORef animating)
             unless isAnimating $ do
                 liftIO $ writeIORef animating True
-                () <$ inAnimationFrame' animate
+                () <$ inAnimationFrame' continueAnimation
 
-    return $ \input -> do
-        liftIO $ writeIORef s input
+    return $ do
         t <- now perf
         drawAndAnimate t
-  where
-    interp :: Double -> Moving a -> LaidOut a
-    interp t = map (interPos t)
-
-    interPos t (a, ((x,y),s), t',((x',y'), s'))
-        | let r = (t-t') / speed, r < 1,
-          let f = tween r
-        = (a,((f x' x, f y' y), f s' s))
-        | otherwise
-        = (a,((x,y),s))
-
-    needsAnimation t = any (isChanging t)
-
-    isChanging t (_, _, t',_) = (t-t') / speed < 1
 
 class Tweenable a where
     tween :: Double -> a -> a -> a
