@@ -43,7 +43,7 @@ before_install:
 
 install:
     # do not fail here, so that partial builds still warm the cache
-    - cabal new-build --ghcjs --dependencies-only || true
+    - cabal new-build --ghcjs --dependencies-only kaleidogen || true
 
 jobs:
   include:
@@ -56,7 +56,7 @@ jobs:
    - stage: build, test and deploy
      script:
        # now build
-       - cabal new-build --ghcjs
+       - cabal new-build --ghcjs kaleidogen
 
      before_deploy:
        - cp -rv dist-newstyle/build/*/*/*/x/kaleidogen/build/*/*.jsexe gh-page

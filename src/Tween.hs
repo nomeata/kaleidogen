@@ -1,10 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Tween (tween) where
 
-import Control.Monad
-import Control.Monad.IO.Class
-import Data.IORef
-
 class Tweenable a where
     tween :: Double -> a -> a -> a
 

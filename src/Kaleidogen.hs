@@ -60,7 +60,6 @@ runInBrowser toShader go = run $ do
 
     drawShaderCircles <- shaderCanvas toShader canvas
 
-    let animate = Animate.animate
 
     let setCanDelete True = setClassName del (""::Text)
         setCanDelete False = setClassName del ("hidden"::Text)
@@ -68,23 +67,30 @@ runInBrowser toShader go = run $ do
         setCanSave False = setClassName save ("hidden"::Text)
     let currentWindowSize = querySize canvas
     let getCurrentTime = now perf
-
-    let onClick f = void $ on canvas click $ do
-        pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
-        liftJSM (f pos)
-    let onDel f = void $ on del click (liftJSM f)
-    let onSave f = void $ on save click (liftJSM f)
-    let onResize f = do
-        checkResize <- autoResizeCanvas canvas f
-        -- Wish I could use onResize on body, but that does not work somehow
-        let regularlyCheckSize = do
-            checkResize
-            () <$ inAnimationFrame' (const regularlyCheckSize)
-        regularlyCheckSize -- should trigger the initial render as well
-        return ()
     let doSave filename toDraw = saveToPNG toShader toDraw filename
 
-    go (Backend {..})
+    Callbacks{..} <- go (Backend {..})
+
+    render <- Animate.animate $ \_ -> do
+        (toDraw, continue) <- onDraw
+        drawShaderCircles toDraw
+        return continue
+
+    void $ on canvas click $ do
+        pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
+        liftJSM (onClick pos >> render)
+
+    void $ on del click $ liftJSM (onDel >> render)
+    void $ on save click $ liftJSM onSave
+
+    checkResize <- autoResizeCanvas canvas (\ pos -> onResize pos >> render)
+    -- Wish I could use onResize on body, but that does not work somehow
+    let regularlyCheckSize = do
+        checkResize
+        () <$ inAnimationFrame' (const regularlyCheckSize)
+    regularlyCheckSize -- should trigger the initial render as well
+
+
 
 
 main :: IO ()

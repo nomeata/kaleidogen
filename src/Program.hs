@@ -39,29 +39,31 @@ getLayoutFun r = do
     return (layoutFun size)
 
 data Backend m a = Backend
-    { drawShaderCircles :: [(a,(Double,Double,Double,Double))] -> m ()
-    , animate :: (Double -> m Bool) -> m (m ())
-    , setCanDelete :: Bool -> m ()
+    { setCanDelete :: Bool -> m ()
     , setCanSave :: Bool -> m ()
     , currentWindowSize :: m (Double,Double)
     , getCurrentTime :: m Double
-    , onClick :: ((Double,Double) -> m ()) -> m ()
-    , onDel :: m () -> m ()
-    , onSave :: m () -> m ()
-    , onResize :: ((Double,Double) -> m ()) -> m ()
     , doSave :: Text -> [(a,(Double,Double,Double,Double))] -> m ()
+
+    }
+data Callbacks m a = Callbacks
+    { onDraw :: m ([(a,(Double,Double,Double,Double))], Bool)
+    , onClick :: (Double,Double) -> m ()
+    , onDel :: m ()
+    , onSave :: m ()
+    , onResize :: (Double,Double) -> m ()
     }
 type BackendRunner m = forall a.
     Ord a =>
     (a -> Text) ->
-    (Backend m a -> m ()) ->
+    (Backend m a -> m (Callbacks m a)) ->
     IO ()
 
 
 renderDNA :: DNA -> Text
 renderDNA = toFragmentShader . dna2rna
 
-mainProgram :: MonadIO m => Backend m DNA -> m ()
+mainProgram :: MonadIO m => Backend m DNA -> m (Callbacks m DNA)
 mainProgram Backend {..} = do
     -- Set up global state
     seed0 <- liftIO getRandom
@@ -76,43 +78,37 @@ mainProgram Backend {..} = do
         liftIO $ Presentation.handleCmdsRef t lf cs pRef
     handleCmds (initialCommands as0)
 
-    let draw t = do
-        as <- liftIO $ readIORef asRef
-        (p, continue) <- liftIO (Presentation.presentAtRef t (isSelected as) pRef)
-        drawShaderCircles [ (key2dna k, (e,x,y,s)) | (k,(e,((x,y),s))) <- M.toList p ]
-        return continue
-    drawAnimated <- animate draw
-
-    let render = liftIO (readIORef asRef) >>= \AppState{..} -> do
-        setCanDelete (S2.isOneSelected sel)
-        setCanSave (S2.isOneSelected sel)
-        drawAnimated
-
     let handeEvent e = do
         as <- liftIO (readIORef asRef)
         let (as', cs) = handle as e
         liftIO $ writeIORef asRef as'
         handleCmds cs
-        render
 
-    onClick $ \pos -> do
-        as@AppState{..} <- liftIO (readIORef asRef)
-        t <- getCurrentTime
-        (p, _continue) <- liftIO (Presentation.presentAtRef t (isSelected as) pRef)
-        case Presentation.locateClick p pos of
-            Just k -> handeEvent (Click k)
-            Nothing -> return ()
-    onDel $ handeEvent Delete
-    onSave $ do
-        as <- liftIO (readIORef asRef)
-        for_ (selectedDNA as) $ \dna -> do
-            doSave (toFilename dna) $
-                reorderExtraData
-                [ ((dna,0), layoutFullCirlce (1000, 1000) ()) ]
-
-    onResize $ \size -> do
-        liftIO $ writeIORef sizeRef size
-        as <- liftIO $ readIORef asRef
-        handleCmds (initialCommands as)
-        render
-    return ()
+    return $ Callbacks
+        { onDraw = do
+            t <- getCurrentTime
+            as <- liftIO $ readIORef asRef
+            setCanDelete (S2.isOneSelected (sel as))
+            setCanSave (S2.isOneSelected (sel as))
+            (p, continue) <- liftIO (Presentation.presentAtRef t (isSelected as) pRef)
+            let toDraw = [ (key2dna k, (e,x,y,s)) | (k,(e,((x,y),s))) <- M.toList p ]
+            return (toDraw, continue)
+        , onClick = \pos -> do
+            as@AppState{..} <- liftIO (readIORef asRef)
+            t <- getCurrentTime
+            (p, _continue) <- liftIO (Presentation.presentAtRef t (isSelected as) pRef)
+            case Presentation.locateClick p pos of
+                Just k -> handeEvent (Click k)
+                Nothing -> return ()
+        , onDel = handeEvent Delete
+        , onSave = do
+            as <- liftIO (readIORef asRef)
+            for_ (selectedDNA as) $ \dna ->
+                doSave (toFilename dna) $
+                    reorderExtraData
+                    [ ((dna,0), layoutFullCirlce (1000, 1000) ()) ]
+        , onResize = \size -> do
+            liftIO $ writeIORef sizeRef size
+            as <- liftIO $ readIORef asRef
+            handleCmds (initialCommands as)
+        }

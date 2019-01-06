@@ -26,7 +26,15 @@ This does not require GHCJS.
   ```
   to `cabal.project.local`.
 * Run `cabal update`
-* Run `cabal new-build` to build
-* Run `cabal new-run` to run a webserver at http://127.0.0.1:3003/
+* Run `cabal new-build kaleidogen` to build
+* Run `cabal new-run kaleidogen` to run a webserver at http://127.0.0.1:3003/
 * Run `ghcid` if you have `ghcid` installed to run the webserver and
   automatically reload it upon code changes.
+
+Building the SDL version
+------------------------
+
+There is also an SDL version. To build and run:
+
+* Run `cabal new-run kaleidogen-sdl`
+

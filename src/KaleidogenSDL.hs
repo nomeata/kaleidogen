@@ -1,55 +1,151 @@
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 module KaleidogenSDL where
 
 import SDL hiding (clear)
 import Linear (V4(..))
-import Control.Monad (unless)
+import Control.Monad (unless, forM_)
 import Graphics.Rendering.OpenGL as GL
 import Data.StateVar
 import qualified Data.ByteString.Char8 as BS
 import Data.Text.Encoding
+import Data.Functor
+import Data.Function
+import System.Exit
 
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
 
-import GLSL
-import Expression
 import Shaders
+import Program
+
+runInSDL :: BackendRunner IO
+runInSDL toShader go = do
+    initializeAll
+    window <- createWindow "My SDL Application" $
+        defaultWindow
+            { windowOpenGL = Just defaultOpenGL --  { glProfile = ES Normal 3 0 }
+            , windowHighDPI = True
+            , windowResizable = True
+            }
+    glContext <- glCreateContext window
+
+    clearColor $= Color4 1 1 1 1
+
+    triangles <- genObjectName
+    bindVertexArrayObject $= Just triangles
+
+    let vertices = [
+          Vertex2 (-1) (-1),  -- Triangle 1
+          Vertex2   1  (-1),
+          Vertex2 (-1)   1 ,
+          Vertex2   1  (-1),  -- Triangle 2
+          Vertex2   1    1 ,
+          Vertex2 (-1)   1 ] :: [Vertex2 GLfloat]
+        numVertices = length vertices
+
+    arrayBuffer <- genObjectName
+    bindBuffer ArrayBuffer $= Just arrayBuffer
+    withArray vertices $ \ptr -> do
+        let size = fromIntegral (numVertices * sizeOf (head vertices))
+        bufferData ArrayBuffer $= (size, ptr, StaticDraw)
+
+    blend $= Enabled
+    blendFunc $= (One, OneMinusSrcAlpha)
+
+    vertexShader <- createShader VertexShader
+    shaderSourceBS vertexShader $= encodeUtf8 vertexShaderSource
+    compileAndCheck vertexShader
+
+    let drawShaderCircles toDraw = do
+        V2 bw bh <- glGetDrawableSize window
+        viewport $= (Position 0 0, Size (fromIntegral bw) (fromIntegral bh))
+
+        clear [GL.ColorBuffer]
+
+        forM_ toDraw $ \(x,(a,b,c,d)) -> do
+            program <- createProgram
+            attachShader program vertexShader
+            fragmentShader <- createShader FragmentShader
+            shaderSourceBS fragmentShader $= encodeUtf8 (toShader x)
+            compileAndCheck fragmentShader
+            attachShader program fragmentShader
+            linkAndCheck program
+
+            vPosition <- get (attribLocation program  "a_position")
+            vertexAttribPointer vPosition $=
+              (ToFloat, VertexArrayDescriptor 2 Float 0 (bufferOffset 0))
+            vertexAttribArray vPosition $= Enabled
+
+            currentProgram $= Just program
+
+            V2 w h <- get (windowSize window)
+            vWindowSize <- get (uniformLocation program  "u_windowSize")
+            uniform vWindowSize $= Vector2 (fromIntegral w) (fromIntegral h::Float)
+
+            vExtraData <- get (uniformLocation program  "u_extraData")
+            uniform vExtraData $= Vector4 (realToFrac a) (realToFrac b) (realToFrac c) (realToFrac d::Float)
+
+            bindVertexArrayObject $= Just triangles
+            drawArrays Triangles 0 6
+
+        glSwapWindow window
+
+    let animate f = return (void $ f 100)
+
+    let doSave filename toDraw = return ()
+
+    let currentWindowSize = do
+        V2 w h <- get (windowSize window)
+        return (fromIntegral w,fromIntegral h)
+
+    let getCurrentTime = (1000*) <$> time
+
+    let setCanDelete _ = return ()
+    let setCanSave _ = return ()
+
+    Callbacks {..} <- go (Backend {..})
+
+    currentWindowSize >>= onResize
+
+    let render = do
+        (toDraw, continue) <- onDraw
+        drawShaderCircles toDraw
+        return ()
+
+    fix $ \loop -> do
+        e <- waitEventTimeout (1000`div`60)
+        case eventPayload <$> e of
+            Just (WindowResizedEvent _)
+                -> currentWindowSize >>= onResize
+
+            Just (KeyboardEvent keyboardEvent)
+                | keyboardEventKeyMotion keyboardEvent == Pressed
+                , keysymKeycode (keyboardEventKeysym keyboardEvent) == KeycodeQ
+                -> exitSuccess
+
+            Just (MouseButtonEvent me)
+                | mouseButtonEventButton me == ButtonLeft
+                , mouseButtonEventMotion me == Pressed
+                , let P (V2 x y) = mouseButtonEventPos me
+                -> onClick (fromIntegral x, fromIntegral y)
+
+
+            _ -> return ()
+
+        render
+        loop
+
+main :: IO ()
+main = runInSDL renderDNA mainProgram
+
 
 bufferOffset :: Integral a => a -> Ptr b
 bufferOffset = plusPtr nullPtr . fromIntegral
 
-main :: IO ()
-main = do
-  initializeAll
-  window <- createWindow "My SDL Application" $
-    defaultWindow
-      { windowOpenGL = Just defaultOpenGL --  { glProfile = ES Normal 3 0 }
-      , windowHighDPI = True
-      }
-  glContext <- glCreateContext window
-  appLoop window
-
-interestingShader :: BS.ByteString
-interestingShader =
-  encodeUtf8 $
-  toFragmentShader $
-  dna2rna
-  [50,200,3,124,5,6,7]
-
-trivialFragmentShader :: BS.ByteString
-trivialFragmentShader = BS.unlines
-  [ "varying vec2 vDrawCoord;"
-  , "void main() {"
-  , "  vec2 pos = vDrawCoord;"
-  , "  // pos is a scaled pixel position, (0,0) is in the center of the canvas"
-  , "  // If the position is outside the inscribed circle, make it transparent"
-  , "  if (length(pos) > 1.0) { gl_FragColor = vec4(0,0,0,0); return; }"
-  , "  // Otherwise, return red"
-  , "  gl_FragColor = vec4(1.0,0.0,0.0,1.0);"
-  , "}"
-  ]
 
 appLoop :: Window -> IO ()
 appLoop window = do
@@ -62,62 +158,6 @@ appLoop window = do
           _ -> False
       qPressed = any eventIsQPress events
 
-  clearColor $= Color4 1 1 1 1
-  clear [GL.ColorBuffer]
-
-  triangles <- genObjectName
-  bindVertexArrayObject $= Just triangles
-
-  let vertices = [
-        Vertex2 (-1) (-1),  -- Triangle 1
-        Vertex2   1  (-1),
-        Vertex2 (-1)   1 ,
-        Vertex2   1  (-1),  -- Triangle 2
-        Vertex2   1    1 ,
-        Vertex2 (-1)   1 ] :: [Vertex2 GLfloat]
-      numVertices = length vertices
-
-  blend $= Enabled
-  blendFunc $= (One, OneMinusSrcAlpha)
-
-  arrayBuffer <- genObjectName
-  bindBuffer ArrayBuffer $= Just arrayBuffer
-  withArray vertices $ \ptr -> do
-    let size = fromIntegral (numVertices * sizeOf (head vertices))
-    bufferData ArrayBuffer $= (size, ptr, StaticDraw)
-
-  program <- createProgram
-  shader <- createShader VertexShader
-  shaderSourceBS shader $= encodeUtf8 vertexShaderSource
-  compileAndCheck shader
-  attachShader program shader
-  shader <- createShader FragmentShader
-  shaderSourceBS shader $= interestingShader
-  compileAndCheck shader
-  attachShader program shader
-  linkAndCheck program
-
-  vPosition <- get (attribLocation program  "a_position")
-  vertexAttribPointer vPosition $=
-    (ToFloat, VertexArrayDescriptor 2 Float 0 (bufferOffset 0))
-  vertexAttribArray vPosition $= Enabled
-
-  V2 bw bh <- glGetDrawableSize window
-  viewport $= (Position 0 0, Size (fromIntegral bw) (fromIntegral bh))
-
-  currentProgram $= Just program
-
-  V2 w h <- get (windowSize window)
-  vWindowSize <- get (uniformLocation program  "u_windowSize")
-  uniform vWindowSize $= Vector2 (fromIntegral w) (fromIntegral h::Float)
-
-  vExtraData <- get (uniformLocation program  "u_extraData")
-  uniform vExtraData $= Vector4 (0::Float) 100 100 50
-
-  bindVertexArrayObject $= Just triangles
-  drawArrays Triangles 0 6
-
-  glSwapWindow window
 
   unless qPressed (appLoop window)
 
