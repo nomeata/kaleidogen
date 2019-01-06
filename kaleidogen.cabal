@@ -30,6 +30,8 @@ common logic
     other-modules: GLSL
     other-modules: Expression
     other-modules: SelectTwo
+    other-modules: Program
+    other-modules: Layout
     build-depends: base >=4.2 && <5
     build-depends: MonadRandom ==0.5.*
     build-depends: hashable ==1.2.*
@@ -53,7 +55,6 @@ common canvas-save
 common shader-canvas
     hs-source-dirs: src
     other-modules: ShaderCanvas
-    other-modules: Animate
     build-depends: base >=4.2 && <5
     build-depends: MonadRandom ==0.5.*
     build-depends: containers
@@ -66,7 +67,7 @@ common shader-canvas
 executable kaleidogen
     import: logic, canvas-save, shader-canvas
     main-is: Kaleidogen.hs
-    other-modules: Layout
+    other-modules: Animate
     build-depends: base >=4.2 && <5
     build-depends: MonadRandom ==0.5.*
     build-depends: text
@@ -81,3 +82,15 @@ executable kaleidogen
     ghc-options: -main-is Kaleidogen
     ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
 
+executable kaleidogen-sdl
+    import: logic
+    main-is: KaleidogenSDL.hs
+    build-depends: linear ==1.20.*
+    build-depends: sdl2 ==2.4.*
+    build-depends: OpenGL ==3.0.*
+    build-depends: StateVar
+
+    if impl(ghcjs)
+      buildable: False
+
+    ghc-options: -main-is KaleidogenSDL

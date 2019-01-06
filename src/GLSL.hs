@@ -51,7 +51,6 @@ type Pattern = GLVar -> G GLVar
 
 conclude :: Pattern -> G ()
 conclude pat = do
-  l "precision mediump float;"
   l "uniform vec4 u_extraData;"
   l "varying vec2 vDrawCoord;"
   l "void main() {"

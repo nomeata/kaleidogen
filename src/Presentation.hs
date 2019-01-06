@@ -9,7 +9,7 @@ import Data.List
 import DNA (DNA)
 import Logic hiding (sel)
 import Layout (PosAndScale)
-import Animate (tween)
+import Tween
 
 type Time = Double
 

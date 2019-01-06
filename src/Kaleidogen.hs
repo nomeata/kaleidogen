@@ -12,12 +12,9 @@ module Kaleidogen where
 
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Map as M
 import Data.Monoid
-import Data.IORef
 import Data.Bifunctor
-import Control.Monad.IO.Class
-import Data.Foldable
+import Data.Functor
 
 import GHCJS.DOM.Types hiding (Text)
 import GHCJS.DOM
@@ -30,15 +27,9 @@ import GHCJS.DOM.EventM
 import GHCJS.DOM.GlobalEventHandlers (click)
 
 import ShaderCanvas
-import Expression
-import GLSL
-import DNA
-import qualified SelectTwo as S2
-import Layout
 import qualified CanvasSave
-import Animate
-import Logic
-import qualified Presentation
+import qualified Animate
+import Program
 
 #if defined(ghcjs_HOST_OS)
 run :: a -> a
@@ -51,27 +42,9 @@ run :: JSM () -> IO ()
 run = Language.Javascript.JSaddle.Warp.run 3003
 #endif
 
-reorderExtraData :: [((DNA, a), ((b,c),d))] -> [(DNA, (a, b, c, d))]
-reorderExtraData = map $ \((d,b),((x,y),s)) -> (d, (b, x, y, s))
 
-toFilename :: DNA -> T.Text
-toFilename dna = "kaleidogen-" <> dna2hex dna <> ".png"
-
-layoutFun :: (Double, Double) -> AbstractPos -> PosAndScale
-layoutFun size MainPos
-    = topHalf layoutFullCirlce size ()
-layoutFun size (SmallPos c n)
-    = bottomHalf (layoutGrid False c) size n
-layoutFun size (DeletedPos c n)
-    = bottomHalf (layoutGrid True c) size n
-
-getLayoutFun :: IORef (Double, Double) -> IO Presentation.LayoutFun
-getLayoutFun r = do
-    size <- readIORef r
-    return (layoutFun size)
-
-main :: IO ()
-main = run $ do
+runInBrowser :: BackendRunner JSM
+runInBrowser toShader go = run $ do
     doc <- currentDocumentUnchecked
     docEl <- getDocumentElementUnchecked doc
     setInnerHTML docEl html
@@ -85,69 +58,38 @@ main = run $ do
     save <- getElementByIdUnsafe doc ("save" :: Text) >>= unsafeCastTo HTMLAnchorElement
     del <- getElementByIdUnsafe doc ("delete" :: Text) >>= unsafeCastTo HTMLAnchorElement
 
-    -- Set up global state
-    seed0 <- liftIO getRandom
-    let as0 = initialAppState seed0
-    asRef <- liftIO $ newIORef as0
-    size0 <- querySize canvas
-    sizeRef <- liftIO $ newIORef size0
-    pRef <- liftIO Presentation.initRef
-    let handleCmds cs = do
-        t <- now perf
-        lf <- liftIO $ getLayoutFun sizeRef
-        liftIO $ Presentation.handleCmdsRef t lf cs pRef
-    handleCmds (initialCommands as0)
+    drawShaderCircles <- shaderCanvas toShader canvas
 
-    drawOnCanvas <- shaderCanvas (toFragmentShader . dna2rna) canvas
-    let draw t = do
-        as <- liftIO $ readIORef asRef
-        (p, continue) <- liftIO (Presentation.presentAtRef t (isSelected as) pRef)
-        drawOnCanvas [ (key2dna k, (e,x,y,s)) | (k,(e,((x,y),s))) <- M.toList p ]
-        return continue
-    drawAnimated <- Animate.animate draw
+    let animate = Animate.animate
 
-    let render = liftIO (readIORef asRef) >>= \AppState{..} -> do
-        let cls :: Text = if S2.isOneSelected sel then "" else "hidden"
-        setClassName save cls
-        setClassName del cls
-        drawAnimated
+    let setCanDelete True = setClassName del (""::Text)
+        setCanDelete False = setClassName del ("hidden"::Text)
+    let setCanSave True = setClassName save (""::Text)
+        setCanSave False = setClassName save ("hidden"::Text)
+    let currentWindowSize = querySize canvas
+    let getCurrentTime = now perf
 
-    let handeEvent e = do
-        as <- liftIO (readIORef asRef)
-        let (as', cs) = handle as e
-        liftIO $ writeIORef asRef as'
-        liftJSM $ handleCmds cs
-        liftJSM render
-
-    _ <- on canvas click $ do
-        t <- now perf
-        as@AppState{..} <- liftIO (readIORef asRef)
-        (p, _continue) <- liftIO (Presentation.presentAtRef t (isSelected as) pRef)
+    let onClick f = void $ on canvas click $ do
         pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
-        case Presentation.locateClick p pos of
-            Just k -> handeEvent (Click k)
-            Nothing -> return ()
-    _ <- on del click $ handeEvent Delete
-    _ <- on save click $ do
-        as <- liftIO (readIORef asRef)
-        for_ (selectedDNA as) $ \dna -> do
-            let toDraw = reorderExtraData
-                    [ ((dna,0), layoutFullCirlce (1000, 1000) ()) ]
-            saveToPNG (toFragmentShader . dna2rna) toDraw (toFilename dna)
+        liftJSM (f pos)
+    let onDel f = void $ on del click (liftJSM f)
+    let onSave f = void $ on save click (liftJSM f)
+    let onResize f = do
+        checkResize <- autoResizeCanvas canvas f
+        -- Wish I could use onResize on body, but that does not work somehow
+        let regularlyCheckSize = do
+            checkResize
+            () <$ inAnimationFrame' (const regularlyCheckSize)
+        regularlyCheckSize -- should trigger the initial render as well
+        return ()
+    let doSave filename toDraw = saveToPNG toShader toDraw filename
 
-    let canvasResized size = do
-        liftIO $ writeIORef sizeRef size
-        as <- liftIO $ readIORef asRef
-        handleCmds (initialCommands as)
-        render
-    checkResize <- autoResizeCanvas canvas canvasResized
+    go (Backend {..})
 
-    -- Wish I could use onResize on body, but that does not work somehow
-    let regularlyCheckSize = do
-        checkResize
-        () <$ inAnimationFrame' (const regularlyCheckSize)
-    regularlyCheckSize -- should trigger the initial render as well
-    return ()
+
+main :: IO ()
+main = runInBrowser renderDNA mainProgram
+
 
 html :: T.Text
 html = T.unlines

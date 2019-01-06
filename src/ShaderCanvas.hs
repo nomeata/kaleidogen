@@ -17,12 +17,11 @@ module ShaderCanvas
     , saveToPNG
     ) where
 
-import CanvasSave
-
 import Data.Maybe
-import Data.Text as Text (Text, unlines)
+import Data.Text as Text (Text)
 import Data.Foldable
 import Data.Int
+import Data.Monoid
 import Control.Monad
 import Data.IORef
 import Control.Monad.IO.Class
@@ -41,36 +40,9 @@ import GHCJS.DOM.Element
 import Language.Javascript.JSaddle.Object hiding (array)
 -- import Control.Lens ((^.))
 
-vertexShaderSource :: Text
-vertexShaderSource = Text.unlines
-  [ "precision mediump float;"
-  , "attribute vec2 a_position;"
-  , "uniform vec2 u_windowSize;"
-  , "uniform vec4 u_extraData;"
-  , "varying vec2 vDrawCoord;"
-  , "void main() {"
-  , "  vec2 pos = u_extraData.yz;"
-  , "  float size = u_extraData.w;"
-  , "  vDrawCoord = vec2(a_position);"
-  , "  vec2 scaled_pos = vec2(1.0,-1.0) * (2.0 * (size * a_position + pos)/u_windowSize - vec2(1,1));"
-  , "  gl_Position = vec4(scaled_pos, 0, 1);"
-  , "}"
-  ]
+import CanvasSave
+import Shaders
 
--- | An example fragment shader program, drawing a red circle
-trivialFragmentShader :: Text
-trivialFragmentShader = Text.unlines
-  [ "precision mediump float;"
-  , "varying vec2 vDrawCoord;"
-  , "void main() {"
-  , "  vec2 pos = vDrawCoord;"
-  , "  // pos is a scaled pixel position, (0,0) is in the center of the canvas"
-  , "  // If the position is outside the inscribed circle, make it transparent"
-  , "  if (length(pos) > 1.0) { gl_FragColor = vec4(0,0,0,0); return; }"
-  , "  // Otherwise, return red"
-  , "  gl_FragColor = vec4(1.0,0.0,0.0,1.0);"
-  , "}"
-  ]
 
 type CommonStuff = WebGLShader
 
@@ -93,7 +65,9 @@ commonSetup gl = do
     bufferData gl ARRAY_BUFFER (Just array') STATIC_DRAW
 
     vertexShader <- createShader gl VERTEX_SHADER
-    shaderSource gl (Just vertexShader) vertexShaderSource
+    shaderSource gl (Just vertexShader) $
+        "precision mediump float;\n" <>
+        vertexShaderSource
     compileShader gl (Just vertexShader)
     -- _ <- liftJSM $ jsg (Text.pack "console") ^. js1 (Text.pack "log") (gl ^. js1 (Text.pack "getShaderInfoLog") vertexShader)
 
@@ -109,7 +83,9 @@ data CompiledProgram = CompiledProgram
 compileFragmentShader :: MonadJSM m => WebGLRenderingContext -> WebGLShader -> Text -> m CompiledProgram
 compileFragmentShader gl vertexShader fragmentShaderSource = do
     fragmentShader <- createShader gl FRAGMENT_SHADER
-    shaderSource gl (Just fragmentShader) fragmentShaderSource
+    shaderSource gl (Just fragmentShader) $
+        "precision mediump float;\n" <>
+        fragmentShaderSource
     compileShader gl (Just fragmentShader)
     -- _ <- liftJSM $ jsg (Text.pack "console") ^. js1 (Text.pack "log") (gl ^. js1 (Text.pack "getShaderInfoLog") fragmentShader)
 
