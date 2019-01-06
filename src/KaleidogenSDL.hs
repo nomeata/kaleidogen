@@ -116,26 +116,27 @@ runInSDL toShader go = do
         drawShaderCircles toDraw
         return ()
 
-    fix $ \loop -> do
-        e <- waitEventTimeout (1000`div`60)
-        case eventPayload <$> e of
-            Just (WindowResizedEvent _)
+    let handleEvent e = case eventPayload e of
+            WindowResizedEvent _
                 -> currentWindowSize >>= onResize
 
-            Just (KeyboardEvent keyboardEvent)
+            KeyboardEvent keyboardEvent
                 | keyboardEventKeyMotion keyboardEvent == Pressed
                 , keysymKeycode (keyboardEventKeysym keyboardEvent) == KeycodeQ
                 -> exitSuccess
 
-            Just (MouseButtonEvent me)
+            MouseButtonEvent me
                 | mouseButtonEventButton me == ButtonLeft
                 , mouseButtonEventMotion me == Pressed
                 , let P (V2 x y) = mouseButtonEventPos me
                 -> onClick (fromIntegral x, fromIntegral y)
 
-
             _ -> return ()
 
+    fix $ \loop -> do
+        es <- pollEvents
+        unless (null es) $ mapM_ handleEvent es >> render
+        waitEventTimeout (1000`div`60) >>= mapM_ handleEvent
         render
         loop
 
