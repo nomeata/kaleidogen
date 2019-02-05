@@ -35,10 +35,6 @@ before_install:
     - export PATH=/opt/ghcjs/8.2/bin:$PATH
     - export PATH=$TRAVIS_BUILD_DIR/node_modules/.bin:$PATH
     - rm -f ~/.cabal/config
-    - cabal update # to ensure the config exists
-    - 'fgrep hackage-ghcjs-overlay.nomeata.de/ $HOME/.cabal/config ||
-      echo -e "repository ghcjs-overlay\n url: http://hackage-ghcjs-overlay.nomeata.de/\n secure: True\n root-keys:\n key-threshold: 0\n" >> ~/.cabal/config'
-    - cat ~/.cabal/config
     - cabal update
 
 install:
