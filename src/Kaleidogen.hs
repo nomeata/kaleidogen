@@ -44,7 +44,7 @@ run = Language.Javascript.JSaddle.Warp.run 3003
 
 
 runInBrowser :: BackendRunner JSM
-runInBrowser toShader go = run $ do
+runInBrowser toShader go = do
     doc <- currentDocumentUnchecked
     docEl <- getDocumentElementUnchecked doc
     setInnerHTML docEl html
@@ -94,7 +94,7 @@ runInBrowser toShader go = run $ do
 
 
 main :: IO ()
-main = runInBrowser renderDNA mainProgram
+main = run $ runInBrowser renderDNA mainProgram
 
 
 html :: T.Text
