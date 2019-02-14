@@ -57,7 +57,7 @@ type BackendRunner m = forall a.
     Ord a =>
     (a -> Text) ->
     (Backend m a -> m (Callbacks m a)) ->
-    IO ()
+    m ()
 
 
 renderDNA :: DNA -> Text
