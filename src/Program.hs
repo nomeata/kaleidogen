@@ -6,7 +6,6 @@ module Program where
 
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Map as M
 import Data.Monoid
 import Data.IORef
 import Control.Monad.IO.Class
@@ -115,7 +114,7 @@ mainProgram Backend {..} = do
             setCanDelete (S2.isOneSelected (sel as))
             setCanSave (S2.isOneSelected (sel as))
             (p, continue) <- liftIO (Presentation.presentAtRef t (isSelected as) pRef)
-            let toDraw = [ (key2dna k, (e,x,y,s)) | (k,(e,((x,y),s))) <- M.toList p ]
+            let toDraw = [ (key2dna k, (e,x,y,s)) | (k,(e,((x,y),s))) <- p ]
             return (toDraw, continue)
         , onMouseDown = \pos ->
             clickToCmdKey pos >>= \case
