@@ -129,7 +129,16 @@ runInSDL toShader go = do
                 | mouseButtonEventButton me == ButtonLeft
                 , mouseButtonEventMotion me == Pressed
                 , let P (V2 x y) = mouseButtonEventPos me
-                -> onClick (fromIntegral x, fromIntegral y)
+                -> onMouseDown (fromIntegral x, fromIntegral y)
+
+            MouseButtonEvent me
+                | mouseButtonEventButton me == ButtonLeft
+                , mouseButtonEventMotion me == Released
+                -> onMouseUp
+
+            MouseMotionEvent me
+                | let P (V2 x y) = mouseMotionEventPos me
+                -> onMove (fromIntegral x, fromIntegral y)
 
             _ -> return ()
 
