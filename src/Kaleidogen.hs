@@ -85,7 +85,7 @@ runInBrowser toShader go = do
         liftJSM (onMove pos >> render)
 
     void $ on canvas mouseUp $ liftJSM (onMouseUp >> render)
-    void $ on canvas mouseLeave $ liftJSM (onMouseUp >> render)
+    void $ on canvas mouseLeave $ liftJSM (onMouseOut >> render)
 
     void $ on del click $ liftJSM (onDel >> render)
     void $ on save click $ liftJSM onSave

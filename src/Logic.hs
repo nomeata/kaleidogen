@@ -115,6 +115,7 @@ data Event
     | DragOn CmdKey
     | DragOff CmdKey
     | EndDrag
+    | CancelDrag
     | Delete
 
 handle :: AppState -> Event -> (AppState, Cmds)
@@ -201,6 +202,12 @@ handle as@AppState{..} e = case e of
 
         | Just d <- drag
         -> ( as { drag = Nothing }, [ moveOneSmall as d ] )
+
+    CancelDrag
+        | Just d <- drag
+        -> ( as { drag = Nothing }
+           , [ Remove (PreviewInstance new) | Just new <- pure $ newDNA as ] ++
+             [ moveOneSmall as d ] )
 
     Delete
         | S2.OneSelected k <- sel

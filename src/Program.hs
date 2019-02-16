@@ -53,6 +53,7 @@ data Callbacks m a = Callbacks
     , onMouseDown :: (Double,Double) -> m ()
     , onMove :: (Double,Double) -> m ()
     , onMouseUp :: m ()
+    , onMouseOut :: m ()
     , onDel :: m ()
     , onSave :: m ()
     , onResize :: (Double,Double) -> m ()
@@ -142,6 +143,13 @@ mainProgram Backend {..} = do
                 Just (_, _, True)  -> handeEvent EndDrag
                 Just (k, _, False) -> handeEvent (Click k)
                 Nothing -> return ()
+            liftIO $ writeIORef dragState Nothing
+            liftIO $ writeIORef lastIntersection Nothing
+
+        , onMouseOut = do
+            liftIO (readIORef dragState) >>= \case
+                Just (_, _, True)  -> handeEvent CancelDrag
+                _ -> return ()
             liftIO $ writeIORef dragState Nothing
             liftIO $ writeIORef lastIntersection Nothing
 
