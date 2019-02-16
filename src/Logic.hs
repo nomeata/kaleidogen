@@ -81,10 +81,11 @@ preview :: AppState -> Maybe DNA
 preview as = newDNA as <|> selectedDNA as
 
 isSelected :: AppState -> DNA -> Bool
-isSelected as@AppState{..} = case sel of
-    S2.TwoSelected x y -> \d -> d `elem` [as `dnaAtKey` x, as `dnaAtKey` y]
-    S2.OneSelected x -> \d -> d == (as `dnaAtKey` x)
-    _ -> const False
+isSelected as@AppState{..} = if
+    | S2.TwoSelected x y <- sel -> \d -> d `elem` [as `dnaAtKey` x, as `dnaAtKey` y]
+    | S2.OneSelected x <- sel -> \d -> d == (as `dnaAtKey` x)
+    | Just x <- drag, Just y <- dragOn -> \d -> d `elem` [x,y]
+    | otherwise -> const False
 
 moveAllSmall :: AppState -> Cmds
 moveAllSmall as =
