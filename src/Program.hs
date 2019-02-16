@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE PatternGuards #-}
 module Program where
 
 import Data.Text (Text)
@@ -124,10 +125,13 @@ mainProgram Backend {..} = do
                 Nothing -> return ()
         , onMove = \pos ->
             liftIO (readIORef dragState) >>= \case
-                Just (k, pos0, dragging) -> do
+                Just (k, pos0, dragging)
+                  | let delta = pos0 `sub` pos
+                  , dragging || abs (fst delta) + abs (snd delta) > 5
+                  -> do
                     unless dragging $ handeEvent (BeginDrag k)
                     liftIO $ writeIORef dragState (Just (k, pos, True))
-                    handeEvent (DragDelta (pos0 `sub` pos))
+                    handeEvent (DragDelta delta)
 
                     mi_old <- liftIO $ readIORef lastIntersection
                     mi <- intersectionToCmdKey k
@@ -136,7 +140,7 @@ mainProgram Backend {..} = do
                         for_ mi $ \k' -> handeEvent (DragOn k')
                         liftIO $ writeIORef lastIntersection mi
 
-                Nothing -> return ()
+                _ -> return ()
         , onMouseUp = do
             liftIO (readIORef dragState) >>= \case
                 Just (_, _, True)  -> handeEvent EndDrag
