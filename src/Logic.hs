@@ -103,16 +103,16 @@ initialCommands :: AppState -> Cmds
 initialCommands as = moveAllSmall as ++ moveMain as
 
 data Event
-    = BeginDrag CmdKey
+    = Click CmdKey
+    | BeginDrag CmdKey
     | DragDelta (Double, Double)
-    | EndClick
     | EndDrag
     | Delete
 
 handle :: AppState -> Event -> (AppState, Cmds)
 handle as@AppState{..} e = case e of
     -- Adding a new pattern
-    BeginDrag (PreviewInstance d)
+    Click (PreviewInstance d)
         | Just new <- newDNA as, d == new
         , new `notElem` M.elems dnas
         , let newKey = succ (fst (M.findMax dnas))
@@ -125,37 +125,15 @@ handle as@AppState{..} e = case e of
              moveAllSmall as'
            )
     -- Clicking an already added pattern
-    BeginDrag (PreviewInstance d)
+    Click (PreviewInstance d)
         | Just new <- newDNA as, d == new
         , Just i <- elemIndex d (M.elems dnas)
         -> -- send preview move event
            ( as { sel = S2.empty, dnas = dnas }
            , [ FadeOut (PreviewInstance new) (SmallPos (length dnas) i) ] )
 
-    -- Changing selection
-    BeginDrag (MainInstance d)
+    Click (MainInstance d)
         | (k:_) <- [ k | (k,d') <- M.toList dnas, d == d' ]
-        -> (as { drag = Just k }, [])
-
-    DragDelta p
-        | Just k <- drag
-        , let d = as `dnaAtKey` k
-        -> ( as { sel = S2.empty }
-           , ShiftPos (MainInstance d) p :
-             ( case sel of
-               S2.OneSelected k_old -> [ Remove (PreviewInstance (as `dnaAtKey` k_old)) ]
-               S2.TwoSelected {} | Just old <- newDNA as -> [ Remove (PreviewInstance old) ]
-               _ -> []
-             )
-           )
-
-    EndDrag
-        | Just k <- drag
-        , let d = as `dnaAtKey` k
-        -> ( as { drag = Nothing }, [ moveOneSmall as d ] )
-
-    EndClick
-        | Just k <- drag
         -> let as' = as { sel = S2.flip sel k , drag = Nothing }
            in
            ( as'
@@ -166,6 +144,26 @@ handle as@AppState{..} e = case e of
              | Just d' <- pure $ preview as'
              ]
            )
+
+    -- Changing selection
+    BeginDrag (MainInstance d)
+        | (k:_) <- [ k | (k,d') <- M.toList dnas, d == d' ]
+        -> ( as { drag = Just k }
+           , case sel of
+               S2.OneSelected k_old -> [ Remove (PreviewInstance (as `dnaAtKey` k_old)) ]
+               S2.TwoSelected {} | Just old <- newDNA as -> [ Remove (PreviewInstance old) ]
+               _ -> []
+           )
+
+    DragDelta p
+        | Just k <- drag
+        , let d = as `dnaAtKey` k
+        -> ( as { sel = S2.empty }, [ ShiftPos (MainInstance d) p ] )
+
+    EndDrag
+        | Just k <- drag
+        , let d = as `dnaAtKey` k
+        -> ( as { drag = Nothing }, [ moveOneSmall as d ] )
 
     Delete
         | S2.OneSelected k <- sel

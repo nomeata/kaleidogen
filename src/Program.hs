@@ -11,6 +11,7 @@ import Data.Monoid
 import Data.IORef
 import Control.Monad.IO.Class
 import Data.Foldable
+import Control.Monad
 
 import Expression
 import GLSL
@@ -107,20 +108,19 @@ mainProgram Backend {..} = do
             return (toDraw, continue)
         , onMouseDown = \pos ->
             clickToCmdKey pos >>= \case
-                Just k -> do
-                    liftIO $ writeIORef dragState (Just (pos, False))
-                    handeEvent (BeginDrag k)
+                Just k -> liftIO $ writeIORef dragState (Just (k, pos, False))
                 Nothing -> return ()
         , onMove = \pos ->
             liftIO (readIORef dragState) >>= \case
-                Just (pos0, _) -> do
-                    liftIO $ writeIORef dragState (Just (pos,True))
+                Just (k, pos0, dragging) -> do
+                    unless dragging $ handeEvent (BeginDrag k)
+                    liftIO $ writeIORef dragState (Just (k, pos,True))
                     handeEvent (DragDelta (pos0 `sub` pos))
                 Nothing -> return ()
         , onMouseUp = do
             liftIO (readIORef dragState) >>= \case
-                Just (_, True)  -> handeEvent EndDrag
-                Just (_, False) -> handeEvent EndClick
+                Just (_, _, True)  -> handeEvent EndDrag
+                Just (k, _, False) -> handeEvent (Click k)
                 Nothing -> return ()
             liftIO $ writeIORef dragState Nothing
 
