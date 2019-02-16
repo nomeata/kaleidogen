@@ -22,6 +22,7 @@ animationSpeed = 200
 data AppState = AppState
     { seed :: Seed
     , dnas :: M.Map Key DNA
+    , drag :: Maybe Key
     , sel :: S2.SelectTwo Key
     }
 
@@ -38,6 +39,7 @@ data Cmd
     = SummonAt CmdKey AbstractPos
     | MoveTo CmdKey AbstractPos
     | FadeOut CmdKey AbstractPos
+    | ShiftPos CmdKey (Double, Double)
     | Remove CmdKey
 type Cmds = [Cmd]
 
@@ -46,6 +48,7 @@ initialAppState seed = AppState {..}
   where
     dnas = M.fromList $ zipWith (\n d -> (n,d)) [0..] initialDNAs
     sel = S2.duolton 0 1
+    drag = Nothing
 
 
 dnaAtKey :: AppState -> Key -> DNA
@@ -85,6 +88,12 @@ moveAllSmall as =
   where
     c = length (dnas as)
 
+moveOneSmall :: AppState -> DNA -> Cmd
+moveOneSmall as d = MoveTo (MainInstance d) (SmallPos c n)
+  where
+    c = length (dnas as)
+    Just n = elemIndex d (M.elems (dnas as))
+
 moveMain :: AppState -> Cmds
 moveMain as =
     [ MoveTo (PreviewInstance d) MainPos
@@ -93,12 +102,17 @@ moveMain as =
 initialCommands :: AppState -> Cmds
 initialCommands as = moveAllSmall as ++ moveMain as
 
-data Event = Click CmdKey | Delete
+data Event
+    = BeginDrag CmdKey
+    | DragDelta (Double, Double)
+    | EndClick
+    | EndDrag
+    | Delete
 
 handle :: AppState -> Event -> (AppState, Cmds)
 handle as@AppState{..} e = case e of
     -- Adding a new pattern
-    Click (PreviewInstance d)
+    BeginDrag (PreviewInstance d)
         | Just new <- newDNA as, d == new
         , new `notElem` M.elems dnas
         , let newKey = succ (fst (M.findMax dnas))
@@ -106,21 +120,44 @@ handle as@AppState{..} e = case e of
         , let as' = as { sel = S2.empty, dnas = dnas' }
         -> ( as'
            , [ Remove (PreviewInstance new)
-             , SummonAt (MainInstance new) MainPos 
+             , SummonAt (MainInstance new) MainPos
              ] ++
              moveAllSmall as'
            )
     -- Clicking an already added pattern
-    Click (PreviewInstance d)
+    BeginDrag (PreviewInstance d)
         | Just new <- newDNA as, d == new
         , Just i <- elemIndex d (M.elems dnas)
         -> -- send preview move event
            ( as { sel = S2.empty, dnas = dnas }
            , [ FadeOut (PreviewInstance new) (SmallPos (length dnas) i) ] )
+
     -- Changing selection
-    Click (MainInstance d)
+    BeginDrag (MainInstance d)
         | (k:_) <- [ k | (k,d') <- M.toList dnas, d == d' ]
-        -> let as' = as { sel = S2.flip sel k } in
+        -> (as { drag = Just k }, [])
+
+    DragDelta p
+        | Just k <- drag
+        , let d = as `dnaAtKey` k
+        -> ( as { sel = S2.empty }
+           , ShiftPos (MainInstance d) p :
+             ( case sel of
+               S2.OneSelected k_old -> [ Remove (PreviewInstance (as `dnaAtKey` k_old)) ]
+               S2.TwoSelected {} | Just old <- newDNA as -> [ Remove (PreviewInstance old) ]
+               _ -> []
+             )
+           )
+
+    EndDrag
+        | Just k <- drag
+        , let d = as `dnaAtKey` k
+        -> ( as { drag = Nothing }, [ moveOneSmall as d ] )
+
+    EndClick
+        | Just k <- drag
+        -> let as' = as { sel = S2.flip sel k , drag = Nothing }
+           in
            ( as'
            , [ Remove (PreviewInstance d')
              | Just d' <- pure $ preview as
@@ -129,6 +166,7 @@ handle as@AppState{..} e = case e of
              | Just d' <- pure $ preview as'
              ]
            )
+
     Delete
         | S2.OneSelected k <- sel
         , Just i <- M.lookupIndex k dnas

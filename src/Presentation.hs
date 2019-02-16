@@ -8,7 +8,7 @@ import Data.List
 
 import DNA (DNA)
 import Logic hiding (sel)
-import Layout (PosAndScale)
+import Layout (PosAndScale, translate)
 import Tween
 
 type Time = Double
@@ -48,6 +48,11 @@ handleCmd t l s c = case c of
         -> M.insert k (MovingFromTo p' t (l ap) ThenKeep) s
         | otherwise
         -> M.insert k (Stable (l ap)) s
+    ShiftPos k d
+        | Just p' <- currentPos t k s
+        -> M.insert k (Stable (translate d p')) s
+        | otherwise
+        -> s
     FadeOut k ap
         | Just p' <- currentPos t k s
         -> M.insert k (MovingFromTo p' t (l ap) ThenDelete) s

@@ -1,6 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE LambdaCase #-}
 module Program where
 
 import Data.Text (Text)
@@ -48,7 +49,9 @@ data Backend m a = Backend
     }
 data Callbacks m a = Callbacks
     { onDraw :: m ([(a,(Double,Double,Double,Double))], Bool)
-    , onClick :: (Double,Double) -> m ()
+    , onMouseDown :: (Double,Double) -> m ()
+    , onMove :: (Double,Double) -> m ()
+    , onMouseUp :: m ()
     , onDel :: m ()
     , onSave :: m ()
     , onResize :: (Double,Double) -> m ()
@@ -78,11 +81,20 @@ mainProgram Backend {..} = do
         liftIO $ Presentation.handleCmdsRef t lf cs pRef
     handleCmds (initialCommands as0)
 
+    -- State to detect clicks vs. drags
+    dragState <- liftIO $ newIORef Nothing
+
     let handeEvent e = do
         as <- liftIO (readIORef asRef)
         let (as', cs) = handle as e
         liftIO $ writeIORef asRef as'
         handleCmds cs
+
+    let clickToCmdKey pos = do
+        as@AppState{..} <- liftIO (readIORef asRef)
+        t <- getCurrentTime
+        (p, _continue) <- liftIO (Presentation.presentAtRef t (isSelected as) pRef)
+        return $ Presentation.locateClick p pos
 
     return $ Callbacks
         { onDraw = do
@@ -93,13 +105,25 @@ mainProgram Backend {..} = do
             (p, continue) <- liftIO (Presentation.presentAtRef t (isSelected as) pRef)
             let toDraw = [ (key2dna k, (e,x,y,s)) | (k,(e,((x,y),s))) <- M.toList p ]
             return (toDraw, continue)
-        , onClick = \pos -> do
-            as@AppState{..} <- liftIO (readIORef asRef)
-            t <- getCurrentTime
-            (p, _continue) <- liftIO (Presentation.presentAtRef t (isSelected as) pRef)
-            case Presentation.locateClick p pos of
-                Just k -> handeEvent (Click k)
+        , onMouseDown = \pos ->
+            clickToCmdKey pos >>= \case
+                Just k -> do
+                    liftIO $ writeIORef dragState (Just (pos, False))
+                    handeEvent (BeginDrag k)
                 Nothing -> return ()
+        , onMove = \pos ->
+            liftIO (readIORef dragState) >>= \case
+                Just (pos0, _) -> do
+                    liftIO $ writeIORef dragState (Just (pos,True))
+                    handeEvent (DragDelta (pos0 `sub` pos))
+                Nothing -> return ()
+        , onMouseUp = do
+            liftIO (readIORef dragState) >>= \case
+                Just (_, True)  -> handeEvent EndDrag
+                Just (_, False) -> handeEvent EndClick
+                Nothing -> return ()
+            liftIO $ writeIORef dragState Nothing
+
         , onDel = handeEvent Delete
         , onSave = do
             as <- liftIO (readIORef asRef)
@@ -112,3 +136,6 @@ mainProgram Backend {..} = do
             as <- liftIO $ readIORef asRef
             handleCmds (initialCommands as)
         }
+
+sub :: (Double, Double) -> (Double, Double) -> (Double, Double)
+(x1,y1) `sub` (x2, y2) = (x2 - x1, y2 - y1)

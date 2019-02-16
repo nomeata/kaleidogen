@@ -24,7 +24,7 @@ import GHCJS.DOM.Performance
 import GHCJS.DOM.GlobalPerformance
 import GHCJS.DOM.NonElementParentNode
 import GHCJS.DOM.EventM
-import GHCJS.DOM.GlobalEventHandlers (click)
+import GHCJS.DOM.GlobalEventHandlers (click, mouseDown, mouseMove, mouseUp, mouseLeave)
 
 import ShaderCanvas
 import qualified CanvasSave
@@ -76,9 +76,16 @@ runInBrowser toShader go = do
         drawShaderCircles toDraw
         return continue
 
-    void $ on canvas click $ do
+    void $ on canvas mouseDown $ do
         pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
-        liftJSM (onClick pos >> render)
+        liftJSM (onMouseDown pos >> render)
+
+    void $ on canvas mouseMove $ do
+        pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
+        liftJSM (onMove pos >> render)
+
+    void $ on canvas mouseUp $ liftJSM (onMouseUp >> render)
+    void $ on canvas mouseLeave $ liftJSM (onMouseUp >> render)
 
     void $ on del click $ liftJSM (onDel >> render)
     void $ on save click $ liftJSM onSave
