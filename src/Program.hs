@@ -91,11 +91,21 @@ mainProgram Backend {..} = do
         liftIO $ writeIORef asRef as'
         handleCmds cs
 
-    let clickToCmdKey pos = do
+    let currentPresentation = do
         as@AppState{..} <- liftIO (readIORef asRef)
         t <- getCurrentTime
         (p, _continue) <- liftIO (Presentation.presentAtRef t (isSelected as) pRef)
+        return p
+
+    let clickToCmdKey pos = do
+        p <- currentPresentation
         return $ Presentation.locateClick p pos
+
+    let intersectionToCmdKey k = do
+        p <- currentPresentation
+        return $ Presentation.locateIntersection p k
+
+    lastIntersection <- liftIO $ newIORef Nothing
 
     return $ Callbacks
         { onDraw = do
@@ -108,14 +118,24 @@ mainProgram Backend {..} = do
             return (toDraw, continue)
         , onMouseDown = \pos ->
             clickToCmdKey pos >>= \case
-                Just k -> liftIO $ writeIORef dragState (Just (k, pos, False))
+                Just k -> do
+                    liftIO $ writeIORef dragState (Just (k, pos, False))
+                    liftIO $ writeIORef lastIntersection Nothing
                 Nothing -> return ()
         , onMove = \pos ->
             liftIO (readIORef dragState) >>= \case
                 Just (k, pos0, dragging) -> do
                     unless dragging $ handeEvent (BeginDrag k)
-                    liftIO $ writeIORef dragState (Just (k, pos,True))
+                    liftIO $ writeIORef dragState (Just (k, pos, True))
                     handeEvent (DragDelta (pos0 `sub` pos))
+
+                    mi_old <- liftIO $ readIORef lastIntersection
+                    mi <- intersectionToCmdKey k
+                    when (mi /= mi_old) $ do
+                        for_ mi_old $ \k' -> handeEvent (DragOff k')
+                        for_ mi $ \k' -> handeEvent (DragOn k')
+                        liftIO $ writeIORef lastIntersection mi
+
                 Nothing -> return ()
         , onMouseUp = do
             liftIO (readIORef dragState) >>= \case
@@ -123,6 +143,7 @@ mainProgram Backend {..} = do
                 Just (k, _, False) -> handeEvent (Click k)
                 Nothing -> return ()
             liftIO $ writeIORef dragState Nothing
+            liftIO $ writeIORef lastIntersection Nothing
 
         , onDel = handeEvent Delete
         , onSave = do

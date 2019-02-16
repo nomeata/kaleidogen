@@ -87,10 +87,17 @@ anyMoving t = any go
     go (Stable _) = False
     go (MovingFromTo _ t' _ _) = (t - t') < animationSpeed
 
+isIn :: (Double, Double) -> PosAndScale -> Bool
+(x,y) `isIn` ((x',y'),s) = (x - x')**2 + (y - y')**2 <= s**2
+
 locateClick :: Presentation -> (Double, Double) -> Maybe CmdKey
-locateClick p (x,y) = fst <$> find go (M.toList p)
-  where
-    go (_, (_, ((x',y'),s))) = (x - x')**2 + (y - y')**2 <= s**2
+locateClick p (x,y) =
+    fst <$> find (((x,y) `isIn`) . snd . snd) (M.toList p)
+
+locateIntersection :: Presentation -> CmdKey -> Maybe CmdKey
+locateIntersection p k =
+    fst <$> find (((x,y) `isIn`) . snd . snd) (filter ((/=k) . fst) (M.toList p))
+  where (_, ((x,y),_)) = p M.! k
 
 -- The mutable layer
 type Ref = IORef State
