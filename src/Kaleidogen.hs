@@ -24,7 +24,12 @@ import GHCJS.DOM.Performance
 import GHCJS.DOM.GlobalPerformance
 import GHCJS.DOM.NonElementParentNode
 import GHCJS.DOM.EventM
-import GHCJS.DOM.GlobalEventHandlers (click, mouseDown, mouseMove, mouseUp, mouseLeave)
+import GHCJS.DOM.GlobalEventHandlers (click, mouseDown, mouseMove, mouseUp, mouseLeave, touchStart, touchMove, touchEnd)
+import qualified GHCJS.DOM.TouchEvent as TouchEvent
+import qualified GHCJS.DOM.TouchList as TouchList
+import qualified GHCJS.DOM.Touch as Touch
+import qualified GHCJS.DOM.DOMRect as DOMRect
+
 
 import ShaderCanvas
 import qualified CanvasSave
@@ -87,6 +92,17 @@ runInBrowser toShader go = do
     void $ on canvas mouseUp $ liftJSM (onMouseUp >> render)
     void $ on canvas mouseLeave $ liftJSM (onMouseOut >> render)
 
+    void $ on canvas touchStart $ do
+        pos <- touchOffsetXY canvas
+        liftJSM (onMouseDown pos >> render)
+
+    void $ on canvas touchMove $ do
+        pos <- touchOffsetXY canvas
+        liftJSM (onMove pos >> render)
+
+    void $ on canvas touchEnd $ liftJSM (onMouseUp >> render)
+
+
     void $ on del click $ liftJSM (onDel >> render)
     void $ on save click $ liftJSM onSave
 
@@ -98,6 +114,16 @@ runInBrowser toShader go = do
     regularlyCheckSize -- should trigger the initial render as well
 
 
+touchOffsetXY :: IsElement e => e -> EventM t TouchEvent (Double, Double)
+touchOffsetXY e = do
+    touches <- event >>= TouchEvent.getChangedTouches
+    touch <- TouchList.item touches 0
+    x <- Touch.getPageX touch
+    y <- Touch.getPageY touch
+    rect <- getBoundingClientRect e
+    rx <- DOMRect.getX rect
+    ry <- DOMRect.getY rect
+    return (fromIntegral x - rx,fromIntegral y - ry)
 
 
 main :: IO ()
