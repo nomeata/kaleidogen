@@ -18,6 +18,16 @@ source-repository head
     type: git
     location: https://github.com/nomeata/kaleidogen
 
+flag jsaddle
+    default: True
+
+flag sdl
+    default: True
+
+flag android
+    default: False
+
+
 -- The jsaddle-hello-world example file has a more elaborate
 -- setup including webkit and macos support. Removed for simplicity for now,
 -- but should be evaluated later
@@ -64,6 +74,14 @@ common shader-canvas
     build-depends: ghcjs-dom >=0.9.2 && <0.10
     build-depends: text
 
+common SDL
+    hs-source-dirs: src
+    other-modules: SDLRunner
+    build-depends: linear ==1.20.*
+    build-depends: sdl2 ==2.4.*
+    build-depends: OpenGL ==3.0.*
+    build-depends: StateVar
+
 executable kaleidogen
     import: logic, canvas-save, shader-canvas
     main-is: Kaleidogen.hs
@@ -79,18 +97,33 @@ executable kaleidogen
       build-depends: jsaddle >=0.9.2 && <0.10
       build-depends: jsaddle-warp >=0.9.2 && <0.10
 
+    if !flag(jsaddle)
+      buildable: False
+
     ghc-options: -main-is Kaleidogen
     ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
 
 executable kaleidogen-sdl
-    import: logic
+    import: logic,SDL
     main-is: KaleidogenSDL.hs
-    build-depends: linear ==1.20.*
-    build-depends: sdl2 ==2.4.*
-    build-depends: OpenGL ==3.0.*
-    build-depends: StateVar
 
     if impl(ghcjs)
       buildable: False
 
+    if !flag(sdl)
+      buildable: False
+
     ghc-options: -main-is KaleidogenSDL
+
+executable kaleidogen-android
+    import: logic,SDL
+    main-is: KaleidogenAndroid.hs
+    build-depends: android-activity
+
+    if impl(ghcjs)
+      buildable: False
+
+    if !flag(android)
+      buildable: False
+
+    ghc-options: -main-is KaleidogenAndroid
