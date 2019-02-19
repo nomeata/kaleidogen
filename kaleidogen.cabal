@@ -41,6 +41,8 @@ common logic
     other-modules: Expression
     other-modules: SelectTwo
     other-modules: Program
+    other-modules: Shaders
+    other-modules: Presentation
     other-modules: Layout
     build-depends: base >=4.2 && <5
     build-depends: MonadRandom ==0.5.*
