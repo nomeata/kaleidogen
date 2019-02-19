@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
 module GLSL (toFragmentShader, blankShader) where
 
 import Prelude hiding (unlines)
 import Data.Monoid
-import Formatting.Buildable
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Builder
@@ -150,3 +150,21 @@ go (Ontop x r1 r2) = \pos -> do
     vec3 "col" $ ifThenElse
         (len pos <> " < " <> build x)
         col1 col2
+
+-- The following is borrowed from the formatting library,
+-- which depends on Clock, which cannot be built on android easily
+
+class Buildable p where
+    build :: p -> Builder
+
+instance Buildable String where
+    build = fromString
+    {-# INLINE build #-}
+
+instance Buildable Int where
+    build = build . show
+    {-# INLINE build #-}
+
+instance Buildable Double where
+    build = build . show
+    {-# INLINE build #-}
