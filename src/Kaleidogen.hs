@@ -95,6 +95,7 @@ runInBrowser toShader go = do
     void $ on canvas touchStart $ do
         pos <- touchOffsetXY canvas
         liftJSM (onMouseDown pos >> render)
+        preventDefault
 
     void $ on canvas touchMove $ do
         pos <- touchOffsetXY canvas
