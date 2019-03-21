@@ -4,6 +4,7 @@
 module Expression (dna2rna) where
 
 import Data.Colour.RGBSpace.HSV
+import Data.Colour.SRGB
 import Data.Word
 import Data.List
 
@@ -78,11 +79,19 @@ derivedColors (hsvView -> (h,s,v)) =
     []
 
 baseColor :: Word8 -> RGB Double
--- baseColor 0 = hsv 0   1 0
--- baseColor 1 = hsv 0   0 1
+{-
 baseColor n = hsv tau 0.7 1
   where
     tau = (fromIntegral (n-2) / fromIntegral (maxBound `asTypeOf` n - 2)) * 360
+-}
+baseColor n = indexMod n $ map (toSRGB.sRGB24read)
+    [ "#ba0100"
+    , "#f7c616"
+    , "#141995"
+    , "#2183cc"
+    , "#076b1d"
+    , "#f4a40d"
+    ]
 
 indexMod :: Word8 -> [a] -> a
 indexMod n xs = xs !! n'
