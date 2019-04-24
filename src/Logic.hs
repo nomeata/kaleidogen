@@ -2,7 +2,14 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Logic where
+module Logic (
+    CmdKey(..), Cmd'(..), Cmd, Cmds,
+    AbstractPos(..),
+    AppState(..),
+    initialAppState, initialCommands, isSelected, key2dna,
+    selectedDNA,
+    Event(..), handle,
+    ) where
 
 import Control.Applicative
 import qualified Data.Map as M
@@ -10,14 +17,12 @@ import Data.List
 
 import DNA
 import qualified SelectTwo as S2
+import PresentationCmds (Cmds, Cmd, Cmd'(..))
 
 -- Lets keep the keys separate from the sequential indices
 newtype Key = Key Int deriving (Num, Eq, Ord, Enum)
 
 type Seed = Int
-
-animationSpeed :: Double
-animationSpeed = 200
 
 data AppState = AppState
     { seed :: Seed
@@ -38,14 +43,6 @@ key2dna :: CmdKey -> DNA
 key2dna (MainInstance d) = d
 key2dna (PreviewInstance d) = d
 
-data Cmd
-    = SummonAt CmdKey AbstractPos
-    | MoveTo CmdKey AbstractPos
-    | FadeOut CmdKey AbstractPos
-    | ShiftPos CmdKey (Double, Double)
-    | Remove CmdKey
-type Cmds = [Cmd]
-
 initialAppState :: Seed -> AppState
 initialAppState seed = AppState {..}
   where
@@ -57,12 +54,6 @@ initialAppState seed = AppState {..}
 
 dnaAtKey :: AppState -> Key -> DNA
 dnaAtKey AppState{..} k = dnas M.! k
-
-at :: AppState -> Int -> DNA
-at AppState{..} n = snd (M.elemAt n dnas)
-
-keyAt :: AppState -> Int -> Key
-keyAt AppState{..} n = fst (M.elemAt n dnas)
 
 newDNA :: AppState -> Maybe DNA
 newDNA as@AppState{..}
@@ -87,26 +78,26 @@ isSelected as@AppState{..} = if
     | Just x <- drag, Just y <- dragOn -> \d -> d `elem` [x,y]
     | otherwise -> const False
 
-moveAllSmall :: AppState -> Cmds
+moveAllSmall :: AppState -> Cmds CmdKey AbstractPos
 moveAllSmall as =
-    [ MoveTo (MainInstance d) (SmallPos c n)
+    [ (MainInstance d, MoveTo (SmallPos c n))
     | (n, d) <- zip [0..] (M.elems (dnas as))
     ]
   where
     c = length (dnas as)
 
-moveOneSmall :: AppState -> DNA -> Cmd
-moveOneSmall as d = MoveTo (MainInstance d) (SmallPos c n)
+moveOneSmall :: AppState -> DNA -> Cmd CmdKey AbstractPos
+moveOneSmall as d = (MainInstance d, MoveTo (SmallPos c n))
   where
     c = length (dnas as)
     Just n = elemIndex d (M.elems (dnas as))
 
-moveMain :: AppState -> Cmds
+moveMain :: AppState -> Cmds CmdKey AbstractPos
 moveMain as =
-    [ MoveTo (PreviewInstance d) MainPos
+    [ (PreviewInstance d, MoveTo MainPos)
     | Just d <- return $ newDNA as ]
 
-initialCommands :: AppState -> Cmds
+initialCommands :: AppState -> Cmds CmdKey AbstractPos
 initialCommands as = moveAllSmall as ++ moveMain as
 
 data Event
@@ -119,7 +110,7 @@ data Event
     | CancelDrag
     | Delete
 
-handle :: AppState -> Event -> (AppState, Cmds)
+handle :: AppState -> Event -> (AppState, Cmds CmdKey AbstractPos)
 handle as@AppState{..} e = case e of
     -- Adding a new pattern
     Click (PreviewInstance d)
@@ -129,8 +120,8 @@ handle as@AppState{..} e = case e of
         , let dnas' = M.insert newKey new dnas
         , let as' = as { sel = S2.empty, dnas = dnas' }
         -> ( as'
-           , [ Remove (PreviewInstance new)
-             , SummonAt (MainInstance new) MainPos
+           , [ (PreviewInstance new, Remove)
+             , (MainInstance new, SummonAt MainPos)
              ] ++
              moveAllSmall as'
            )
@@ -141,7 +132,7 @@ handle as@AppState{..} e = case e of
         , Just i <- elemIndex d (M.elems dnas)
         -> -- send preview move event
            ( as { sel = S2.empty, dnas = dnas }
-           , [ FadeOut (PreviewInstance new) (SmallPos (length dnas) i) ] )
+           , [ (PreviewInstance new, FadeOut (SmallPos (length dnas) i)) ] )
 
     -- Changing selection
     Click (MainInstance d)
@@ -149,10 +140,10 @@ handle as@AppState{..} e = case e of
         -> let as' = as { sel = S2.flip sel k , drag = Nothing }
            in
            ( as'
-           , [ Remove (PreviewInstance d')
+           , [ (PreviewInstance d', Remove)
              | Just d' <- pure $ preview as
              ] ++
-             [ SummonAt (PreviewInstance d') MainPos
+             [ (PreviewInstance d', SummonAt MainPos)
              | Just d' <- pure $ preview as'
              ]
            )
@@ -161,24 +152,24 @@ handle as@AppState{..} e = case e of
     BeginDrag (MainInstance d)
         -> ( as { drag = Just d }
            , case sel of
-               S2.OneSelected k_old -> [ Remove (PreviewInstance (as `dnaAtKey` k_old)) ]
-               S2.TwoSelected {} | Just old <- newDNA as -> [ Remove (PreviewInstance old) ]
+               S2.OneSelected k_old -> [ (PreviewInstance (as `dnaAtKey` k_old), Remove ) ]
+               S2.TwoSelected {} | Just old <- newDNA as -> [ (PreviewInstance old, Remove) ]
                _ -> []
            )
 
     DragDelta p
         | Just d <- drag
-        -> ( as { sel = S2.empty }, [ ShiftPos (MainInstance d) p ] )
+        -> ( as { sel = S2.empty }, [ (MainInstance d, ShiftPos p) ] )
 
     DragOn (MainInstance d')
         | Just _ <- drag
         , let as' = as { dragOn = Just d' }
-        -> ( as', [ SummonAt (PreviewInstance new) MainPos | Just new <- pure $ newDNA as' ] )
+        -> ( as', [ (PreviewInstance new, SummonAt MainPos) | Just new <- pure $ newDNA as' ] )
 
     DragOff (MainInstance _')
         | Just _ <- drag
         , let as' = as { dragOn = Nothing }
-        -> ( as', [ Remove (PreviewInstance new) | Just new <- pure $ newDNA as ] )
+        -> ( as', [ (PreviewInstance new, Remove) | Just new <- pure $ newDNA as ] )
 
     EndDrag
         | Just _ <- drag
@@ -188,8 +179,8 @@ handle as@AppState{..} e = case e of
         , let dnas' = M.insert newKey new dnas
         , let as' = as { drag = Nothing, dnas = dnas' }
         -> ( as'
-           , [ Remove (PreviewInstance new)
-             , SummonAt (MainInstance new) MainPos
+           , [ (PreviewInstance new, Remove)
+             , (MainInstance new, SummonAt MainPos)
              ] ++
              moveAllSmall as'
            )
@@ -198,7 +189,7 @@ handle as@AppState{..} e = case e of
         , Just new <- newDNA as
         , Just i <- elemIndex new (M.elems dnas)
         -> ( as { drag = Nothing }
-           , [ FadeOut (PreviewInstance new) (SmallPos (length dnas) i)
+           , [ (PreviewInstance new, FadeOut (SmallPos (length dnas) i))
              , moveOneSmall as d ] )
 
         | Just d <- drag
@@ -207,7 +198,7 @@ handle as@AppState{..} e = case e of
     CancelDrag
         | Just d <- drag
         -> ( as { drag = Nothing }
-           , [ Remove (PreviewInstance new) | Just new <- pure $ newDNA as ] ++
+           , [ (PreviewInstance new, Remove) | Just new <- pure $ newDNA as ] ++
              [ moveOneSmall as d ] )
 
     Delete
@@ -216,8 +207,8 @@ handle as@AppState{..} e = case e of
         , let d = as `dnaAtKey` k
         , let as' = as { sel = S2.empty, dnas = M.delete k dnas }
         -> ( as'
-           , [ Remove (PreviewInstance d)
-             , FadeOut (MainInstance d) (DeletedPos (length dnas) i)
+           , [ (PreviewInstance d, Remove)
+             , (MainInstance d, FadeOut (DeletedPos (length dnas) i))
              ] ++
              moveAllSmall as'
            )

@@ -15,29 +15,31 @@ import qualified Data.Map as M
 import Data.IORef
 import Data.List
 
-import DNA (DNA)
-import Logic hiding (sel)
 import Layout (PosAndScale, translate)
+import PresentationCmds (Cmds, Cmd, Cmd'(..))
 import Tween
 
 type Time = Double
+
+animationSpeed :: Time
+animationSpeed = 200
 
 data AndThen = ThenKeep | ThenDelete
 data Position
     = Stable PosAndScale
     | MovingFromTo PosAndScale Time PosAndScale AndThen
-data State = State
-    { pos :: M.Map CmdKey Position
-    , zindex ::  M.Map CmdKey Int
+data State k = State
+    { pos :: M.Map k Position
+    , zindex ::  M.Map k Int
     , zctr :: !Int
     }
 
-initialState :: State
+initialState :: State k
 initialState = State M.empty M.empty 0
 
-type LayoutFun = AbstractPos -> PosAndScale
+type LayoutFun a = a -> PosAndScale
 
-currentPos :: Time -> CmdKey -> State -> Maybe PosAndScale
+currentPos :: Ord k => Time -> k -> State k -> Maybe PosAndScale
 currentPos t k s = case M.lookup k (pos s) of
     Just p -> interpretPos t p
     Nothing -> Nothing
@@ -53,35 +55,35 @@ interpretPos t (MovingFromTo p_old t' p_new andthen)
     | otherwise
     = Just p_new
 
-handleCmd :: Time -> LayoutFun -> State -> Cmd -> State
-handleCmd t l s@(State{pos, zindex, zctr}) c =
+handleCmd :: Ord k => Time -> LayoutFun a -> State k -> Cmd k a -> State k
+handleCmd t l s@State{pos, zindex, zctr} (k, c) =
     State pos' zindex' zctr'
   where
     zctr' = zctr + 1
     pos' = case c of
-        SummonAt k ap -> M.insert k (Stable (l ap)) pos
-        MoveTo k ap
+        SummonAt ap -> M.insert k (Stable (l ap)) pos
+        MoveTo ap
             | Just p' <- currentPos t k s
             -> M.insert k (MovingFromTo p' t (l ap) ThenKeep) pos
             | otherwise
             -> M.insert k (Stable (l ap)) pos
-        ShiftPos k d
+        ShiftPos d
             | Just p' <- currentPos t k s
             -> M.insert k (Stable (translate d p')) pos
             | otherwise
             -> pos
-        FadeOut k ap
+        FadeOut ap
             | Just p' <- currentPos t k s
             -> M.insert k (MovingFromTo p' t (l ap) ThenDelete) pos
             | otherwise
             -> M.insert k (Stable (l ap)) pos
-        Remove k -> M.delete k pos
+        Remove -> M.delete k pos
     zindex' = case c of
-        SummonAt k _ -> M.insert k zctr' zindex
-        MoveTo k _   -> M.insert k zctr' zindex
-        ShiftPos k _ -> M.insert k zctr' zindex
-        FadeOut k _  -> M.insert k zctr' zindex
-        Remove k     -> M.delete k zindex
+        SummonAt _ -> M.insert k zctr' zindex
+        MoveTo _   -> M.insert k zctr' zindex
+        ShiftPos _ -> M.insert k zctr' zindex
+        FadeOut _  -> M.insert k zctr' zindex
+        Remove     -> M.delete k zindex
 
 {-
 freeze :: Time -> State -> State
@@ -93,21 +95,16 @@ freeze t = M.mapMaybe go
          = Nothing
 -}
 
--- A presentation, including the “extra data”
-type Presentation = [(CmdKey, (Double, PosAndScale))]
+-- A presentation
+type Presentation k = [(k, PosAndScale)]
 
-presentAt :: Time -> (DNA -> Bool) -> State -> Presentation
-presentAt t sel State{pos, zindex} =
+presentAt :: Ord k => Time -> State k -> Presentation k
+presentAt t State{pos, zindex} =
     sortOn ((zindex M.!) . fst). M.toList . M.mapMaybeWithKey go $ pos
   where
-    go k p | Just pas <- interpretPos t p
-           = Just (extraData k, pas)
-           | otherwise
-           = Nothing
-    extraData (MainInstance d) = if sel d then 2 else 1
-    extraData (PreviewInstance _) = 0
+    go _ = interpretPos t
 
-anyMoving :: Time -> State -> Bool
+anyMoving :: Time -> State k -> Bool
 anyMoving t = any go . pos
   where
     go (Stable _) = False
@@ -116,25 +113,25 @@ anyMoving t = any go . pos
 isIn :: (Double, Double) -> PosAndScale -> Bool
 (x,y) `isIn` ((x',y'),s) = (x - x')**2 + (y - y')**2 <= s**2
 
-locateClick :: Presentation -> (Double, Double) -> Maybe CmdKey
+locateClick :: Presentation k -> (Double, Double) -> Maybe k
 locateClick p (x,y) =
-    fst <$> find (((x,y) `isIn`) . snd . snd) p
+    fst <$> find (((x,y) `isIn`) . snd) p
 
-locateIntersection :: Presentation -> CmdKey -> Maybe CmdKey
+locateIntersection :: Eq k => Presentation k -> k -> Maybe k
 locateIntersection p k =
-    fst <$> find (((x,y) `isIn`) . snd . snd) (filter ((/=k) . fst) p)
-  where Just (_, ((x,y),_)) = lookup k p
+    fst <$> find (((x,y) `isIn`) . snd) (filter ((/=k) . fst) p)
+  where Just ((x,y),_) = lookup k p
 
 -- The mutable layer
-type Ref = IORef State
+type Ref k = IORef (State k)
 
-initRef :: IO Ref
+initRef :: IO (Ref k)
 initRef = newIORef initialState
 
-handleCmdsRef :: Time -> LayoutFun -> Cmds -> Ref -> IO ()
+handleCmdsRef :: Ord k => Time -> LayoutFun a -> Cmds k a -> Ref k -> IO ()
 handleCmdsRef t l cs r = modifyIORef r (\s -> foldl (handleCmd t l) s cs)
 
-presentAtRef :: Time -> (DNA -> Bool) -> Ref -> IO (Presentation, Bool)
-presentAtRef t sel r = do
+presentAtRef :: Ord k => Time -> Ref k -> IO (Presentation k, Bool)
+presentAtRef t r = do
     s <- readIORef r
-    return (presentAt t sel s, anyMoving t s)
+    return (presentAt t s, anyMoving t s)

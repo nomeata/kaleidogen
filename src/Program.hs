@@ -36,7 +36,7 @@ layoutFun size (SmallPos c n)
 layoutFun size (DeletedPos c n)
     = bottomHalf (layoutGrid True c) size n
 
-getLayoutFun :: IORef (Double, Double) -> IO Presentation.LayoutFun
+getLayoutFun :: IORef (Double, Double) -> IO (Presentation.LayoutFun AbstractPos)
 getLayoutFun r = do
     size <- readIORef r
     return (layoutFun size)
@@ -94,9 +94,9 @@ mainProgram Backend {..} = do
         handleCmds cs
 
     let currentPresentation = do
-        as@AppState{..} <- liftIO (readIORef asRef)
+        AppState{..} <- liftIO (readIORef asRef)
         t <- getCurrentTime
-        (p, _continue) <- liftIO (Presentation.presentAtRef t (isSelected as) pRef)
+        (p, _continue) <- liftIO (Presentation.presentAtRef t pRef)
         return p
 
     let clickToCmdKey pos = do
@@ -115,8 +115,10 @@ mainProgram Backend {..} = do
             as <- liftIO $ readIORef asRef
             setCanDelete (S2.isOneSelected (sel as))
             setCanSave (S2.isOneSelected (sel as))
-            (p, continue) <- liftIO (Presentation.presentAtRef t (isSelected as) pRef)
-            let toDraw = [ (key2dna k, (e,x,y,s)) | (k,(e,((x,y),s))) <- p ]
+            (p, continue) <- liftIO (Presentation.presentAtRef t pRef)
+            let extraData (MainInstance d) = if isSelected as d then 2 else 1
+                extraData (PreviewInstance _) = 0
+            let toDraw = [ (key2dna k, (extraData k,x,y,s)) | (k,((x,y),s)) <- p ]
             return (toDraw, continue)
         , onMouseDown = \pos ->
             clickToCmdKey pos >>= \case
