@@ -1,9 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE NondecreasingIndentation #-}
 module Program where
 
 import Data.Text (Text)
@@ -12,7 +9,6 @@ import Data.Monoid
 import Data.IORef
 import Control.Monad.IO.Class
 import Data.Foldable
-import Control.Monad
 
 import Expression
 import GLSL
@@ -21,6 +17,7 @@ import qualified SelectTwo as S2
 import Layout
 import Logic
 import qualified Presentation
+import Drag
 
 reorderExtraData :: [((DNA, a), ((b,c),d))] -> [(DNA, (a, b, c, d))]
 reorderExtraData = map $ \((d,b),((x,y),s)) -> (d, (b, x, y, s))
@@ -84,10 +81,7 @@ mainProgram Backend {..} = do
         liftIO $ Presentation.handleCmdsRef t lf cs pRef
     handleCmds (initialCommands as0)
 
-    -- State to detect clicks vs. drags
-    dragState <- liftIO $ newIORef Nothing
-
-    let handeEvent e = do
+    let handleEvent e = do
         as <- liftIO (readIORef asRef)
         let (as', cs) = handle as e
         liftIO $ writeIORef asRef as'
@@ -107,7 +101,10 @@ mainProgram Backend {..} = do
         p <- currentPresentation
         return $ Presentation.locateIntersection p k
 
-    lastIntersection <- liftIO $ newIORef Nothing
+    dragHandler <- mkDragHandler clickToCmdKey intersectionToCmdKey
+    let handleClickEvents re = do
+        t <- getCurrentTime
+        dragHandler t re >>= mapM_ (handleEvent . ClickEvent)
 
     return $ Callbacks
         { onDraw = do
@@ -120,50 +117,11 @@ mainProgram Backend {..} = do
                 extraData (PreviewInstance _) = 0
             let toDraw = [ (key2dna k, (extraData k,x,y,s)) | (k,((x,y),s)) <- p ]
             return (toDraw, continue)
-        , onMouseDown = \pos ->
-            clickToCmdKey pos >>= \case
-                Just k -> do
-                    t <- getCurrentTime
-                    liftIO $ writeIORef dragState (Just (k, t, pos, False))
-                    liftIO $ writeIORef lastIntersection Nothing
-                Nothing -> return ()
-        , onMove = \pos -> do
-            t <- getCurrentTime
-            liftIO (readIORef dragState) >>= \case
-                Just (k, t0, pos0, dragging)
-                  | let delta = pos0 `sub` pos
-                  , let far_enough = abs (fst delta) + abs (snd delta) > 5
-                  , let long_enough = t - t0 > 100 -- in ms
-                  , dragging || (far_enough && long_enough)
-                  -> do
-                    unless dragging $ handeEvent (BeginDrag k)
-                    liftIO $ writeIORef dragState (Just (k, t, pos, True))
-                    handeEvent (DragDelta delta)
-
-                    mi_old <- liftIO $ readIORef lastIntersection
-                    mi <- intersectionToCmdKey k
-                    when (mi /= mi_old) $ do
-                        for_ mi_old $ \k' -> handeEvent (DragOff k')
-                        for_ mi $ \k' -> handeEvent (DragOn k')
-                        liftIO $ writeIORef lastIntersection mi
-
-                _ -> return ()
-        , onMouseUp = do
-            liftIO (readIORef dragState) >>= \case
-                Just (_, _, _, True)  -> handeEvent EndDrag
-                Just (k, _, _, False) -> handeEvent (Click k)
-                Nothing -> return ()
-            liftIO $ writeIORef dragState Nothing
-            liftIO $ writeIORef lastIntersection Nothing
-
-        , onMouseOut = do
-            liftIO (readIORef dragState) >>= \case
-                Just (_, _, _, True)  -> handeEvent CancelDrag
-                _ -> return ()
-            liftIO $ writeIORef dragState Nothing
-            liftIO $ writeIORef lastIntersection Nothing
-
-        , onDel = handeEvent Delete
+        , onMouseDown = handleClickEvents . MouseDown
+        , onMove = handleClickEvents . Move
+        , onMouseUp = handleClickEvents MouseUp
+        , onMouseOut = handleClickEvents MouseOut
+        , onDel = handleEvent Delete
         , onSave = do
             as <- liftIO (readIORef asRef)
             for_ (selectedDNA as) $ \dna ->
@@ -175,6 +133,3 @@ mainProgram Backend {..} = do
             as <- liftIO $ readIORef asRef
             handleCmds (initialCommands as)
         }
-
-sub :: (Double, Double) -> (Double, Double) -> (Double, Double)
-(x1,y1) `sub` (x2, y2) = (x2 - x1, y2 - y1)

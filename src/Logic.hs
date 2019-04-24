@@ -18,6 +18,7 @@ import Data.List
 import DNA
 import qualified SelectTwo as S2
 import PresentationCmds (Cmds, Cmd, Cmd'(..))
+import Drag (ClickEvent(..))
 
 -- Lets keep the keys separate from the sequential indices
 newtype Key = Key Int deriving (Num, Eq, Ord, Enum)
@@ -101,19 +102,13 @@ initialCommands :: AppState -> Cmds CmdKey AbstractPos
 initialCommands as = moveAllSmall as ++ moveMain as
 
 data Event
-    = Click CmdKey
-    | BeginDrag CmdKey
-    | DragDelta (Double, Double)
-    | DragOn CmdKey
-    | DragOff CmdKey
-    | EndDrag
-    | CancelDrag
+    = ClickEvent (ClickEvent CmdKey)
     | Delete
 
 handle :: AppState -> Event -> (AppState, Cmds CmdKey AbstractPos)
 handle as@AppState{..} e = case e of
     -- Adding a new pattern
-    Click (PreviewInstance d)
+    ClickEvent (Click (PreviewInstance d))
         | Just new <- newDNA as, d == new
         , new `notElem` M.elems dnas
         , let newKey = succ (fst (M.findMax dnas))
@@ -126,7 +121,7 @@ handle as@AppState{..} e = case e of
              moveAllSmall as'
            )
     -- Clicking an already added pattern
-    Click (PreviewInstance d)
+    ClickEvent (Click (PreviewInstance d))
         | Just new <- newDNA as
         , d == new
         , Just i <- elemIndex d (M.elems dnas)
@@ -135,7 +130,7 @@ handle as@AppState{..} e = case e of
            , [ (PreviewInstance new, FadeOut (SmallPos (length dnas) i)) ] )
 
     -- Changing selection
-    Click (MainInstance d)
+    ClickEvent (Click (MainInstance d))
         | (k:_) <- [ k | (k,d') <- M.toList dnas, d == d' ]
         -> let as' = as { sel = S2.flip sel k , drag = Nothing }
            in
@@ -149,7 +144,7 @@ handle as@AppState{..} e = case e of
            )
 
     -- Beginning a drag-and-drop action
-    BeginDrag (MainInstance d)
+    ClickEvent (BeginDrag (MainInstance d))
         -> ( as { drag = Just d, sel = S2.empty }
            , case sel of
                S2.OneSelected k_old -> [ (PreviewInstance (as `dnaAtKey` k_old), Remove ) ]
@@ -157,21 +152,21 @@ handle as@AppState{..} e = case e of
                _ -> []
            )
 
-    DragDelta p
+    ClickEvent (DragDelta p)
         | Just d <- drag
         -> ( as, [ (MainInstance d, ShiftPos p) ] )
 
-    DragOn (MainInstance d')
+    ClickEvent (DragOn (MainInstance d'))
         | Just _ <- drag
         , let as' = as { dragOn = Just d' }
         -> ( as', [ (PreviewInstance new, SummonAt MainPos) | Just new <- pure $ newDNA as' ] )
 
-    DragOff (MainInstance _')
+    ClickEvent (DragOff (MainInstance _'))
         | Just _ <- drag
         , let as' = as { dragOn = Nothing }
         -> ( as', [ (PreviewInstance new, Remove) | Just new <- pure $ newDNA as ] )
 
-    EndDrag
+    ClickEvent EndDrag
         | Just _ <- drag
         , Just new <- newDNA as
         , new `notElem` M.elems dnas
@@ -195,7 +190,7 @@ handle as@AppState{..} e = case e of
         | Just d <- drag
         -> ( as { drag = Nothing }, [ moveOneSmall as d ] )
 
-    CancelDrag
+    ClickEvent CancelDrag
         | Just d <- drag
         -> ( as { drag = Nothing }
            , [ (PreviewInstance new, Remove) | Just new <- pure $ newDNA as ] ++
