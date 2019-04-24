@@ -150,7 +150,7 @@ handle as@AppState{..} e = case e of
 
     -- Beginning a drag-and-drop action
     BeginDrag (MainInstance d)
-        -> ( as { drag = Just d }
+        -> ( as { drag = Just d, sel = S2.empty }
            , case sel of
                S2.OneSelected k_old -> [ (PreviewInstance (as `dnaAtKey` k_old), Remove ) ]
                S2.TwoSelected {} | Just old <- newDNA as -> [ (PreviewInstance old, Remove) ]
@@ -159,7 +159,7 @@ handle as@AppState{..} e = case e of
 
     DragDelta p
         | Just d <- drag
-        -> ( as { sel = S2.empty }, [ (MainInstance d, ShiftPos p) ] )
+        -> ( as, [ (MainInstance d, ShiftPos p) ] )
 
     DragOn (MainInstance d')
         | Just _ <- drag
@@ -177,7 +177,7 @@ handle as@AppState{..} e = case e of
         , new `notElem` M.elems dnas
         , let newKey = succ (fst (M.findMax dnas))
         , let dnas' = M.insert newKey new dnas
-        , let as' = as { drag = Nothing, dnas = dnas' }
+        , let as' = as { drag = Nothing, dragOn = Nothing, dnas = dnas' }
         -> ( as'
            , [ (PreviewInstance new, Remove)
              , (MainInstance new, SummonAt MainPos)
