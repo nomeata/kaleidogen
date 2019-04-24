@@ -123,17 +123,21 @@ mainProgram Backend {..} = do
         , onMouseDown = \pos ->
             clickToCmdKey pos >>= \case
                 Just k -> do
-                    liftIO $ writeIORef dragState (Just (k, pos, False))
+                    t <- getCurrentTime
+                    liftIO $ writeIORef dragState (Just (k, t, pos, False))
                     liftIO $ writeIORef lastIntersection Nothing
                 Nothing -> return ()
-        , onMove = \pos ->
+        , onMove = \pos -> do
+            t <- getCurrentTime
             liftIO (readIORef dragState) >>= \case
-                Just (k, pos0, dragging)
+                Just (k, t0, pos0, dragging)
                   | let delta = pos0 `sub` pos
-                  , dragging || abs (fst delta) + abs (snd delta) > 5
+                  , let far_enough = abs (fst delta) + abs (snd delta) > 5
+                  , let long_enough = t - t0 > 100 -- in ms
+                  , dragging || (far_enough && long_enough)
                   -> do
                     unless dragging $ handeEvent (BeginDrag k)
-                    liftIO $ writeIORef dragState (Just (k, pos, True))
+                    liftIO $ writeIORef dragState (Just (k, t, pos, True))
                     handeEvent (DragDelta delta)
 
                     mi_old <- liftIO $ readIORef lastIntersection
@@ -146,15 +150,15 @@ mainProgram Backend {..} = do
                 _ -> return ()
         , onMouseUp = do
             liftIO (readIORef dragState) >>= \case
-                Just (_, _, True)  -> handeEvent EndDrag
-                Just (k, _, False) -> handeEvent (Click k)
+                Just (_, _, _, True)  -> handeEvent EndDrag
+                Just (k, _, _, False) -> handeEvent (Click k)
                 Nothing -> return ()
             liftIO $ writeIORef dragState Nothing
             liftIO $ writeIORef lastIntersection Nothing
 
         , onMouseOut = do
             liftIO (readIORef dragState) >>= \case
-                Just (_, _, True)  -> handeEvent CancelDrag
+                Just (_, _, _, True)  -> handeEvent CancelDrag
                 _ -> return ()
             liftIO $ writeIORef dragState Nothing
             liftIO $ writeIORef lastIntersection Nothing
