@@ -6,9 +6,9 @@ module Logic (
     Entity(..),
     AbstractPos(..),
     AppState(..),
-    initialAppState, initialCommands, isSelected, entity2dna,
-    selectedDNA,
-    Event(..), handle,
+    Event(..),
+    logicMealy,
+    isSelected, entity2dna, selectedDNA,
     ) where
 
 import Control.Applicative
@@ -19,6 +19,7 @@ import DNA
 import qualified SelectTwo as S2
 import PresentationCmds (Cmds, Cmd, Cmd'(..))
 import Drag (ClickEvent(..))
+import Mealy
 
 -- Lets keep the keys separate from the sequential indices
 newtype Key = Key Int deriving (Num, Eq, Ord, Enum)
@@ -43,15 +44,6 @@ data Entity = PreviewInstance DNA | MainInstance DNA
 entity2dna :: Entity -> DNA
 entity2dna (MainInstance d) = d
 entity2dna (PreviewInstance d) = d
-
-initialAppState :: Seed -> AppState
-initialAppState seed = AppState {..}
-  where
-    dnas = M.fromList $ zipWith (\n d -> (n,d)) [0..] initialDNAs
-    sel = S2.duolton 0 1
-    drag = Nothing
-    dragOn = Nothing
-
 
 dnaAtKey :: AppState -> Key -> DNA
 dnaAtKey AppState{..} k = dnas M.! k
@@ -98,15 +90,27 @@ moveMain as =
     [ (PreviewInstance d, MoveTo MainPos)
     | Just d <- return $ newDNA as ]
 
-initialCommands :: AppState -> Cmds Entity AbstractPos
-initialCommands as = moveAllSmall as ++ moveMain as
-
 data Event
     = ClickEvent (ClickEvent Entity)
     | Delete
 
-handle :: AppState -> Event -> (AppState, Cmds Entity AbstractPos)
-handle as@AppState{..} e = case e of
+logicMealy :: Seed -> Mealy AppState Event (Cmds Entity AbstractPos)
+logicMealy seed = Mealy
+    { initial = as0
+    , reconstruct = \as -> moveAllSmall as ++ moveMain as
+    , handle = handleLogic
+    }
+  where
+    as0 = AppState {..}
+      where
+        dnas = M.fromList $ zipWith (\n d -> (n,d)) [0..] initialDNAs
+        sel = S2.duolton 0 1
+        drag = Nothing
+        dragOn = Nothing
+
+
+handleLogic :: AppState -> Event -> (AppState, Cmds Entity AbstractPos)
+handleLogic as@AppState{..} e = case e of
     -- Adding a new pattern
     ClickEvent (Click (PreviewInstance d))
         | Just new <- newDNA as, d == new

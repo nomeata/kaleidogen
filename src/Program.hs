@@ -15,6 +15,7 @@ import GLSL
 import DNA
 import qualified SelectTwo as S2
 import Layout
+import Mealy
 import Logic
 import qualified Presentation
 import Drag
@@ -70,7 +71,9 @@ mainProgram :: MonadIO m => Backend m DNA -> m (Callbacks m DNA)
 mainProgram Backend {..} = do
     -- Set up global state
     seed0 <- liftIO getRandom
-    let as0 = initialAppState seed0
+
+    let mealy = logicMealy seed0
+    let as0 = initial mealy
     asRef <- liftIO $ newIORef as0
     size0 <- currentWindowSize
     sizeRef <- liftIO $ newIORef size0
@@ -79,11 +82,11 @@ mainProgram Backend {..} = do
         t <- getCurrentTime
         lf <- liftIO $ getLayoutFun sizeRef
         liftIO $ Presentation.handleCmdsRef t lf cs pRef
-    handleCmds (initialCommands as0)
+    handleCmds (reconstruct mealy as0)
 
     let handleEvent e = do
         as <- liftIO (readIORef asRef)
-        let (as', cs) = handle as e
+        let (as', cs) = handle mealy as e
         liftIO $ writeIORef asRef as'
         handleCmds cs
 
@@ -131,5 +134,5 @@ mainProgram Backend {..} = do
         , onResize = \size -> do
             liftIO $ writeIORef sizeRef size
             as <- liftIO $ readIORef asRef
-            handleCmds (initialCommands as)
+            handleCmds (reconstruct mealy as)
         }
