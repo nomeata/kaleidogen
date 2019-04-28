@@ -12,7 +12,7 @@ addons:
       key_url: 'https://deb.nodesource.com/gpgkey/nodesource.gpg.key'
     packages:
     - cabal-install-head
-    - ghcjs-8.2
+    - ghcjs-8.4
     - alex-3.1.4
     - happy-1.19.5
 
@@ -32,7 +32,7 @@ before_install:
     - export PATH=/opt/ghc/bin:$PATH
     - export PATH=/opt/alex/3.1.4/bin:$PATH
     - export PATH=/opt/happy/1.19.5/bin:$PATH
-    - export PATH=/opt/ghcjs/8.2/bin:$PATH
+    - export PATH=/opt/ghcjs/8.4/bin:$PATH
     - export PATH=$TRAVIS_BUILD_DIR/node_modules/.bin:$PATH
     - rm -f ~/.cabal/config
     - cabal update
