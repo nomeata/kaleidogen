@@ -3,10 +3,10 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Logic (
-    CmdKey(..), Cmd'(..), Cmd, Cmds,
+    Entity(..),
     AbstractPos(..),
     AppState(..),
-    initialAppState, initialCommands, isSelected, key2dna,
+    initialAppState, initialCommands, isSelected, entity2dna,
     selectedDNA,
     Event(..), handle,
     ) where
@@ -37,12 +37,12 @@ data AppState = AppState
 data AbstractPos = MainPos | SmallPos Int Int | DeletedPos Int Int
 
 -- The main instance can be selected, the preview instance not
-data CmdKey = PreviewInstance DNA | MainInstance DNA
+data Entity = PreviewInstance DNA | MainInstance DNA
     deriving (Eq, Ord, Show)
 
-key2dna :: CmdKey -> DNA
-key2dna (MainInstance d) = d
-key2dna (PreviewInstance d) = d
+entity2dna :: Entity -> DNA
+entity2dna (MainInstance d) = d
+entity2dna (PreviewInstance d) = d
 
 initialAppState :: Seed -> AppState
 initialAppState seed = AppState {..}
@@ -79,7 +79,7 @@ isSelected as@AppState{..} = if
     | Just x <- drag, Just y <- dragOn -> \d -> d `elem` [x,y]
     | otherwise -> const False
 
-moveAllSmall :: AppState -> Cmds CmdKey AbstractPos
+moveAllSmall :: AppState -> Cmds Entity AbstractPos
 moveAllSmall as =
     [ (MainInstance d, MoveTo (SmallPos c n))
     | (n, d) <- zip [0..] (M.elems (dnas as))
@@ -87,25 +87,25 @@ moveAllSmall as =
   where
     c = length (dnas as)
 
-moveOneSmall :: AppState -> DNA -> Cmd CmdKey AbstractPos
+moveOneSmall :: AppState -> DNA -> Cmd Entity AbstractPos
 moveOneSmall as d = (MainInstance d, MoveTo (SmallPos c n))
   where
     c = length (dnas as)
     Just n = elemIndex d (M.elems (dnas as))
 
-moveMain :: AppState -> Cmds CmdKey AbstractPos
+moveMain :: AppState -> Cmds Entity AbstractPos
 moveMain as =
     [ (PreviewInstance d, MoveTo MainPos)
     | Just d <- return $ newDNA as ]
 
-initialCommands :: AppState -> Cmds CmdKey AbstractPos
+initialCommands :: AppState -> Cmds Entity AbstractPos
 initialCommands as = moveAllSmall as ++ moveMain as
 
 data Event
-    = ClickEvent (ClickEvent CmdKey)
+    = ClickEvent (ClickEvent Entity)
     | Delete
 
-handle :: AppState -> Event -> (AppState, Cmds CmdKey AbstractPos)
+handle :: AppState -> Event -> (AppState, Cmds Entity AbstractPos)
 handle as@AppState{..} e = case e of
     -- Adding a new pattern
     ClickEvent (Click (PreviewInstance d))

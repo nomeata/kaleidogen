@@ -115,7 +115,7 @@ mainProgram Backend {..} = do
             (p, continue) <- liftIO (Presentation.presentAtRef t pRef)
             let extraData (MainInstance d) = if isSelected as d then 2 else 1
                 extraData (PreviewInstance _) = 0
-            let toDraw = [ (key2dna k, (extraData k,x,y,s)) | (k,((x,y),s)) <- p ]
+            let toDraw = [ (entity2dna k, (extraData k,x,y,s)) | (k,((x,y),s)) <- p ]
             return (toDraw, continue)
         , onMouseDown = handleClickEvents . MouseDown
         , onMove = handleClickEvents . Move
