@@ -1,7 +1,14 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-module Program where
+module Program
+  ( BackendRunner
+  , Callbacks(..)
+  , Backend(..)
+  , renderDNA
+  , mainProgram
+  )
+where
 
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -34,19 +41,14 @@ layoutFun size (SmallPos c n)
 layoutFun size (DeletedPos c n)
     = bottomHalf (layoutGrid True c) size n
 
-getLayoutFun :: IORef (Double, Double) -> IO (Presentation.LayoutFun AbstractPos)
-getLayoutFun r = do
-    size <- readIORef r
-    return (layoutFun size)
-
 data Backend m a = Backend
     { setCanDelete :: Bool -> m ()
     , setCanSave :: Bool -> m ()
     , currentWindowSize :: m (Double,Double)
     , getCurrentTime :: m Double
     , doSave :: Text -> [(a,(Double,Double,Double,Double))] -> m ()
-
     }
+
 data Callbacks m a = Callbacks
     { onDraw :: m ([(a,(Double,Double,Double,Double))], Bool)
     , onMouseDown :: (Double,Double) -> m ()
@@ -57,6 +59,7 @@ data Callbacks m a = Callbacks
     , onSave :: m ()
     , onResize :: (Double,Double) -> m ()
     }
+
 type BackendRunner m = forall a.
     Ord a =>
     (a -> Text) ->
@@ -80,7 +83,7 @@ mainProgram Backend {..} = do
     pRef <- liftIO Presentation.initRef
     let handleCmds cs = do
         t <- getCurrentTime
-        lf <- liftIO $ getLayoutFun sizeRef
+        lf <- liftIO $ layoutFun <$> readIORef sizeRef
         liftIO $ Presentation.handleCmdsRef t lf cs pRef
     handleCmds (reconstruct mealy as0)
 
