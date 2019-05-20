@@ -1,9 +1,7 @@
-module KaleidogenAndroid where
+module Main where
 
-import qualified KaleidogenSDL
-import Android.HaskellActivity
+import MainWidget
+import Reflex.Dom.Internal
 
 main :: IO ()
-main = continueWithCallbacks $ def
-    { _activityCallbacks_onStart = KaleidogenSDL.main
-    }
+main = run MainWidget.mainWidget
