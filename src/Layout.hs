@@ -1,11 +1,13 @@
 module Layout where
 
-type PosAndScale = ((Double,Double), Double)
+type Pos = (Double, Double)
+type WindowSize = (Double, Double)
+type PosAndScale = (Pos, Double)
 
 noPas :: PosAndScale
 noPas = ((0,0),0)
 
-type Layout a = (Double, Double) -> a -> PosAndScale
+type Layout a = WindowSize -> a -> PosAndScale
 
 translate :: (Double, Double) -> PosAndScale -> PosAndScale
 translate (x', y') ((x,y),s) = ((x + x', y + y'), s)

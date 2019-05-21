@@ -15,8 +15,9 @@ where
 import qualified Data.Map as M
 import Data.IORef
 import Data.List
+import Data.Bifunctor
 
-import Layout (PosAndScale)
+import Layout (Pos, PosAndScale)
 import PresentationCmds (Cmds, Cmd, Cmd'(..))
 import Tween
 
@@ -108,9 +109,8 @@ anyMoving t = any go . pos
 isIn :: (Double, Double) -> PosAndScale -> Bool
 (x,y) `isIn` ((x',y'),s) = (x - x')**2 + (y - y')**2 <= s**2
 
-locateClick :: Presentation k -> (Double, Double) -> Maybe k
-locateClick p (x,y) =
-    fst <$> find (((x,y) `isIn`) . snd) p
+locateClick :: Presentation k -> (Double, Double) -> Maybe (k, Pos)
+locateClick p (x,y) = second fst <$> find (((x,y) `isIn`) . snd) p
 
 locateIntersection :: Eq k => Presentation k -> k -> Maybe k
 locateIntersection p k =

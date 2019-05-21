@@ -26,6 +26,7 @@ import qualified Presentation
 
 type Time = Double
 type MousePos = (Double, Double)
+type ObjOffset = (Double, Double)
 
 data RawEvent
     = MouseDown MousePos
@@ -45,7 +46,8 @@ data DragState k = DragState
     { dragging :: Bool
     , key :: k
     , startTime :: Time
-    , startPos :: MousePos
+    , curPos :: MousePos
+    , objOffset :: ObjOffset
     }
 
 mkDragHandler ::
@@ -65,7 +67,8 @@ mkDragHandler canDrag getPres = do
         (p, continue) <- getPres t
         liftIO (readIORef dragState) >>= \case
             Just ds | dragging ds -> do
-                let go (k,(_pos,scale)) | k == key ds = (k,(startPos ds,scale))
+                let newPos = curPos ds `add` objOffset ds
+                    go (k,(_pos,scale)) | k == key ds = (k,(newPos,scale))
                     go x = x
                 return (sortOn (\(k,_) -> k == key ds) (map go p), continue)
             _ -> return (p, continue)
@@ -87,13 +90,14 @@ mkDragHandler canDrag getPres = do
 
         handleEvent t re = execWriterT $ case re of
             MouseDown pos -> lift (posToKey t pos) >>= \case
-                Just k -> lift (canDrag k) >>= \case
+                Just (k, objPos) -> lift (canDrag k) >>= \case
                     True -> do
                         liftIO $ writeIORef dragState $ Just $ DragState
                                 { dragging = False
-                                , startPos = pos
+                                , curPos = pos
                                 , startTime = t
                                 , key = k
+                                , objOffset = pos `sub` objPos
                                 }
                         liftIO $ writeIORef lastIntersection Nothing
                         return ()
@@ -104,7 +108,7 @@ mkDragHandler canDrag getPres = do
             Move pos ->
                 liftIO (readIORef dragState) >>= \case
                     Just ds
-                      | let delta = startPos ds `sub` pos
+                      | let delta = curPos ds `sub` pos
                       , let far_enough = abs (fst delta) + abs (snd delta) > 5
                       , let long_enough = t - startTime ds > 100 -- in ms
                       , dragging ds || (far_enough && long_enough)
@@ -112,7 +116,7 @@ mkDragHandler canDrag getPres = do
                         unless (dragging ds) $ tell [BeginDrag (key ds)]
                         liftIO $ writeIORef dragState $ Just $ ds
                             { dragging = True
-                            , startPos = pos
+                            , curPos = pos
                             , startTime = t
                             }
                         -- tell [DragDelta delta]
@@ -138,3 +142,6 @@ mkDragHandler canDrag getPres = do
 sub :: (Double, Double) -> (Double, Double) -> (Double, Double)
 (x1,y1) `sub` (x2, y2) = (x2 - x1, y2 - y1)
 
+
+add :: (Double, Double) -> (Double, Double) -> (Double, Double)
+(x1,y1) `add` (x2, y2) = (x2 + x1, y2 + y1)
