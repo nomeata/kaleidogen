@@ -2,7 +2,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
 -- This module interprets a sequence of Logic.Cmd events
 module Presentation
-    ( LayoutFun
+    ( Presentation
+    , LayoutFun
     , initRef
     , handleCmdsRef
     , presentAtRef

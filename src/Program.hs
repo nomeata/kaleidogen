@@ -93,21 +93,10 @@ mainProgram Backend {..} = do
         liftIO $ writeIORef asRef as'
         handleCmds cs
 
-    let currentPresentation = do
-        AppState{..} <- liftIO (readIORef asRef)
-        t <- getCurrentTime
-        (p, _continue) <- liftIO (Presentation.presentAtRef t pRef)
-        return p
+    let getPresentation t = liftIO (Presentation.presentAtRef t pRef)
 
-    let clickToCmdKey pos = do
-        p <- currentPresentation
-        return $ Presentation.locateClick p pos
+    (dragHandler, getModPres) <- mkDragHandler getPresentation
 
-    let intersectionToCmdKey k = do
-        p <- currentPresentation
-        return $ Presentation.locateIntersection p k
-
-    dragHandler <- mkDragHandler clickToCmdKey intersectionToCmdKey
     let handleClickEvents re = do
         t <- getCurrentTime
         dragHandler t re >>= mapM_ (handleEvent . ClickEvent)
@@ -118,7 +107,7 @@ mainProgram Backend {..} = do
             as <- liftIO $ readIORef asRef
             setCanDelete (S2.isOneSelected (sel as))
             setCanSave (S2.isOneSelected (sel as))
-            (p, continue) <- liftIO (Presentation.presentAtRef t pRef)
+            (p, continue) <- getModPres t
             let extraData (MainInstance d) = if isSelected as d then 2 else 1
                 extraData (PreviewInstance _) = 0
             let toDraw = [ (entity2dna k, (extraData k,x,y,s)) | (k,((x,y),s)) <- p ]
