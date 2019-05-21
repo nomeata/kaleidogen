@@ -7,7 +7,12 @@
 This module takes raw pointer event and turns them into semantic clicks and
 drags.
 -}
-module Drag where
+module Drag
+    ( ClickEvent(..)
+    , RawEvent(..)
+    , mkDragHandler
+    ) where
+
 
 import Control.Monad
 import Control.Monad.IO.Class
@@ -20,7 +25,6 @@ import qualified Presentation
 
 
 type Time = Double
-type MouseDelta = (Double, Double)
 type MousePos = (Double, Double)
 
 data RawEvent
@@ -37,6 +41,13 @@ data ClickEvent k
     | EndDrag
     | CancelDrag
 
+data DragState k = DragState
+    { dragging :: Bool
+    , key :: k
+    , startTime :: Time
+    , startPos :: MousePos
+    }
+
 mkDragHandler ::
     forall k m.
     Eq k =>
@@ -46,16 +57,16 @@ mkDragHandler ::
       , Time -> m (Presentation k, Bool)
       )
 mkDragHandler getPres = do
-    dragState <- liftIO $ newIORef Nothing
+    dragState <- liftIO $ newIORef (Nothing :: Maybe (DragState k))
     lastIntersection <- liftIO $ newIORef Nothing
 
     let getModifiedPres t = do
         (p, continue) <- getPres t
         liftIO (readIORef dragState) >>= \case
-            Just (k, _, pos, True) -> do
-                let go (k',(_pos,scale)) | k == k' = (k,(pos,scale))
+            Just ds | dragging ds -> do
+                let go (k,(_pos,scale)) | k == key ds = (k,(startPos ds,scale))
                     go x = x
-                return (sortOn (\(k',_) -> k' == k) (map go p), continue)
+                return (sortOn (\(k,_) -> k == key ds) (map go p), continue)
             _ -> return (p, continue)
 
     let posToKey t pos = do
@@ -76,35 +87,44 @@ mkDragHandler getPres = do
         handleEvent t re = execWriterT $ case re of
             MouseDown pos -> lift (posToKey t pos) >>= \case
                 Just k -> do
-                    liftIO $ writeIORef dragState (Just (k, t, pos, False))
+                    liftIO $ writeIORef dragState $ Just $ DragState
+                            { dragging = False
+                            , startPos = pos
+                            , startTime = t
+                            , key = k
+                            }
                     liftIO $ writeIORef lastIntersection Nothing
                     return ()
                 Nothing -> return ()
             Move pos ->
                 liftIO (readIORef dragState) >>= \case
-                    Just (k, t0, pos0, dragging)
-                      | let delta = pos0 `sub` pos
+                    Just ds
+                      | let delta = startPos ds `sub` pos
                       , let far_enough = abs (fst delta) + abs (snd delta) > 5
-                      , let long_enough = t - t0 > 100 -- in ms
-                      , dragging || (far_enough && long_enough)
+                      , let long_enough = t - startTime ds > 100 -- in ms
+                      , dragging ds || (far_enough && long_enough)
                       -> do
-                        unless dragging $ tell [BeginDrag k]
-                        liftIO $ writeIORef dragState (Just (k, t, pos, True))
+                        unless (dragging ds) $ tell [BeginDrag (key ds)]
+                        liftIO $ writeIORef dragState $ Just $ ds
+                            { dragging = True
+                            , startPos = pos
+                            , startTime = t
+                            }
                         -- tell [DragDelta delta]
 
                         mi_old <- liftIO $ readIORef lastIntersection
-                        mi <- lift $ intersectToKey t k
+                        mi <- lift $ intersectToKey t (key ds)
                         when (mi /= mi_old) $ do
                             liftIO $ writeIORef lastIntersection mi
                             for_ mi_old $ \k' -> tell [DragOff k']
                             for_ mi $ \k' -> tell [DragOn k']
                     _ -> return ()
             MouseUp -> finishDrag >>= \case
-                Just (_, _, _, True)  -> tell [EndDrag]
-                Just (k, _, _, False) -> tell [Click k]
+                Just ds | dragging ds -> tell [EndDrag]
+                        | otherwise   -> tell [Click (key ds)]
                 Nothing -> return ()
             MouseOut -> finishDrag >>= \case
-                Just (_, _, _, True)  -> tell [EndDrag]
+                Just ds | dragging ds -> tell [EndDrag]
                 _ -> return ()
 
 
