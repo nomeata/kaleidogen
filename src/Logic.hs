@@ -156,10 +156,6 @@ handleLogic as@AppState{..} e = case e of
                _ -> []
            )
 
-    ClickEvent (DragDelta p)
-        | Just d <- drag
-        -> ( as, [ (MainInstance d, ShiftPos p) ] )
-
     ClickEvent (DragOn (MainInstance d'))
         | Just _ <- drag
         , let as' = as { dragOn = Just d' }

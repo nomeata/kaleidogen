@@ -32,7 +32,6 @@ data RawEvent
 data ClickEvent k
     = Click k
     | BeginDrag k
-    | DragDelta MouseDelta
     | DragOn k
     | DragOff k
     | EndDrag

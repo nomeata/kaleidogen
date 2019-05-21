@@ -16,7 +16,7 @@ import qualified Data.Map as M
 import Data.IORef
 import Data.List
 
-import Layout (PosAndScale, translate)
+import Layout (PosAndScale)
 import PresentationCmds (Cmds, Cmd, Cmd'(..))
 import Tween
 
@@ -68,11 +68,6 @@ handleCmd t l s@State{pos, zindex, zctr} (k, c) =
             -> M.insert k (MovingFromTo p' t (l ap) ThenKeep) pos
             | otherwise
             -> M.insert k (Stable (l ap)) pos
-        ShiftPos d
-            | Just p' <- currentPos t k s
-            -> M.insert k (Stable (translate d p')) pos
-            | otherwise
-            -> pos
         FadeOut ap
             | Just p' <- currentPos t k s
             -> M.insert k (MovingFromTo p' t (l ap) ThenDelete) pos
@@ -82,7 +77,6 @@ handleCmd t l s@State{pos, zindex, zctr} (k, c) =
     zindex' = case c of
         SummonAt _ -> M.insert k zctr' zindex
         MoveTo _   -> M.insert k zctr' zindex
-        ShiftPos _ -> M.insert k zctr' zindex
         FadeOut _  -> M.insert k zctr' zindex
         Remove     -> M.delete k zindex
 
