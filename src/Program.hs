@@ -95,7 +95,11 @@ mainProgram Backend {..} = do
 
     let getPresentation t = liftIO (Presentation.presentAtRef t pRef)
 
-    (dragHandler, getModPres) <- mkDragHandler getPresentation
+    let canDragM k = do
+        as <- liftIO (readIORef asRef)
+        return (Logic.canDrag as k)
+
+    (dragHandler, getModPres) <- mkDragHandler canDragM getPresentation
 
     let handleClickEvents re = do
         t <- getCurrentTime

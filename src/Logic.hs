@@ -9,6 +9,7 @@ module Logic (
     Event(..),
     logicMealy,
     isSelected, entity2dna, selectedDNA,
+    canDrag,
     ) where
 
 import Control.Applicative
@@ -108,6 +109,10 @@ logicMealy seed = Mealy
         drag = Nothing
         dragOn = Nothing
 
+
+canDrag :: AppState -> Entity -> Bool
+canDrag _ (MainInstance _) = True
+canDrag _ _ = False
 
 handleLogic :: AppState -> Event -> (AppState, Cmds Entity AbstractPos)
 handleLogic as@AppState{..} e = case e of

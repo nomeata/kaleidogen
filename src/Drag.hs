@@ -52,11 +52,12 @@ mkDragHandler ::
     forall k m.
     Eq k =>
     MonadIO m =>
+    (k -> m Bool) ->
     (Time -> m (Presentation k, Bool)) ->
     m ( Time -> RawEvent -> m [ClickEvent k]
       , Time -> m (Presentation k, Bool)
       )
-mkDragHandler getPres = do
+mkDragHandler canDrag getPres = do
     dragState <- liftIO $ newIORef (Nothing :: Maybe (DragState k))
     lastIntersection <- liftIO $ newIORef Nothing
 
@@ -86,15 +87,19 @@ mkDragHandler getPres = do
 
         handleEvent t re = execWriterT $ case re of
             MouseDown pos -> lift (posToKey t pos) >>= \case
-                Just k -> do
-                    liftIO $ writeIORef dragState $ Just $ DragState
-                            { dragging = False
-                            , startPos = pos
-                            , startTime = t
-                            , key = k
-                            }
-                    liftIO $ writeIORef lastIntersection Nothing
-                    return ()
+                Just k -> lift (canDrag k) >>= \case
+                    True -> do
+                        liftIO $ writeIORef dragState $ Just $ DragState
+                                { dragging = False
+                                , startPos = pos
+                                , startTime = t
+                                , key = k
+                                }
+                        liftIO $ writeIORef lastIntersection Nothing
+                        return ()
+                    False -> do
+                        _ <- finishDrag
+                        tell [Click k]
                 Nothing -> return ()
             Move pos ->
                 liftIO (readIORef dragState) >>= \case
