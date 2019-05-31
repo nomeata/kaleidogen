@@ -92,6 +92,7 @@ freeze t = M.mapMaybe go
 -}
 
 -- A presentation
+
 type Presentation k = [(k, PosAndScale)]
 
 presentAt :: Ord k => Time -> State k -> Presentation k

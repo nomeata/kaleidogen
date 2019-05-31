@@ -172,8 +172,8 @@ shaderCanvas toGLSL domEl =
             size <- querySize domEl
             paintGLCached pgmCache gl size toDraw
 
-saveToPNG :: MonadJSM m => (a -> Text) -> [(a, ExtraData)] -> Text -> m ()
-saveToPNG toGLSL toDraw name = do
+saveToPNG :: MonadJSM m => (a -> Text) -> (a, ExtraData) -> Text -> m ()
+saveToPNG toGLSL (a,x) name = do
     doc <- currentDocumentUnchecked
     domEl <- uncheckedCastTo HTMLCanvasElement <$> createElement doc ("canvas" :: Text)
     setWidth domEl 1000
@@ -183,10 +183,8 @@ saveToPNG toGLSL toDraw name = do
       Just gl' -> do
         gl <- unsafeCastTo WebGLRenderingContext gl'
         cs <- commonSetup gl
-        toDraw' <- forM toDraw $ \(a,x) -> do
-            prog <- compileFragmentShader gl cs (toGLSL a)
-            pure (prog,x)
-        paintGL gl (1000, 1000) toDraw'
+        prog <- compileFragmentShader gl cs (toGLSL a)
+        paintGL gl (1000, 1000) [(prog,x)]
     CanvasSave.save name domEl
 
 -- A compiled program cache

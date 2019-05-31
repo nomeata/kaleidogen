@@ -27,8 +27,8 @@ import Logic
 import qualified Presentation
 import Drag
 
-reorderExtraData :: [((DNA, a), ((b,c),d))] -> [(DNA, (a, b, c, d))]
-reorderExtraData = map $ \((d,b),((x,y),s)) -> (d, (b, x, y, s))
+reorderExtraData :: ((DNA, a), ((b,c),d)) -> (DNA, (a, b, c, d))
+reorderExtraData ((d,b),((x,y),s)) = (d, (b, x, y, s))
 
 toFilename :: DNA -> T.Text
 toFilename dna = "kaleidogen-" <> dna2hex dna <> ".png"
@@ -46,7 +46,7 @@ data Backend m a = Backend
     , setCanSave :: Bool -> m ()
     , currentWindowSize :: m (Double,Double)
     , getCurrentTime :: m Double
-    , doSave :: Text -> [(a,(Double,Double,Double,Double))] -> m ()
+    , doSave :: Text -> (a,(Double,Double,Double,Double)) -> m ()
     }
 
 data Callbacks m a = Callbacks
@@ -125,8 +125,7 @@ mainProgram Backend {..} = do
             as <- liftIO (readIORef asRef)
             for_ (selectedDNA as) $ \dna ->
                 doSave (toFilename dna) $
-                    reorderExtraData
-                    [ ((dna,0), layoutFullCirlce (1000, 1000) ()) ]
+                    reorderExtraData ((dna,0), layoutFullCirlce (1000, 1000) ()) 
         , onResize = \size -> do
             liftIO $ writeIORef sizeRef size
             as <- liftIO $ readIORef asRef
