@@ -127,7 +127,11 @@ initRef = newIORef initialState
 handleCmdsRef :: Ord k => Time -> LayoutFun a -> Cmds k a -> Ref k -> IO ()
 handleCmdsRef t l cs r = modifyIORef r (\s -> foldl (handleCmd t l) s cs)
 
-presentAtRef :: Ord k => Time -> Ref k -> IO (Presentation k, Bool)
+presentAtRef :: Ord k => Time -> Ref k -> IO (Presentation k, Double, Bool)
 presentAtRef t r = do
     s <- readIORef r
-    return (presentAt t s, anyMoving t s)
+    let pres = presentAt t s
+        radius | null pres = 100
+               | otherwise = minimum [2 * scale | (_, (_,scale)) <- pres]
+        continue = anyMoving t s
+    return (pres, radius, continue)

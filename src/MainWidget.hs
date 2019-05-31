@@ -151,6 +151,7 @@ css = T.unlines
     , "  padding: 0;"
     , "  height: 100%;"
     , "  flex-direction: column;"
+    , "  background-color:black;"
     , "}"
     , ".toolbar {"
     , "  height:10vh;"
@@ -177,10 +178,11 @@ css = T.unlines
     , "  color:white;"
     , "}"
     , "canvas {"
-    , "  height:89vh;"
-    , "  width:100%;"
+    , "  height:85vh;"
+    , "  width:95%;"
     , "  margin:0;"
     , "  padding:0;"
+    , "  background-color:white;"
     , "}"
     ]
 

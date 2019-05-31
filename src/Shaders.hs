@@ -60,6 +60,6 @@ borderFragmentShader = Text.unlines
   , "  vec2 pos = abs(((abs(vDrawCoord)) * u_windowSize) - u_windowSize);"
   , "  if (length(pos) > r) { gl_FragColor = vec4(0,0,0,0); return; }"
   , "  if (length(vec2(r) - pos) < r) { gl_FragColor = vec4(0,0,0,0); return; }"
-  , "  gl_FragColor = vec4(0.5,0.5,0.5,1.0);"
+  , "  gl_FragColor = vec4(0.0,0.0,0.0,1.0);"
   , "}"
   ]

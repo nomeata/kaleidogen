@@ -18,6 +18,10 @@ topHalf l (w,h) = l (w,h/2)
 bottomHalf :: Layout a -> Layout a
 bottomHalf l (w,h) = translate (0, h/2) . l (w,h/2)
 
+padding :: Layout a -> Layout a
+padding l (w,h) = translate (p, p) . l (w-2*p,h-2*p)
+  where p = min (h/20) (w/20)
+
 layoutFullCirlce :: Layout ()
 layoutFullCirlce (w, h) = \() -> pas
   where

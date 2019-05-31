@@ -36,11 +36,11 @@ toFilename dna = "kaleidogen-" <> dna2hex dna <> ".png"
 
 layoutFun :: (Double, Double) -> AbstractPos -> PosAndScale
 layoutFun size MainPos
-    = topHalf layoutFullCirlce size ()
+    = topHalf (padding layoutFullCirlce) size ()
 layoutFun size (SmallPos c n)
-    = bottomHalf (layoutGrid False c) size n
+    = bottomHalf (padding (layoutGrid False c)) size n
 layoutFun size (DeletedPos c n)
-    = bottomHalf (layoutGrid True c) size n
+    = bottomHalf (padding (layoutGrid True c)) size n
 
 data Backend m a = Backend
     { setCanDelete :: Bool -> m ()
@@ -115,11 +115,11 @@ mainProgram Backend {..} = do
             as <- liftIO $ readIORef asRef
             setCanDelete (S2.isOneSelected (sel as))
             setCanSave (S2.isOneSelected (sel as))
-            (p, continue) <- getModPres t
+            (p, borderRadius, continue) <- getModPres t
             let extraData (MainInstance d) = if isSelected as d then 2 else 1
                 extraData (PreviewInstance _) = 0
             let toDraw =
-                    (Border, (1,1,1,100)) :
+                    (Border, (0,0,0,borderRadius)) :
                     [ (DNA (entity2dna k), (extraData k,x,y,s)) | (k,((x,y),s)) <- p ]
             return (toDraw, continue)
         , onMouseDown = handleClickEvents . MouseDown

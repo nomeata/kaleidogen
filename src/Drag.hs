@@ -68,16 +68,16 @@ mkDragHandler ::
     Eq k =>
     MonadIO m =>
     (k -> m Bool) ->
-    (Time -> m (Presentation k, Bool)) ->
+    (Time -> m (Presentation k, Double, Bool)) ->
     m ( Time -> RawEvent -> m [ClickEvent k]
-      , Time -> m (Presentation k, Bool)
+      , Time -> m (Presentation k, Double, Bool)
       )
 mkDragHandler canDrag getPres = do
     dragState <- liftIO $ newIORef (Nothing :: Maybe (DragState k))
     lastIntersection <- liftIO $ newIORef Nothing
 
     let getModifiedPres t = do
-        (p, continue) <- getPres t
+        (p, radius, continue) <- getPres t
         liftIO (readIORef dragState) >>= \case
             Just ds  -> do
                 -- NB: We always move this, even if we are not actually
@@ -86,15 +86,15 @@ mkDragHandler canDrag getPres = do
                 let newPos = curPos ds `add` objOffset ds
                     go (k,(_pos,scale)) | k == key ds = (k,(newPos,scale))
                     go x = x
-                return (sortOn (\(k,_) -> k == key ds) (map go p), continue)
-            _ -> return (p, continue)
+                return (sortOn (\(k,_) -> k == key ds) (map go p), radius, continue)
+            _ -> return (p, radius, continue)
 
     let posToKey t pos = do
-        (p,_) <- getModifiedPres t
+        (p,_,_) <- getModifiedPres t
         return $ Presentation.locateClick p pos
 
     let intersectToKey t k = do
-        (p,_) <- getModifiedPres t
+        (p,_,_) <- getModifiedPres t
         return $ Presentation.locateIntersection p k
 
     let finishDrag = do
