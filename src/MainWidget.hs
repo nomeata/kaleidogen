@@ -186,7 +186,7 @@ css = T.unlines
     , "}"
     , "@supports (-webkit-box-reflect:unset) {"
     , "  canvas {"
-    , "    height:calc(100vh - 10vh - 2.5vw - 56px);"
+    , "    height:calc(100vh - 10vh - 2.5vw - 112px);"
     , "  }"
     , "}"
     ]
