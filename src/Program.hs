@@ -5,7 +5,7 @@ module Program
   ( BackendRunner
   , Callbacks(..)
   , Backend(..)
-  , renderDNA
+  , renderGraphic
   , mainProgram
   )
 where
@@ -17,6 +17,7 @@ import Data.IORef
 import Control.Monad.IO.Class
 import Data.Foldable
 
+import Shaders
 import Expression
 import GLSL
 import DNA
@@ -27,7 +28,7 @@ import Logic
 import qualified Presentation
 import Drag
 
-reorderExtraData :: ((DNA, a), ((b,c),d)) -> (DNA, (a, b, c, d))
+reorderExtraData :: ((x, a), ((b,c),d)) -> (x, (a, b, c, d))
 reorderExtraData ((d,b),((x,y),s)) = (d, (b, x, y, s))
 
 toFilename :: DNA -> T.Text
@@ -62,15 +63,18 @@ data Callbacks m a = Callbacks
 
 type BackendRunner m = forall a.
     Ord a =>
-    (a -> Text) ->
+    (a -> Shaders) ->
     (Backend m a -> m (Callbacks m a)) ->
     m ()
 
+data Graphic = DNA DNA | Border deriving (Eq, Ord)
 
-renderDNA :: DNA -> Text
-renderDNA = toFragmentShader . dna2rna
+renderGraphic :: Graphic -> (Text, Text)
+renderGraphic (DNA d) = (circularVertexShader, toFragmentShader (dna2rna d))
+renderGraphic Border = borderShaders
 
-mainProgram :: MonadIO m => Backend m DNA -> m (Callbacks m DNA)
+
+mainProgram :: MonadIO m => Backend m Graphic -> m (Callbacks m Graphic)
 mainProgram Backend {..} = do
     -- Set up global state
     seed0 <- liftIO getRandom
@@ -114,7 +118,9 @@ mainProgram Backend {..} = do
             (p, continue) <- getModPres t
             let extraData (MainInstance d) = if isSelected as d then 2 else 1
                 extraData (PreviewInstance _) = 0
-            let toDraw = [ (entity2dna k, (extraData k,x,y,s)) | (k,((x,y),s)) <- p ]
+            let toDraw =
+                    (Border, (1,1,1,100)) :
+                    [ (DNA (entity2dna k), (extraData k,x,y,s)) | (k,((x,y),s)) <- p ]
             return (toDraw, continue)
         , onMouseDown = handleClickEvents . MouseDown
         , onMove = handleClickEvents . Move
@@ -125,7 +131,7 @@ mainProgram Backend {..} = do
             as <- liftIO (readIORef asRef)
             for_ (selectedDNA as) $ \dna ->
                 doSave (toFilename dna) $
-                    reorderExtraData ((dna,0), layoutFullCirlce (1000, 1000) ()) 
+                    reorderExtraData ((DNA dna,0), layoutFullCirlce (1000, 1000) ())
         , onResize = \size -> do
             liftIO $ writeIORef sizeRef size
             as <- liftIO $ readIORef asRef

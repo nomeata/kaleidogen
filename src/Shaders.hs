@@ -3,8 +3,10 @@ module Shaders where
 
 import Data.Text as Text
 
-vertexShaderSource :: Text
-vertexShaderSource = Text.unlines
+type Shaders = (Text, Text)
+
+circularVertexShader :: Text
+circularVertexShader = Text.unlines
   [ "attribute vec2 a_position;"
   , "uniform vec2 u_windowSize;"
   , "uniform vec4 u_extraData;"
@@ -19,8 +21,8 @@ vertexShaderSource = Text.unlines
   ]
 
 -- | An example fragment shader program, drawing a red circle
-trivialFragmentShader :: Text
-trivialFragmentShader = Text.unlines
+circularTrivialFragmentShader :: Text
+circularTrivialFragmentShader = Text.unlines
   [ "precision mediump float;"
   , "varying vec2 vDrawCoord;"
   , "void main() {"
@@ -33,3 +35,31 @@ trivialFragmentShader = Text.unlines
   , "}"
   ]
 
+borderShaders :: Shaders
+borderShaders = (borderVertexShader, borderFragmentShader)
+
+borderVertexShader :: Text
+borderVertexShader = Text.unlines
+  [ "attribute vec2 a_position;"
+  , "varying vec2 vDrawCoord;"
+  , "void main() {"
+  , "  vDrawCoord = vec2(a_position);"
+  , "  vec2 scaled_pos = vec2(1.0,-1.0) * a_position;"
+  , "  gl_Position = vec4(scaled_pos, 0, 1);"
+  , "}"
+  ]
+
+borderFragmentShader :: Text
+borderFragmentShader = Text.unlines
+  [ "precision mediump float;"
+  , "varying vec2 vDrawCoord;"
+  , "uniform vec2 u_windowSize;"
+  , "uniform vec4 u_extraData;"
+  , "void main() {"
+  , "  float r = u_extraData.w;"
+  , "  vec2 pos = abs(((abs(vDrawCoord)) * u_windowSize) - u_windowSize);"
+  , "  if (length(pos) > r) { gl_FragColor = vec4(0,0,0,0); return; }"
+  , "  if (length(vec2(r) - pos) < r) { gl_FragColor = vec4(0,0,0,0); return; }"
+  , "  gl_FragColor = vec4(0.5,0.5,0.5,1.0);"
+  , "}"
+  ]

@@ -1,6 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances #-}
-module GLSL (toFragmentShader, blankShader) where
+module GLSL
+    ( toFragmentShader
+    , blankShader
+    ) where
 
 import Prelude hiding (unlines)
 import Data.Monoid

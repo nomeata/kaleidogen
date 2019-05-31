@@ -10,7 +10,6 @@
 {-# LANGUAGE DataKinds #-}
 module ShaderCanvas
     ( CompiledProgram
-    , trivialFragmentShader
     , autoResizeCanvas
     , querySize
     , shaderCanvas
@@ -44,9 +43,7 @@ import CanvasSave
 import Shaders
 
 
-type CommonStuff = WebGLShader
-
-commonSetup :: MonadJSM m => WebGLRenderingContext -> m CommonStuff
+commonSetup :: MonadJSM m => WebGLRenderingContext -> m ()
 commonSetup gl = do
     enable gl BLEND
     blendFunc gl ONE ONE_MINUS_SRC_ALPHA
@@ -64,14 +61,6 @@ commonSetup gl = do
     let array' = uncheckedCastTo ArrayBuffer array
     bufferData gl ARRAY_BUFFER (Just array') STATIC_DRAW
 
-    vertexShader <- createShader gl VERTEX_SHADER
-    shaderSource gl (Just vertexShader) $
-        "precision mediump float;\n" <>
-        vertexShaderSource
-    compileShader gl (Just vertexShader)
-    -- _ <- liftJSM $ jsg (Text.pack "console") ^. js1 (Text.pack "log") (gl ^. js1 (Text.pack "getShaderInfoLog") vertexShader)
-
-    return vertexShader
 
 data CompiledProgram = CompiledProgram
     { compiledProgram :: WebGLProgram
@@ -80,8 +69,15 @@ data CompiledProgram = CompiledProgram
     , extraDataLocation  :: WebGLUniformLocation
     }
 
-compileFragmentShader :: MonadJSM m => WebGLRenderingContext -> WebGLShader -> Text -> m CompiledProgram
-compileFragmentShader gl vertexShader fragmentShaderSource = do
+compileFragmentShader :: MonadJSM m => WebGLRenderingContext -> Shaders -> m CompiledProgram
+compileFragmentShader gl (vertexShaderSource, fragmentShaderSource) = do
+    vertexShader <- createShader gl VERTEX_SHADER
+    shaderSource gl (Just vertexShader) $
+        "precision mediump float;\n" <>
+        vertexShaderSource
+    compileShader gl (Just vertexShader)
+    -- _ <- liftJSM $ jsg (Text.pack "console") ^. js1 (Text.pack "log") (gl ^. js1 (Text.pack "getShaderInfoLog") vertexShader)
+
     fragmentShader <- createShader gl FRAGMENT_SHADER
     shaderSource gl (Just fragmentShader) $
         "precision mediump float;\n" <>
@@ -155,7 +151,7 @@ autoResizeCanvas domEl onResize =  do
 shaderCanvas ::
     Ord a =>
     MonadJSM m =>
-    (a -> Text) ->
+    (a -> Shaders) ->
     HTMLCanvasElement ->
     m ([(a,ExtraData)] -> m ())
 shaderCanvas toGLSL domEl =
@@ -165,14 +161,14 @@ shaderCanvas toGLSL domEl =
         return (\_ -> return ())
       Just gl' -> do
         gl <- unsafeCastTo WebGLRenderingContext gl'
-        cs <- commonSetup gl
-        pgmCache <- newCache (compileFragmentShader gl cs . toGLSL)
+        commonSetup gl
+        pgmCache <- newCache (compileFragmentShader gl . toGLSL)
         -- performEvent_ $ paintGLCached pgmCache gl <$> current dCanvasSize <@> eDraw
         return $ \toDraw -> do
             size <- querySize domEl
             paintGLCached pgmCache gl size toDraw
 
-saveToPNG :: MonadJSM m => (a -> Text) -> (a, ExtraData) -> Text -> m ()
+saveToPNG :: MonadJSM m => (a -> Shaders) -> (a, ExtraData) -> Text -> m ()
 saveToPNG toGLSL (a,x) name = do
     doc <- currentDocumentUnchecked
     domEl <- uncheckedCastTo HTMLCanvasElement <$> createElement doc ("canvas" :: Text)
@@ -182,8 +178,7 @@ saveToPNG toGLSL (a,x) name = do
       Nothing -> return ()
       Just gl' -> do
         gl <- unsafeCastTo WebGLRenderingContext gl'
-        cs <- commonSetup gl
-        prog <- compileFragmentShader gl cs (toGLSL a)
+        prog <- compileFragmentShader gl (toGLSL a)
         paintGL gl (1000, 1000) [(prog,x)]
     CanvasSave.save name domEl
 

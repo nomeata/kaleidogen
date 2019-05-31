@@ -36,7 +36,7 @@ import qualified Animate
 import Program
 
 mainWidget :: JSM ()
-mainWidget = runInBrowser renderDNA mainProgram
+mainWidget = runInBrowser renderGraphic mainProgram
 
 runInBrowser :: BackendRunner JSM
 runInBrowser toShader go = do
