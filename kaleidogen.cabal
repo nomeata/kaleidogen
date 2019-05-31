@@ -41,6 +41,7 @@ common logic
   other-modules: Logic
   other-modules: Mealy
   other-modules: Drag
+  other-modules: Tween
   other-modules: RNA
   other-modules: GLSL
   other-modules: Expression
@@ -48,6 +49,7 @@ common logic
   other-modules: Program
   other-modules: Shaders
   other-modules: Presentation
+  other-modules: PresentationCmds
   other-modules: Layout
   build-depends: base >=4.2 && <5
   build-depends: MonadRandom ==0.5.*
@@ -62,6 +64,7 @@ common logic
 common canvas-save
   hs-source-dirs: src
   other-modules: CanvasSave
+  other-modules: MainWidget
   build-depends: base >=4.2 && <5
   build-depends: text
   build-depends: jsaddle >=0.9.4 && <0.10

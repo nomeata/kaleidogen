@@ -56,10 +56,6 @@ runInSDL toShader go = do
     blend $= Enabled
     blendFunc $= (One, OneMinusSrcAlpha)
 
-    vertexShader <- createShader VertexShader
-    shaderSourceBS vertexShader $= encodeUtf8 vertexShaderSource
-    compileAndCheck vertexShader
-
     let drawShaderCircles toDraw = do
         V2 bw bh <- glGetDrawableSize window
         viewport $= (Position 0 0, Size (fromIntegral bw) (fromIntegral bh))
@@ -67,10 +63,14 @@ runInSDL toShader go = do
         clear [GL.ColorBuffer]
 
         forM_ toDraw $ \(x,(a,b,c,d)) -> do
+            let (vertexShaderSource, fragmentShaderSource) = toShader x
             program <- createProgram
+            vertexShader <- createShader VertexShader
+            shaderSourceBS vertexShader $= encodeUtf8 vertexShaderSource
+            compileAndCheck vertexShader
             attachShader program vertexShader
             fragmentShader <- createShader FragmentShader
-            shaderSourceBS fragmentShader $= encodeUtf8 (toShader x)
+            shaderSourceBS fragmentShader $= encodeUtf8 fragmentShaderSource
             compileAndCheck fragmentShader
             attachShader program fragmentShader
             linkAndCheck program
@@ -150,7 +150,7 @@ runInSDL toShader go = do
         loop
 
 main :: IO ()
-main = runInSDL renderDNA mainProgram
+main = runInSDL renderGraphic mainProgram
 
 
 bufferOffset :: Integral a => a -> Ptr b

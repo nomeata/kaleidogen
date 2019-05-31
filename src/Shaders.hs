@@ -23,8 +23,7 @@ circularVertexShader = Text.unlines
 -- | An example fragment shader program, drawing a red circle
 circularTrivialFragmentShader :: Text
 circularTrivialFragmentShader = Text.unlines
-  [ "precision mediump float;"
-  , "varying vec2 vDrawCoord;"
+  [ "varying vec2 vDrawCoord;"
   , "void main() {"
   , "  vec2 pos = vDrawCoord;"
   , "  // pos is a scaled pixel position, (0,0) is in the center of the canvas"
@@ -51,8 +50,7 @@ borderVertexShader = Text.unlines
 
 borderFragmentShader :: Text
 borderFragmentShader = Text.unlines
-  [ "precision mediump float;"
-  , "varying vec2 vDrawCoord;"
+  [ "varying vec2 vDrawCoord;"
   , "uniform vec2 u_windowSize;"
   , "uniform vec4 u_extraData;"
   , "void main() {"
