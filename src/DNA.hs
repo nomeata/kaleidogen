@@ -12,7 +12,6 @@ import Control.Monad.Random.Strict
 import Data.Hashable
 import Data.List
 import Data.Word
-import Data.Ord
 import qualified Data.Text as T
 import qualified Data.ByteString as BS
 import Text.Hex
@@ -26,7 +25,7 @@ crossover :: Int -> DNA -> DNA -> DNA
 crossover seed x' y' =
     evalRand (crossover' x y) $ mkStdGen (hash (seed,x,y))
   where
-    [x, y] = sortBy (comparing hash) [x', y']
+    [x, y] = sortOn hash [x', y']
 
 crossover' :: MonadRandom m => DNA -> DNA -> m DNA
 crossover' [] dna2 = pure dna2
@@ -41,7 +40,7 @@ crossover' dna1 dna2 =
     -- mixRest :: m [Word8]
     mixRest = do
         let all = rest1 ++ rest2
-        let p = min 1 $ (exp (- fromIntegral (length all - 2) / 20) :: Double)
+        let p = min 1 (exp (- fromIntegral (length all - 2) / 20) :: Double)
         new <- getRandom
         (with p (new:) id) <*> (traverse mutate =<< selectWithProb p all)
 
@@ -61,7 +60,7 @@ selectWithProb p (x:r) =
 with :: MonadRandom m => Double -> a -> a -> m a
 with p a1 a2 = do
     p' <- getRandom
-    if (p' < p) then pure a1 else pure a2
+    if p' < p then pure a1 else pure a2
 
     {-
     (=:) = (,)

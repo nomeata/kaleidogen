@@ -72,11 +72,14 @@ splitInHalf xs = splitAt n xs
 
 derivedColors :: RGB Double -> [RGB Double]
 derivedColors (hsvView -> (h,s,v)) =
-    hsv h s v :
-    hsv (h+20) s v : hsv (h-20) s v :
-    hsv h ((s+1)/2) v : hsv h (s/2) v :
-    hsv h s ((v+1)/2) : hsv h s (v/2) :
-    []
+    [ hsv h s v
+    , hsv (h+20) s v
+    , hsv (h-20) s v
+    , hsv h ((s+1)/2) v
+    , hsv h (s/2) v
+    , hsv h s ((v+1)/2)
+    , hsv h s (v/2)
+    ]
 
 baseColor :: Word8 -> RGB Double
 {-
