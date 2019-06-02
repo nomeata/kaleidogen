@@ -6,6 +6,7 @@ module DNA
     , Control.Monad.Random.Strict.getRandom
     , blankDNA
     , initialDNAs
+    , fakeDNAs
     ) where
 
 import Control.Monad.Random.Strict
@@ -86,3 +87,8 @@ blankDNA = [0]
 
 initialDNAs :: [DNA]
 initialDNAs = [ [x] | x <- [0,43..255] ]
+
+fakeDNAs :: [DNA]
+fakeDNAs = evalRand (replicateM 30 go) $ mkStdGen 1
+  where
+    go = replicateM 10 getRandom
