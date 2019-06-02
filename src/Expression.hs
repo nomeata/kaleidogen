@@ -1,6 +1,5 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Expression (dna2rna) where
 
 import Data.Colour.RGBSpace.HSV
@@ -8,15 +7,20 @@ import Data.Colour.SRGB
 import Data.Word
 import Data.List
 
+import System.Random.Shuffle
+import Control.Monad.Random.Strict hiding (interleave)
+import Data.Hashable
+
 import DNA
 import RNA
 
 dna2rna :: DNA -> RNA
 dna2rna [] = dna2rna [0]
 dna2rna [x] = dna2rna [x,x]
-dna2rna (col1:col2:ops) = fst $ go ops colors
+dna2rna dna@(col1:col2:ops) = fst $ go ops colors
   where
-    colors = cycle $ foldl1 interleave $ map derivedColors $ map baseColor $ nub [col1, col2]
+    seed = hash dna
+    colors = cycle $ foldl1 interleave $ map (derivedColors seed) $ map baseColor $ nub [col1, col2]
 
     go _ [] = error "finite list in fromSDNA"
     go []  (c:cols) = (, cols) $ Solid c
@@ -70,24 +74,28 @@ splitInHalf :: [a] -> ([a],[a])
 splitInHalf xs = splitAt n xs
   where n = length xs `div` 2
 
-derivedColors :: RGB Double -> [RGB Double]
-derivedColors (hsvView -> (h,s,v)) =
-    [ hsv h s v
-    , hsv (h+20) s v
-    , hsv (h-20) s v
-    , hsv h ((s+1)/2) v
-    , hsv h (s/2) v
-    , hsv h s ((v+1)/2)
-    , hsv h s (v/2)
-    ]
+shufDet :: Int -> [b] -> [b]
+shufDet seed xs = evalRand (shuffleM xs) $ mkStdGen seed
+
+derivedColors :: Int -> RGB Double -> [RGB Double]
+derivedColors seed (hsvView -> (h,s,v)) =
+    hsv h s v :
+    shufDet seed
+        [ hsv (h+20) s v
+        , hsv (h-20) s v
+        , hsv h ((s+1)/2) v
+        , hsv h (s/2) v
+        , hsv h s ((v+1)/2)
+        , hsv h s (v/2)
+        ]
 
 baseColor :: Word8 -> RGB Double
-{-
-baseColor n = hsv tau 0.7 1
-  where
-    tau = (fromIntegral (n-2) / fromIntegral (maxBound `asTypeOf` n - 2)) * 360
--}
-baseColor n = indexMod n $ map (toSRGB.sRGB24read)
+-- baseColor = _baseColorRelativeTo (hsv 15 1 1)
+-- baseColor = baseColorRelativeTo (julianeColors !! 5)
+baseColor n = indexMod n julianeColors
+
+julianeColors :: [RGB Double]
+julianeColors = map (toSRGB.sRGB24read)
     [ "#ba0100"
     , "#f7c616"
     , "#141995"
@@ -95,6 +103,12 @@ baseColor n = indexMod n $ map (toSRGB.sRGB24read)
     , "#076b1d"
     , "#f4a40d"
     ]
+
+_baseColorRelativeTo :: RGB Double -> Word8 -> RGB Double
+_baseColorRelativeTo (hsvView -> (h,s,v)) n =
+    hsv (h + tau) s v
+  where
+    tau = (fromIntegral n / fromIntegral (maxBound `asTypeOf` n)) * 360
 
 indexMod :: Word8 -> [a] -> a
 indexMod n xs = xs !! n'
