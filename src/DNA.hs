@@ -32,11 +32,11 @@ crossover' :: MonadRandom m => DNA -> DNA -> m DNA
 crossover' [] dna2 = pure dna2
 crossover' dna1 [] = pure dna1
 crossover' dna1 dna2 =
-    (\a b c -> a:b:c) <$> uniform cols <*> uniform cols <*> mixRest
+    (\a b c -> a:b:c) <$> uniform cols1 <*> uniform cols2 <*> mixRest
   where
     (cols1,rest1) = splitAt 2 dna1
     (cols2,rest2) = splitAt 2 dna2
-    cols = cols1 ++ cols2
+    -- cols = cols1 ++ cols2
 
     -- mixRest :: m [Word8]
     mixRest = do
