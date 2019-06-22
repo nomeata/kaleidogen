@@ -12,7 +12,6 @@ where
 
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Monoid
 import Data.IORef
 import Control.Monad.IO.Class
 import Data.Foldable

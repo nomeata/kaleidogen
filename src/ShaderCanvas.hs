@@ -20,7 +20,6 @@ import Data.Maybe
 import Data.Text as Text (Text)
 import Data.Foldable
 import Data.Int
-import Data.Monoid
 import Control.Monad
 import Data.IORef
 import Control.Monad.IO.Class

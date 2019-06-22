@@ -6,7 +6,6 @@ module GLSL
     ) where
 
 import Prelude hiding (unlines)
-import Data.Monoid
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Builder

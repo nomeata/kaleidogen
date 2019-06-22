@@ -12,7 +12,6 @@ module MainWidget (mainWidget)  where
 
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Monoid
 import Data.Bifunctor
 import Data.Functor
 
