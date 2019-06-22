@@ -24,6 +24,7 @@ import qualified SelectTwo as S2
 import Layout
 import Mealy
 import Logic
+import Presentation (Animating)
 import qualified Presentation
 import Drag
 
@@ -50,7 +51,7 @@ data Backend m a = Backend
     }
 
 data Callbacks m a = Callbacks
-    { onDraw :: m ([(a,(Double,Double,Double,Double))], Bool)
+    { onDraw :: m ([(a,(Double,Double,Double,Double))], Animating)
     , onMouseDown :: (Double,Double) -> m ()
     , onMove :: (Double,Double) -> m ()
     , onMouseUp :: m ()

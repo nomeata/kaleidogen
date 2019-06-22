@@ -10,20 +10,22 @@ import GHCJS.DOM.Types hiding (Text)
 import GHCJS.DOM.Performance
 import GHCJS.DOM.GlobalPerformance
 
-animate :: (Double -> JSM Bool) -> JSM (JSM ())
+import Presentation (Animating(..))
+
+animate :: (Double -> JSM Animating) -> JSM (JSM ())
 animate draw = do
     Just win <- currentWindow
     perf <- getPerformance win
     animating <- liftIO $ newIORef False
 
     let continueAnimation t = do
-        continue <- draw t
+        Animating continue <- draw t
         if continue then () <$ inAnimationFrame' continueAnimation
                     else liftIO $ writeIORef animating False
 
 
     let drawAndAnimate t = do
-        continue <- draw t
+        Animating continue <- draw t
         -- If there is something to animate
         when continue $ do
            -- And no animation loop is running

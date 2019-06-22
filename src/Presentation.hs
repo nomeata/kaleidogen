@@ -2,7 +2,10 @@
 {-# LANGUAGE NamedFieldPuns #-}
 -- This module interprets a sequence of Logic.Cmd events
 module Presentation
-    ( Presentation
+    ( Time
+    , Animating(..)
+    , animationSpeed
+    , Presentation
     , LayoutFun
     , initRef
     , handleCmdsRef
@@ -22,6 +25,8 @@ import PresentationCmds (Cmds, Cmd, Cmd'(..))
 import Tween
 
 type Time = Double
+
+newtype Animating = Animating Bool
 
 animationSpeed :: Time
 animationSpeed = 200
@@ -101,8 +106,8 @@ presentAt t State{pos, zindex} =
   where
     go _ = interpretPos t
 
-anyMoving :: Time -> State k -> Bool
-anyMoving t = any go . pos
+anyMoving :: Time -> State k -> Animating
+anyMoving t = Animating . any go . pos
   where
     go (Stable _) = False
     go (MovingFromTo _ t' _ _) = (t - t') < animationSpeed
@@ -127,7 +132,7 @@ initRef = newIORef initialState
 handleCmdsRef :: Ord k => Time -> LayoutFun a -> Cmds k a -> Ref k -> IO ()
 handleCmdsRef t l cs r = modifyIORef r (\s -> foldl (handleCmd t l) s cs)
 
-presentAtRef :: Ord k => Time -> Ref k -> IO (Presentation k, Double, Bool)
+presentAtRef :: Ord k => Time -> Ref k -> IO (Presentation k, Double, Animating)
 presentAtRef t r = do
     s <- readIORef r
     let pres = presentAt t s

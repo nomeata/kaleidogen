@@ -41,6 +41,7 @@ common logic
   other-modules: Logic
   other-modules: Mealy
   other-modules: Drag
+  other-modules: DragAnim
   other-modules: Tween
   other-modules: RNA
   other-modules: GLSL
@@ -144,6 +145,7 @@ executable kaleidogen-android-clib
   other-modules: Logic
   other-modules: Mealy
   other-modules: Drag
+  other-modules: DragAnim
   other-modules: RNA
   other-modules: GLSL
   other-modules: Expression

@@ -2,6 +2,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 {- |
 This module takes raw pointer event and turns them into semantic clicks and
@@ -19,13 +20,12 @@ import Control.Monad.IO.Class
 import Control.Monad.Writer
 import Data.IORef
 import Data.Foldable
-import Data.List
 import Data.Maybe
-import Presentation (Presentation)
+import Presentation (Presentation, Time, Animating)
 import qualified Presentation
+import qualified DragAnim
 
 
-type Time = Double
 type MousePos = (Double, Double)
 type ObjOffset = (Double, Double)
 
@@ -68,26 +68,20 @@ mkDragHandler ::
     Eq k =>
     MonadIO m =>
     (k -> m Bool) ->
-    (Time -> m (Presentation k, Double, Bool)) ->
+    (Time -> m (Presentation k, Double, Animating)) ->
     m ( Time -> RawEvent -> m [ClickEvent k]
-      , Time -> m (Presentation k, Double, Bool)
+      , Time -> m (Presentation k, Double, Animating)
       )
 mkDragHandler canDrag getPres = do
     dragState <- liftIO $ newIORef (Nothing :: Maybe (DragState k))
+    dragAnimState <- liftIO $ newIORef DragAnim.empty
     lastIntersection <- liftIO $ newIORef Nothing
 
     let getModifiedPres t = do
-        (p, radius, continue) <- getPres t
-        liftIO (readIORef dragState) >>= \case
-            Just ds  -> do
-                -- NB: We always move this, even if we are not actually
-                -- considering this a drag for the purpose of the game logic.
-                -- This makes the UI more smooth.
-                let newPos = curPos ds `add` objOffset ds
-                    go (k,(_pos,scale)) | k == key ds = (k,(newPos,scale))
-                    go x = x
-                return (sortOn (\(k,_) -> k == key ds) (map go p), radius, continue)
-            _ -> return (p, radius, continue)
+        liftIO $ modifyIORef dragAnimState (DragAnim.cleanup t)
+        DragAnim.pres <$> liftIO (readIORef dragAnimState)
+                      <*> pure t
+                      <*> getPres t
 
     let posToKey t pos = do
         (p,_,_) <- getModifiedPres t
@@ -97,34 +91,42 @@ mkDragHandler canDrag getPres = do
         (p,_,_) <- getModifiedPres t
         return $ Presentation.locateIntersection p k
 
-    let finishDrag = do
+    let finishDrag t = do
             ds <- liftIO $ readIORef dragState
             liftIO $ writeIORef dragState Nothing
             liftIO $ writeIORef lastIntersection Nothing
+            liftIO $ modifyIORef dragAnimState (DragAnim.stop t)
             return ds
 
-    let cancelDrag = finishDrag >>= \case
+    let cancelDrag t = finishDrag t >>= \case
             Just ds | dragging ds -> tell [CancelDrag]
             _ -> return ()
 
     let handleEvent t re = execWriterT $ case re of
             MouseDown pos -> do
-                cancelDrag
+                cancelDrag t
                 lift (posToKey t pos) >>= \case
                     Just (k, objPos) -> lift (canDrag k) >>= \case
-                        True -> do
-                            liftIO $ writeIORef dragState $ Just $ DragState
-                                    { initialPhase = Just (pos, t)
-                                    , curPos = pos
-                                    , key = k
-                                    , objOffset = pos `sub` objPos
-                                    }
-                            liftIO $ writeIORef lastIntersection Nothing
+                        True -> liftIO $ do
+                            let offset = pos `sub` objPos
+                            writeIORef dragState $ Just $ DragState
+                                { initialPhase = Just (pos, t)
+                                , curPos = pos
+                                , key = k
+                                , objOffset = offset
+                                }
+                            writeIORef lastIntersection Nothing
+                            modifyIORef dragAnimState (DragAnim.start k pos offset)
+                                -- NB: We always display moving the drag, even if the drag
+                                -- is still small enought that it might just be a click, and
+                                -- before we report it to the game logic.
+                                -- This makes the UI more smooth.
                             return ()
                         False -> tell [Click k]
                     Nothing -> return ()
             Move pos -> do
                 liftIO $ modifyIORef dragState $ fmap $ \ ds -> ds { curPos = pos }
+                liftIO $ modifyIORef dragAnimState (DragAnim.move pos)
 
                 liftIO (readIORef dragState) >>= \case
                     Just ds | canStartDragging ds pos t -> do
@@ -141,18 +143,14 @@ mkDragHandler canDrag getPres = do
                             for_ mi_old $ \k' -> tell [DragOff k']
                             for_ mi $ \k' -> tell [DragOn k']
                     _ -> return ()
-            MouseUp -> finishDrag >>= \case
+            MouseUp -> finishDrag t >>= \case
                 Just ds | dragging ds -> tell [EndDrag]
                         | otherwise   -> tell [Click (key ds)]
                 Nothing -> return ()
-            MouseOut -> cancelDrag
+            MouseOut -> cancelDrag t
 
 
     return (handleEvent, getModifiedPres)
 
 sub :: (Double, Double) -> (Double, Double) -> (Double, Double)
 (x1,y1) `sub` (x2, y2) = (x2 - x1, y2 - y1)
-
-
-add :: (Double, Double) -> (Double, Double) -> (Double, Double)
-(x1,y1) `add` (x2, y2) = (x2 + x1, y2 + y1)
