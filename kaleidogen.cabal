@@ -116,8 +116,8 @@ executable kaleidogen
 executable kaleidogen-demo
   import: logic, canvas-save, shader-canvas
   main-is: Demo.hs
-  other-modules: Animate
   other-modules: RunWidget
+  other-modules: PrettyRna
   build-depends: base >=4.11 && <5
   build-depends: MonadRandom ==0.5.*
   build-depends: text
