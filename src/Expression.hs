@@ -37,7 +37,7 @@ dna2rna dna@(col1:col2:ops) = fst $ go ops colors
         unaryOps = unary <$>
             [ Rotate  (0  … 2*pi)
             , Invert
-            , Swirl   (-1 … 1)
+            , Swirl   ((-1) … 1)
             , Dilated (from [2,3,4,8])
             ]
 
