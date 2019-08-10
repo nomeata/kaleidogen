@@ -47,36 +47,36 @@ mainWidget = do
     CanvasSave.register
 
     -- Get Dom elements
-    canvas <- getElementByIdUnsafe doc ("canvas" :: Text) >>= unsafeCastTo HTMLCanvasElement
+    canvas1 <- getElementByIdUnsafe doc ("canvas1" :: Text) >>= unsafeCastTo HTMLCanvasElement
     input1 <- getElementByIdUnsafe doc ("input1" :: Text) >>= unsafeCastTo HTMLInputElement
-    tree <- getElementByIdUnsafe doc ("tree" :: Text) >>= unsafeCastTo HTMLTextAreaElement
-    code <- getElementByIdUnsafe doc ("code" :: Text) >>= unsafeCastTo HTMLTextAreaElement
+    tree1 <- getElementByIdUnsafe doc ("tree1" :: Text) >>= unsafeCastTo HTMLTextAreaElement
+    code1 <- getElementByIdUnsafe doc ("code1" :: Text) >>= unsafeCastTo HTMLTextAreaElement
 
-    dna1 <- liftIO $ newIORef []
-    size <- liftIO $ newIORef (100,100)
+    dnaRef1 <- liftIO $ newIORef []
+    sizeRef <- liftIO $ newIORef (100,100)
 
 
-    drawShaderCircles <- shaderCanvas renderGraphic canvas
+    drawShaderCircles <- shaderCanvas renderGraphic canvas1
 
     let draw = do
-        dna <- liftIO $ readIORef dna1
-        canvassize <- liftIO $ readIORef size
-        let pretty = prettyRNA (dna2rna dna)
+        dna1 <- liftIO $ readIORef dnaRef1
+        canvassize <- liftIO $ readIORef sizeRef
+        let pretty = prettyRNA (dna2rna dna1)
         let rows = fromIntegral (length (lines pretty))
-        TextArea.setValue tree pretty
-        TextArea.setValue code (toFragmentShader (dna2rna dna))
-        TextArea.setRows tree rows
-        TextArea.setRows code rows
-        drawShaderCircles [showFullDNA dna canvassize]
+        TextArea.setValue tree1 pretty
+        TextArea.setValue code1 (toFragmentShader (dna2rna dna1))
+        TextArea.setRows tree1 rows
+        TextArea.setRows code1 rows
+        drawShaderCircles [showFullDNA dna1 canvassize]
 
     void $ on input1 input $ do
         str <- Input.getValue input1
         case Hex.decodeHex str of
           Just x | not (BS.null x) ->
-            liftIO (writeIORef dna1 (BS.unpack x)) >> lift draw
+            liftIO (writeIORef dnaRef1 (BS.unpack x)) >> lift draw
           _ -> return ()
 
-    checkResize <- autoResizeCanvas canvas (\pos -> liftIO (writeIORef size pos) >> draw)
+    checkResize <- autoResizeCanvas canvas1 (\pos -> liftIO (writeIORef sizeRef pos) >> draw)
     -- Wish I could use onResize on body, but that does not work somehow
     let regularlyCheckSize = do
         checkResize
