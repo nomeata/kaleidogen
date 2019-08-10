@@ -5,6 +5,10 @@ import Data.Text as Text
 
 type Shaders = (Text, Text)
 
+-- A single vec4 of extra data
+type ExtraData = (Double, Double, Double, Double)
+
+
 circularVertexShader :: Text
 circularVertexShader = Text.unlines
   [ "attribute vec2 a_position;"

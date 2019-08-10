@@ -97,9 +97,6 @@ compileFragmentShader gl (vertexShaderSource, fragmentShaderSource) = do
     let compiledProgram = program
     return CompiledProgram {..}
 
--- A single vec4 of extra data
-type ExtraData = (Double, Double, Double, Double)
-
 paintGLCached :: (Ord a, MonadDOM m) =>
     Cache m a CompiledProgram ->
     WebGLRenderingContext -> (Double, Double) -> [(a, ExtraData)] -> m ()

@@ -7,6 +7,8 @@ module Program
   , Backend(..)
   , renderGraphic
   , mainProgram
+  , Graphic
+  , showFullDNA
   )
 where
 
@@ -41,6 +43,11 @@ layoutFun size (SmallPos c n)
     = bottomHalf (padding (layoutGrid False c)) size n
 layoutFun size (DeletedPos c n)
     = bottomHalf (padding (layoutGrid True c)) size n
+
+
+showFullDNA :: DNA -> (Double,Double) -> (Graphic, ExtraData)
+showFullDNA dna (w,h) =
+    reorderExtraData ((DNA dna,0), layoutFullCirlce (w,h) ())
 
 data Backend m a = Backend
     { setCanDelete :: Bool -> m ()
@@ -130,8 +137,7 @@ mainProgram Backend {..} = do
         , onSave = do
             as <- liftIO (readIORef asRef)
             for_ (selectedDNA as) $ \dna ->
-                doSave (toFilename dna) $
-                    reorderExtraData ((DNA dna,0), layoutFullCirlce (1000, 1000) ())
+                doSave (toFilename dna) (showFullDNA dna (1000,1000))
         , onResize = \size -> do
             liftIO $ writeIORef sizeRef size
             as <- liftIO $ readIORef asRef
