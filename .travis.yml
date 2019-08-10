@@ -53,9 +53,11 @@ jobs:
      script:
        # now build
        - cabal new-build --ghcjs kaleidogen
+       - cabal new-build --ghcjs kaleidogen-demo
 
      before_deploy:
        - cp -rv dist-newstyle/build/*/*/*/x/kaleidogen/build/*/*.jsexe gh-page
+       - cp -rv dist-newstyle/build/*/*/*/x/kaleidogen-demo/build/*/*.jsexe gh-page/demo
 
      deploy:
        provider: pages
