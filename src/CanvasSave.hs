@@ -1,25 +1,29 @@
+{-# LANGUAGE TemplateHaskell #-}
 module CanvasSave where
 
 import GHCJS.DOM
 import GHCJS.DOM.Document
 import GHCJS.DOM.Node
-import GHCJS.DOM.HTMLScriptElement
+import GHCJS.DOM.HTMLElement
 import GHCJS.DOM.Types hiding (Text)
 
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Data.ByteString as BS
+import Data.FileEmbed
 import Language.Javascript.JSaddle (toJSVal)
 import Language.Javascript.JSaddle.Object
 import Control.Lens ((^.))
 
-src :: T.Text
-src = T.pack "https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/1.3.8/FileSaver.min.js"
+src :: BS.ByteString
+src = $(embedFile "vendor/FileSaver.1.3.8.min.js")
 
 register :: MonadJSM m => m ()
 register = do
     doc <- currentDocumentUnchecked
     headEl <- getHeadUnchecked doc
-    script <- uncheckedCastTo HTMLScriptElement <$> createElement doc "script"
-    setSrc script src
+    script <- uncheckedCastTo HTMLElement <$> createElement doc "script"
+    setInnerText script (T.decodeUtf8 src)
     appendChild_ headEl script
 
 save :: MonadJSM m => T.Text -> HTMLCanvasElement -> m ()
