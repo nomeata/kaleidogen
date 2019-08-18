@@ -174,6 +174,7 @@ saveToPNG toGLSL (a,x) name = do
       Nothing -> return ()
       Just gl' -> do
         gl <- unsafeCastTo WebGLRenderingContext gl'
+        commonSetup gl
         prog <- compileFragmentShader gl (toGLSL a)
         paintGL gl (1000, 1000) [(prog,x)]
     CanvasSave.save name domEl
