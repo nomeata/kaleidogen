@@ -27,6 +27,9 @@ flag sdl
 flag android
   default: False
 
+flag fake-android
+  default: False
+
 flag clib
   default: False
 
@@ -202,16 +205,19 @@ executable kaleidogen-android-clib
   build-depends: file-embed
   build-depends: ghcjs-dom >=0.9.2 && <0.10
   build-depends: text
+  build-depends: random-shuffle
 
   main-is: Kaleidogen.hs
   build-depends: jsaddle
-  build-depends: jsaddle-clib
   build-depends: reflex-dom
+
+  if flag(android)
+     build-depends: jsaddle-clib
 
   if impl(ghcjs)
     buildable: False
 
-  if !flag(android) || !flag(clib)
+  if !(flag(fake-android) || flag(android)) || !flag(clib)
     buildable: False
 
-  --  ghc-options: -main-is KaleidogenAndroid
+  ghc-options: -main-is Kaleidogen

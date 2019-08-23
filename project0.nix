@@ -15,13 +15,17 @@ in mkDerivation {
     relPath == "kaleidogen.cabal" ||
     relPath == "LICENSE" ||
     relPath == "src" ||
-    (lib.hasPrefix "src" relPath && lib.hasSuffix ".hs" relPath)
+    (lib.hasPrefix "src" relPath && lib.hasSuffix ".hs" relPath) ||
+    lib.hasPrefix "vendor" relPath
   ) ./.;
   configureFlags = if isAndroid then
       if use-sdl
       then [ "-f-jsaddle -fandroid -fsdl -f-clib" ]
       else [ "-f-jsaddle -fandroid -f-sdl -fclib" ]
-    else [ "-f-jsaddle -f-android -fsdl" ];
+    else
+      if use-sdl
+      then [ "-f-jsaddle -f-android -fsdl" ]
+      else [ "-f-jsaddle -ffake-android -f-sdl -fclib" ];
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [
@@ -33,7 +37,10 @@ in mkDerivation {
       if use-sdl
       then [ OpenGL sdl2 android-activity ]
       else [ ghcjs-dom jsaddle-dom jsaddle reflex-dom ]
-    else [ OpenGL sdl2 ]
+    else
+      if use-sdl
+      then [ OpenGL sdl2 ]
+      else [ ghcjs-dom jsaddle-dom jsaddle reflex-dom ]
   );
   homepage = "https://github.com/nomeata/kaleidogen";
   description = "Grow kaleidoscopes";

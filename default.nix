@@ -19,6 +19,9 @@ let
 
   kaleidogen-sdl = pkgs.haskellPackages.callPackage ./kaleidogen-sdl.nix { };
 
+
+
+
   overlay = self: super: {
     kaleidogen = self.callPackage ./project0.nix { };
     kaleidogen-sdl = self.callPackage ./project0.nix { use-sdl = true; };
@@ -34,13 +37,17 @@ let
     };
     haskellOverlays = [ overlay ];
   };
-  kaleidogen = platform.nixpkgs.haskellPackages.callPackage ./project0.nix { };
   android = platform.android.buildApp {
     package = p: p.kaleidogen;
     executableName = "kaleidogen-android-clib";
     applicationId = "de.nomeata.kaleidogen";
     displayName = "Kaleidogen";
   };
+
+
+
+
+  kaleidogen = platform.nixpkgs.haskellPackages.callPackage ./project0.nix { };
   android-run = platform.nixpkgs.androidenv.emulateApp {
     name = "emulate-MyAndroidApp";
     platformVersion = "24";
