@@ -32,12 +32,10 @@ let
         accept_license = true;
       };
     };
-  #  haskellOverlays = [ overlay ];
+    haskellOverlays = [ overlay ];
   };
   kaleidogen = platform.nixpkgs.haskellPackages.callPackage ./project0.nix { };
-  ghcAndroidAarch64 = platform.ghcAndroidAarch64.override { overrides = overlay; };
-  ghcAndroidAarch32 = platform.ghcAndroidAarch32.override { overrides = overlay; };
-  android = (platform.androidWithHaskellPackages {inherit ghcAndroidAarch64 ghcAndroidAarch32; }).buildApp {
+  android = platform.android.buildApp {
     package = p: p.kaleidogen;
     executableName = "kaleidogen-android-clib";
     applicationId = "de.nomeata.kaleidogen";
@@ -53,7 +51,7 @@ let
     activity = ".HaskellActivity";
   };
 
-  android-sdl = (platform.androidWithHaskellPackages {inherit ghcAndroidAarch64 ghcAndroidAarch32; }).buildApp {
+  android-sdl = platform.android.buildApp {
     package = p: p.kaleidogen-sdl;
     executableName = "kaleidogen-android-sdl";
     applicationId = "de.nomeata.kaleidogen";
