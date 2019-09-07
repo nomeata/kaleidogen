@@ -211,6 +211,8 @@ executable kaleidogen-android-clib
   build-depends: jsaddle
   build-depends: reflex-dom
 
+  build-depends: directory
+
   if flag(android)
      build-depends: jsaddle-clib
 

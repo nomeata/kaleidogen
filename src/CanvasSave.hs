@@ -15,6 +15,11 @@ import Language.Javascript.JSaddle (toJSVal)
 import Language.Javascript.JSaddle.Object
 import Control.Lens ((^.))
 
+import System.Directory
+import System.IO
+import System.IO.Error
+import Control.Monad.Trans
+
 src :: BS.ByteString
 src = $(embedFile "vendor/FileSaver.1.3.8.min.js")
 
@@ -30,6 +35,9 @@ save :: MonadJSM m => T.Text -> HTMLCanvasElement -> m ()
 save name e = liftJSM $ do
     domEl <- toJSVal e
     _ <- domEl ^. js1 "toBlob" (fun $ \_ _ [blob] -> () <$ jsg2 "saveAs" blob name )
+    liftIO $ (`catchIOError` print) $
+        createDirectory "/sdcard/Kaleidogen"
+        writeFile "/sdcard/Kaleidogen/test.txt" "hi"
     return ()
 
 {-
