@@ -1,4 +1,6 @@
 let
+  sources = import nix/sources.nix;
+
   config = {
     packageOverrides = pkgs: rec {
       haskellPackages = pkgs.haskellPackages.override {
@@ -13,7 +15,7 @@ let
     };
     allowUnfree = true;
   };
-  pkgs = import ~/build/nixpkgs { inherit config; };
+  pkgs = import sources.nixpkgs { inherit config; };
 
   kaleidogen-android = pkgs.pkgsCross.aarch64-android-prebuilt.haskellPackages.kaleidogen;
 
@@ -29,7 +31,7 @@ let
     sdl2 = pkgs.haskell.lib.dontCheck super.sdl2;
   };
 
-  platform = import /home/jojo/build/haskell/reflex/reflex-platform {
+  platform = import sources.reflex-platform {
     config = {
       android_sdk = {
         accept_license = true;

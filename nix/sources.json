@@ -1,0 +1,38 @@
+{
+    "niv": {
+        "branch": "master",
+        "description": "Easy dependency management for Nix projects",
+        "homepage": "https://github.com/nmattia/niv",
+        "owner": "nmattia",
+        "repo": "niv",
+        "rev": "98c74a80934123cb4c3bf3314567f67311eb711a",
+        "sha256": "1w8n54hapd4x9f1am33icvngkqns7m3hl9yair38yqq08ffwg0kn",
+        "type": "tarball",
+        "url": "https://github.com/nmattia/niv/archive/98c74a80934123cb4c3bf3314567f67311eb711a.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "nixpkgs": {
+        "branch": "nixos-20.03",
+        "description": "Nix Packages collection",
+        "homepage": null,
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "b2935fbeceaea0b64df4401545d7c8ea29102120",
+        "sha256": "1z1631v7q2c8mavy7xnvfx0wz34zd49jqmjg66nk0qgsi605m3qp",
+        "type": "tarball",
+        "url": "https://github.com/NixOS/nixpkgs/archive/b2935fbeceaea0b64df4401545d7c8ea29102120.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "reflex-platform": {
+        "branch": "develop",
+        "description": "Reflex FRP is a composable, cross-platform functional reactive programming framework for Haskell.  It allows you to build interactive components in pure functional style, working in harmony with established Haskell techniques and improving the quality and elegance of your applications.",
+        "homepage": "https://reflex-frp.org/",
+        "owner": "reflex-frp",
+        "repo": "reflex-platform",
+        "rev": "51e02339704b7502e63bccf10a72fa4dda744b17",
+        "sha256": "1mkimidf755968xzbm3z222xgpdvgg6xmmrfppv1hw0rap5w53iw",
+        "type": "tarball",
+        "url": "https://github.com/reflex-frp/reflex-platform/archive/51e02339704b7502e63bccf10a72fa4dda744b17.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    }
+}
