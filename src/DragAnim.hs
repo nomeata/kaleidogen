@@ -65,21 +65,21 @@ pres State{..} t (ps, radius, animating) =
     , coerce (||) animating (not (null recentlyDragged))
     )
   where
-    go (k, (pos, scale))
+    go (k, ((pos, scale), f))
         | Just (k', newPos, offset) <- currentlyDragged
         , k == k'
         = ( 2::Int
-          , (k, (newPos `add` offset, scale))
+          , (k, ((newPos `add` offset, scale), f))
           )
         | Just (_, p_old, t') <- find (\(k', _, _) -> k == k') recentlyDragged
         , let r = (t-t') / animationSpeed
         , r < 1
         = ( 1
-          , (k, (tween r p_old pos, scale))
+          , (k, ((tween r p_old pos, scale), f))
           )
         | otherwise
         = ( 0
-          , (k, (pos, scale))
+          , (k, ((pos, scale), f))
           )
 
 add :: (Double, Double) -> (Double, Double) -> (Double, Double)

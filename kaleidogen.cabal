@@ -22,7 +22,7 @@ flag jsaddle
   default: True
 
 flag sdl
-  default: True
+  default: False
 
 flag android
   default: False

@@ -30,8 +30,8 @@ import Presentation (Animating)
 import qualified Presentation
 import Drag
 
-reorderExtraData :: ((x, a), ((b,c),d)) -> (x, (a, b, c, d))
-reorderExtraData ((d,b),((x,y),s)) = (d, (b, x, y, s))
+reorderExtraData :: ((x, a), (((b,c),d),e)) -> (x, (a, b, c, d, e))
+reorderExtraData ((d,b),(((x,y),s),e)) = (d, (b, x, y, s, e))
 
 toFilename :: DNA -> T.Text
 toFilename dna = "kaleidogen-" <> dna2hex dna <> ".png"
@@ -47,24 +47,26 @@ layoutFun size (DeletedPos c n)
 
 showFullDNA :: DNA -> (Double,Double) -> (Graphic, ExtraData)
 showFullDNA dna (w,h) =
-    reorderExtraData ((DNA dna,0), layoutFullCirlce (w,h) ())
+    reorderExtraData ((DNA dna,0), (layoutFullCirlce (w,h) (), 1))
 
 data Backend m a = Backend
     { setCanDelete :: Bool -> m ()
     , setCanSave :: Bool -> m ()
+    , setCanAnim :: Bool -> m ()
     , currentWindowSize :: m (Double,Double)
     , getCurrentTime :: m Double
-    , doSave :: Text -> (a,(Double,Double,Double,Double)) -> m ()
+    , doSave :: Text -> (a,ExtraData) -> m ()
     }
 
 data Callbacks m a = Callbacks
-    { onDraw :: m ([(a,(Double,Double,Double,Double))], Animating)
+    { onDraw :: m ([(a,ExtraData)], Animating)
     , onMouseDown :: (Double,Double) -> m ()
     , onMove :: (Double,Double) -> m ()
     , onMouseUp :: m ()
     , onMouseOut :: m ()
     , onDel :: m ()
     , onSave :: m ()
+    , onAnim :: m ()
     , onResize :: (Double,Double) -> m ()
     }
 
@@ -122,18 +124,20 @@ mainProgram Backend {..} = do
             as <- liftIO $ readIORef asRef
             setCanDelete (S2.isOneSelected (sel as))
             setCanSave (S2.isOneSelected (sel as))
+            setCanAnim (S2.isOneSelected (sel as))
             (p, borderRadius, continue) <- getModPres t
             let extraData (MainInstance d) = if isSelected as d then 2 else 1
                 extraData (PreviewInstance _) = 0
             let toDraw =
-                    (Border, (0,0,0,borderRadius)) :
-                    [ (DNA (entity2dna k), (extraData k,x,y,s)) | (k,((x,y),s)) <- p ]
+                    (Border, (0,0,0,borderRadius,1)) :
+                    [ (DNA (entity2dna k), (extraData k,x,y,s,f)) | (k,(((x,y),s),f)) <- p ]
             return (toDraw, continue)
         , onMouseDown = handleClickEvents . MouseDown
         , onMove = handleClickEvents . Move
         , onMouseUp = handleClickEvents MouseUp
         , onMouseOut = handleClickEvents MouseOut
         , onDel = handleEvent Delete
+        , onAnim = handleEvent Anim
         , onSave = do
             as <- liftIO (readIORef asRef)
             for_ (selectedDNA as) $ \dna ->

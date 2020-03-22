@@ -54,6 +54,7 @@ runInBrowser toShader go = do
     -- Get Dom elements
     canvas <- getElementByIdUnsafe doc ("canvas" :: Text) >>= unsafeCastTo HTMLCanvasElement
     save <- getElementByIdUnsafe doc ("save" :: Text) >>= unsafeCastTo HTMLAnchorElement
+    anim <- getElementByIdUnsafe doc ("anim" :: Text) >>= unsafeCastTo HTMLAnchorElement
     del <- getElementByIdUnsafe doc ("delete" :: Text) >>= unsafeCastTo HTMLAnchorElement
 
     drawShaderCircles <- shaderCanvas toShader canvas
@@ -63,6 +64,8 @@ runInBrowser toShader go = do
         setCanDelete False = setClassName del ("hidden"::Text)
     let setCanSave True = setClassName save (""::Text)
         setCanSave False = setClassName save ("hidden"::Text)
+    let setCanAnim True = setClassName anim (""::Text)
+        setCanAnim False = setClassName anim ("hidden"::Text)
     let currentWindowSize = querySize canvas
     let getCurrentTime = now perf
     let doSave filename toDraw = saveToPNG toShader toDraw filename
@@ -99,6 +102,7 @@ runInBrowser toShader go = do
 
     void $ on del click $ liftJSM (onDel >> render)
     void $ on save click $ liftJSM onSave
+    void $ on anim click $ liftJSM (onAnim >> render)
 
     checkResize <- autoResizeCanvas canvas (\ pos -> onResize pos >> render)
     -- Wish I could use onResize on body, but that does not work somehow
@@ -134,6 +138,7 @@ html = T.unlines
     , "   <div class='toolbar'>"
     , "    <a id='delete'>🗑</a>"
     , "    <a id='save'>💾</a>"
+    , "    <a id='anim'>▶</a>"
     , "   </div>"
     , "   <canvas id='canvas'></canvas>"
     , "  </div>"

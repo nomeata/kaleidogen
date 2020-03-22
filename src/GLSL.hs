@@ -49,21 +49,23 @@ vec3 prefix code = do
     l $ "vec3 " <> n <> " = " <> code <> ";"
     return n
 
-type Pattern = GLVar -> G GLVar
+type Pattern = GLVar -> GLVar -> G GLVar
 
 conclude :: Pattern -> G ()
 conclude pat = do
-  l "uniform vec4 u_extraData;"
+  l "#define M_PI 3.1415926535897932384626433832795"
+  l "uniform float u_extraData[5];"
   l "varying vec2 vDrawCoord;"
   l "void main() {"
-  l "  float extraData = u_extraData.x;"
-  l "  if (length(vDrawCoord) > 1.0) { gl_FragColor = vec4(0,0,0,0.0); return; }"
-  col <- pat "vDrawCoord"
+  l "  float extraData = u_extraData[0];"
+  l "  float anim = u_extraData[4];"
+  l "  if (length(vDrawCoord) > 1.0) { gl_FragColor = vec4(0.0,0.0,0.0,0.0); return; }"
+  col <- pat "vDrawCoord" "anim"
   l $ "  gl_FragColor = vec4(" <> col <> ", 1.0);"
   l "}"
 
 highlight :: Pattern -> Pattern
-highlight pat pos0 = do
+highlight pat pos0 anim = do
   pos1 <- vec2 "pos" pos0
   l "  if (extraData > 0.5) {" -- need a hightlighting border
   l $ "    if (length(" <> pos0 <> ") > 0.9) {"
@@ -76,7 +78,7 @@ highlight pat pos0 = do
   l "    }"
   l $ "    " <> pos1 <> " = " <> pos0 <> " / 0.9;"
   l "    }"
-  pat pos1
+  pat pos1 anim
 
 blankShader :: T.Text
 blankShader = runG $ conclude $ go (Solid (RGB 1 1 1))
@@ -90,67 +92,116 @@ float :: Int -> Builder
 float x = build (fromIntegral x :: Double)
 ifThenElse :: GLExpr -> GLExpr -> GLExpr -> GLExpr
 ifThenElse s t e = "( " <> s <> " ? " <> t <> " : " <> e <> " )"
+tween :: GLExpr -> GLExpr -> GLExpr -> GLExpr
+tween x a b = "mix(" <> a <> "," <> b <> "," <> x <> ")"
+
+anim0 :: GLExpr -> G GLExpr
+anim0 anim = fl "anim" $ "smoothstep(0.0,1.0," <> anim <> ")"
+
+animHalf :: GLExpr -> G (GLExpr, GLExpr)
+animHalf anim = do
+    x <- fl "sub1" $ "clamp(" <> anim <> " * 2.0, 0.0, 1.0)"
+    y <- fl "sub2" $ "clamp(" <> anim <> " * 2.0 - 1.0, 0.0, 1.0)"
+    return (x,y)
+
+animUnary :: GLExpr -> G (GLExpr, GLExpr)
+animUnary anim = do
+    (x,y) <- animHalf anim
+    y' <- anim0 y
+    return (x,y')
+
+animBinary :: GLExpr -> G (GLExpr, GLExpr, GLExpr)
+animBinary anim = do
+    x <- fl "sub1" $ "clamp(" <> anim <> " * 3.0, 0.0, 1.0)"
+    y <- fl "sub2" $ "clamp(" <> anim <> " * 3.0 - 1.0, 0.0, 1.0)"
+    z <- fl "sub3" $ "clamp(" <> anim <> " * 3.0 - 2.0, 0.0, 1.0)"
+    y' <- anim0 y
+    return (x,y',z)
 
 go :: RNA -> Pattern
 
-go (Solid color) = \_pos ->
-    vec3 "col" $ "vec3(" <> build r <> "," <> build g <> "," <> build b <> ")"
+go (Solid color) = \_pos anim -> do
+    a <- anim0 anim
+    vec3 "col" $ tween a
+        "vec3(1.0,1.0,1.0)"
+        ("vec3(" <> build r <> "," <> build g <> "," <> build b <> ")")
   where RGB r g b = color
 
-go (Blend x r1 r2) = \pos -> do
-    col1 <- go r1 pos
-    col2 <- go r2 pos
-    vec3 "col" $ build x <> " * " <> col1 <> " + (1.0-" <> build x <> ") * " <> col2
+go (Blend x r1 r2) = \pos anim -> do
+    (al, a, ar) <- animBinary anim
+    col1 <- go r1 pos al
+    col2 <- go r2 pos ar
+    vec3 "col" $ tween (a <> " * " <> build x) col2 col1
 
-go (Checker x r1 r2) = \pos -> do
-    col1 <- go r1 pos
-    col2 <- go r2 pos
+go (Checker x r1 r2) = \pos anim -> do
+    (al, a, ar) <- animBinary anim
+    col1 <- go r1 pos al
+    col2 <- go r2 pos ar
     tmp <- vec2 "tmp" $ build x <> "*(1.0/sqrt(2.0)) * mat2(1.0,1.0,-1.0,1.0) * " <> pos
     vec3 "col" $ ifThenElse
-        ("mod(" <> tmp <> ".x, 2.0) < 1.0 != mod(" <> tmp <> ".y, 2.0) < 1.0")
-        col1 col2
+        ("mod(" <> tmp <> ".x - 0.5 + 0.5 * " <> a <> ", 2.0) < " <> a <> " != " <>
+         "mod(" <> tmp <> ".y - 0.5 + 0.5 * " <> a <> ", 2.0) < " <> a)
+        col2 col1
 
-go (Rotate x r1) = \pos -> do
-    p' <- fl "phase" $ phase pos <> " + " <> build x
+go (Rotate x r1) = \pos anim -> do
+    (al, a) <- animUnary anim
+    p' <- fl "phase" $ phase pos <> " + " <> a <> " * " <> build x
     pos' <- vec2 "pos" $ mkPolar (len pos) p'
-    go r1 pos'
+    go r1 pos' al
 
-go (Invert r1) = \pos -> do
-    pos' <- vec2 "pos" $ "((1.0-length(" <> pos <> "))/length(" <> pos <> ")) * " <> pos
-    go r1 pos'
-
-go (Swirl x r1) = \pos -> do
+go (Invert r1) = \pos anim -> do
+    (al, a) <- animUnary anim
     mag <- fl "len" $ len pos
-    p' <- fl "phase" $ phase pos <> " + (1.0 - " <> mag <> ") * " <> build x
-    pos' <- vec2 "pos" $ mkPolar mag p'
-    go r1 pos'
+    -- simple
+    -- mag' <- fl "newlen" $ tween a mag ("1.0 - " <> mag)
+    -- more complex
+    mag' <- fl "newlen" $ ifThenElse
+        (a <> "< 0.5")
+        (tween ("clamp(" <> a <> " * 2.0, 0.0, 1.0)")
+          mag
+          ("1.0 - (2.0*" <> mag <> " - 1.0)*(2.0*" <> mag <> " - 1.0)"))
+        (tween ("clamp(" <> a <> " * 2.0 - 1.0, 0.0, 1.0)")
+          ("1.0 - (2.0*" <> mag <> " - 1.0)*(2.0*" <> mag <> " - 1.0)")
+          ("1.0 - " <> mag))
+    pos' <- vec2 "pos" $ "(" <> mag' <> "/" <> mag <> ") * " <> pos
+    go r1 pos' al
 
-go (Dilated r r1) = \pos -> do
+go (Swirl x r1) = \pos anim -> do
+    (al, a) <- animUnary anim
+    mag <- fl "len" $ len pos
+    p' <- fl "phase" $ phase pos <> " + " <> a <> " * (1.0 - " <> mag <> ") * " <> build x
+    pos' <- vec2 "pos" $ mkPolar mag p'
+    go r1 pos' al
+
+go (Dilated r r1) = \pos anim -> do
+    (al, a) <- animUnary anim
     p <- fl "phase" $ phase pos
     mag <- fl "len" $ len pos
-    p' <- fl "phase" $ p <> " + 1.0/" <> float r <> " * sin(" <> p <> " * " <> float r <> ")"
+    p' <- fl "phase" $ p <> " + " <> a <> " * 1.0/" <> float r <> " * sin(" <> p <> " * " <> float r <> ")"
     pos' <- vec2 "pos" $ mkPolar mag p'
-    go r1 pos'
+    go r1 pos' al
 
-go (Rays r r1 r2) = \pos -> do
-    col1 <- go r1 pos
-    col2 <- go r2 pos
+go (Rays r r1 r2) = \pos anim -> do
+    (al, a, ar) <- animBinary anim
+    col1 <- go r1 pos al
+    col2 <- go r2 pos ar
     vec3 "col" $ ifThenElse
-        ("mod( " <> phase pos <> "/" <> build (pi :: Double) <> " * " <> float r <> ", 2.0) < 1.0")
-        col1 col2
+        ("mod( " <> phase pos <> "/" <> build (pi :: Double) <> " * " <> float r <> " + 0.5 * " <> a <> ", 2.0) < " <> a)
+        col2 col1
 
-go (Gradient r1 r2) = \pos -> do
-    col1 <- go r1 pos
-    col2 <- go r2 pos
-    tmp <- fl "tmp" $ len pos
-    vec3 "col" $ tmp <> " * " <> col1 <> " + (1.0 - " <> tmp <> ") * " <> col2
+go (Gradient r1 r2) = \pos anim -> do
+    (al, ar) <- animHalf anim
+    col1 <- go r1 pos al
+    col2 <- go r2 pos ar
+    vec3 "col" $ tween (len pos) col1 col2
 
-go (Ontop x r1 r2) = \pos -> do
+go (Ontop x r1 r2) = \pos anim -> do
+    (al, a, ar) <- animBinary anim
     pos1 <- vec2 "pos" $ pos <> "/" <> build x
-    col1 <- go r1 pos1
-    col2 <- go r2 pos
+    col1 <- go r1 pos1 ar
+    col2 <- go r2 pos al
     vec3 "col" $ ifThenElse
-        (len pos <> " < " <> build x)
+        (len pos <> " < " <> a <> " * " <> build x)
         col1 col2
 
 -- The following is borrowed from the formatting library,
