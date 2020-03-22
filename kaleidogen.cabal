@@ -92,7 +92,7 @@ common SDL
   hs-source-dirs: src
   other-modules: SDLRunner
   build-depends: linear ==1.20.*
-  build-depends: sdl2 ==2.4.*
+  build-depends: sdl2 ==2.5.*
   build-depends: OpenGL ==3.0.*
   build-depends: StateVar
 
