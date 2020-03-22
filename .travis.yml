@@ -52,8 +52,8 @@ jobs:
    - stage: build, test and deploy
      script:
        # now build
-       - cabal new-build --ghcjs kaleidogen
-       - cabal new-build --ghcjs kaleidogen-demo
+       - cabal new-build --ghcjs kaleidogen -fjsaddle -f-sdl
+       - cabal new-build --ghcjs kaleidogen-demo -fjsaddle -f-sdl
 
      before_deploy:
        - cp -rv dist-newstyle/build/*/*/*/x/kaleidogen/build/*/*.jsexe gh-page
