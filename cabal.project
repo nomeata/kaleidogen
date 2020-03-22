@@ -1,6 +1,4 @@
 packages: .
 
-constraints: primitive < 0.6.4.0
-
 package reflex-dom
   flags: +use-warp -webkit2gtk
