@@ -137,10 +137,9 @@ go (Checker x r1 r2) = \pos anim -> do
     (al, a, ar) <- animBinary anim
     col1 <- go r1 pos al
     col2 <- go r2 pos ar
-    tmp <- vec2 "tmp" $ build x <> "*(1.0/sqrt(2.0)) * mat2(1.0,1.0,-1.0,1.0) * " <> pos
+    tmp <- vec2 "tmp" $ build x <> "* (vec2(1.0,0.0) + " <> pos <> ")"
     vec3 "col" $ ifThenElse
-        ("mod(" <> tmp <> ".x - 0.5 + 0.5 * " <> a <> ", 2.0) < " <> a <> " != " <>
-         "mod(" <> tmp <> ".y - 0.5 + 0.5 * " <> a <> ", 2.0) < " <> a)
+        ("abs(mod(" <> tmp <> ".x + 1.0, 2.0) - 1.0) + abs(mod(" <> tmp <> ".y, 2.0) - 1.0) < " <> a)
         col2 col1
 
 go (Rotate x r1) = \pos anim -> do
