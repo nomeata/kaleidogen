@@ -31,6 +31,9 @@ flag android
 flag clib
   default: False
 
+flag lambda
+  default: False
+
 
 -- The jsaddle-hello-world example file has a more elaborate
 -- setup including webkit and macos support. Removed for simplicity for now,
@@ -116,6 +119,9 @@ executable kaleidogen
   if !flag(jsaddle)
     buildable: False
 
+  if flag(lambda)
+    buildable: False
+
   ghc-options: -main-is Kaleidogen
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
 
@@ -137,6 +143,9 @@ executable kaleidogen-demo
   if !flag(jsaddle)
     buildable: False
 
+  if flag(lambda)
+    buildable: False
+
   ghc-options: -main-is Demo
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
 
@@ -149,6 +158,9 @@ executable kaleidogen-sdl
     buildable: False
 
   if flag(android) || !flag(sdl)
+    buildable: False
+
+  if flag(lambda)
     buildable: False
 
   ghc-options: -main-is KaleidogenSDL
@@ -164,6 +176,9 @@ executable kaleidogen-android-sdl
   if !flag(android) || !flag(sdl)
     buildable: False
 
+  if flag(lambda)
+    buildable: False
+
   ghc-options: -main-is Kaleidogen
 
 executable kaleidogen-headless
@@ -177,6 +192,10 @@ executable kaleidogen-headless
 
   if impl(ghcjs)
     buildable: False
+
+  if flag(lambda)
+    buildable: False
+
 
 executable kaleidogen-telegram
   import: static
@@ -198,6 +217,25 @@ executable kaleidogen-telegram
   if impl(ghcjs)
     buildable: False
 
+  if flag(lambda)
+    buildable: False
+
+executable kaleidogen-amazon-lambda
+  import: static
+  main-is: Lambda.hs
+  other-modules: GenPNG
+  build-depends: exceptions
+  build-depends: temporary
+  build-depends: typed-process
+  build-depends: aeson
+  build-depends: serverless-haskell
+  default-language:    Haskell2010
+
+  if impl(ghcjs)
+    buildable: False
+
+  if !flag(lambda)
+    buildable: False
 
 executable kaleidogen-android-clib
   -- #import: logic
@@ -242,6 +280,9 @@ executable kaleidogen-android-clib
     buildable: False
 
   if !flag(android) || !flag(clib)
+    buildable: False
+
+  if !flag(lambda)
     buildable: False
 
   --  ghc-options: -main-is KaleidogenAndroid
