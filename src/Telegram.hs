@@ -10,6 +10,7 @@ import qualified Data.Text.IO as T
 import Text.Printf
 import Options.Applicative
 import Control.Monad (join)
+import Control.Concurrent
 import System.IO.Temp
 import System.IO
 import System.Process.Typed
@@ -20,6 +21,7 @@ import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.IO.Class
 import Control.Monad.Catch
+import Control.Monad.Error.Class
 import Network.HTTP.Client      (newManager)
 import Network.HTTP.Client.TLS  (tlsManagerSettings)
 import Servant.Client.Internal.HttpClient (ClientM(..))
@@ -79,7 +81,15 @@ handleUpdate helper Update{ inline_query = Just q } = do
     liftIO $ putStrLn "answerInlineQuery failed"
 handleUpdate helper Update{ message = Just m } = do
   liftIO $ printf "message from %s: %s\n" (maybe "?" user_first_name (from m)) (maybe "" T.unpack (text m))
-  withPNGFile helper (hashMessage (fromMaybe "" (text m))) $ \pngFN -> do
+  if "/start" `T.isPrefixOf` fromMaybe "" (text m)
+  then do
+    rm <- sendMessageM $ sendMessageRequest (ChatId (chat_id (chat m))) $
+      "Hi! I am @KaleidogenBot. I will respond to every message from you with a new " <>
+      "nice pattern. Note that the same message will always produce the same pattern. " <>
+      "You can also go to https://kaleidogen.nomeata.de/ and breed these patterns."
+    return ()
+  else
+    withPNGFile helper (hashMessage (fromMaybe "" (text m))) $ \pngFN -> do
       rm <- uploadPhotoM $ uploadPhotoRequest
         (ChatId (chat_id (chat m)))
         (FileUpload (Just "image/png") (FileUploadFile pngFN))
@@ -91,20 +101,25 @@ handleUpdate _ u =
 poll :: String -> Maybe Int -> TelegramClient ()
 poll helper offset = do
   liftIO $ putStrLn "Polling"
-  updates <- getUpdatesM $ getUpdatesRequest
+  updates <- catchError (result <$> getUpdatesM getUpdatesRequest
     { updates_offset = offset
     , updates_allowed_updates = Just []
     , updates_limit = Just 1
     , updates_timeout = Just 10
-    }
-  if null (result updates)
+    }) (\r -> liftIO $ do
+       print r
+       threadDelay (10*1000*1000)
+       return []
+    )
+  if null updates
   then do
     liftIO $ putStrLn "No message"
     poll helper offset
   else do
     liftIO $ putStrLn "Got a message"
-    let u = head (result updates)
-    handleUpdate helper u
+    let u = head updates
+    catchError (handleUpdate helper u) $ \r ->
+       liftIO $ print r
     poll helper (Just (update_id u + 1))
 
 work :: String -> String -> IO ()
@@ -112,7 +127,7 @@ work helper token = do
   let t = Token ("bot" <> T.pack token)
   manager <- newManager tlsManagerSettings
   res <- runTelegramClient t manager $ poll helper Nothing
-  either print return res
+  either (putStrLn . ("failure: " ++) . show) return res
 
 
 deriving instance MonadMask ClientM
