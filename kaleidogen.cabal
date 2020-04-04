@@ -14,6 +14,7 @@ synopsis: Grow kaleidoscopes
 description:
 category: Games
 
+
 source-repository head
   type: git
   location: https://github.com/nomeata/kaleidogen
@@ -35,33 +36,37 @@ flag clib
 -- setup including webkit and macos support. Removed for simplicity for now,
 -- but should be evaluated later
 
-common logic
+common static
   hs-source-dirs: src
   other-modules: DNA
+  other-modules: RNA
+  other-modules: GLSL
+  other-modules: Shaders
+  other-modules: Expression
+  build-depends: hashable==1.2.*
+  build-depends: text
+  build-depends: hex-text
+  build-depends: bytestring
+  build-depends: base >=4.11 && <5
+  build-depends: MonadRandom ==0.5.*
+  build-depends: random-shuffle
+  build-depends: colour
+  build-depends: mtl
+
+common logic
+  import: static
+  hs-source-dirs: src
   other-modules: Logic
   other-modules: Mealy
   other-modules: Drag
   other-modules: DragAnim
   other-modules: Tween
-  other-modules: RNA
-  other-modules: GLSL
-  other-modules: Expression
   other-modules: SelectTwo
   other-modules: Program
-  other-modules: Shaders
   other-modules: Presentation
   other-modules: PresentationCmds
   other-modules: Layout
-  build-depends: base >=4.11 && <5
-  build-depends: MonadRandom ==0.5.*
-  build-depends: random-shuffle
-  build-depends: hashable ==1.2.*
   build-depends: containers
-  build-depends: text
-  build-depends: hex-text
-  build-depends: bytestring
-  build-depends: colour
-  build-depends: mtl
 
 common canvas-save
   hs-source-dirs: src
@@ -160,6 +165,39 @@ executable kaleidogen-android-sdl
     buildable: False
 
   ghc-options: -main-is Kaleidogen
+
+executable kaleidogen-headless
+  import: static
+  main-is: Headless.hs
+  other-modules: GenPNG
+  build-depends: optparse-applicative
+  build-depends: temporary
+  build-depends: typed-process
+  build-depends: exceptions
+
+  if impl(ghcjs)
+    buildable: False
+
+executable kaleidogen-telegram
+  import: static
+  main-is: Telegram.hs
+  other-modules: GenPNG
+  build-depends: optparse-applicative
+  build-depends: temporary
+  build-depends: typed-process
+  build-depends: telegram-api
+  build-depends: http-client
+  build-depends: http-client-tls
+  build-depends: servant-client
+  build-depends: transformers
+  build-depends: cryptonite
+  build-depends: memory
+  build-depends: exceptions
+  default-language:    Haskell2010
+
+  if impl(ghcjs)
+    buildable: False
+
 
 executable kaleidogen-android-clib
   -- #import: logic
