@@ -13,11 +13,13 @@ let compiler = "ghc865"; in
 let strip = true; in
 
 let
-  kaleidogen = { mkDerivation, base, stdenv,
+  kaleidogen-pkg = { mkDerivation, base, stdenv,
     MonadRandom, colour, exceptions,
     hashable, hex-text, random-shuffle,
     cryptonite, memory,
-    aeson, serverless-haskell, temporary, typed-process,
+    temporary, typed-process,
+    # aeson, serverless-haskell,
+    aeson, aws-lambda-haskell-runtime,
   }:
       mkDerivation {
         pname = "kaleidogen";
@@ -35,7 +37,9 @@ let
 	    MonadRandom colour exceptions
 	    hashable hex-text random-shuffle
 	    cryptonite memory
-	    aeson serverless-haskell temporary typed-process
+            temporary typed-process
+	    # aeson serverless-haskell
+            aeson aws-lambda-haskell-runtime
 	];
         license = stdenv.lib.licenses.bsd3;
         configureFlags = [
@@ -58,7 +62,17 @@ let
     };
   };
 
-  drv = haskellPackages.callPackage kaleidogen {};
+  kaleidogen = haskellPackages.callPackage kaleidogen-pkg {};
+
+  function-zip = pkgs.runCommandNoCC "kaleidogen-lambda" {
+    buildInputs = [ pkgs.zip ];
+  } ''
+    mkdir -p $out
+    cp ${kaleidogen}/bin/kaleidogen-amazon-lambda bootstrap
+    zip $out/function.zip bootstrap
+  '';
+
+  shell = kaleidogen.env;
 
 in
-  if pkgs.lib.inNixShell then drv.env else drv
+  { inherit kaleidogen function-zip shell; }
