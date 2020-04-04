@@ -7,6 +7,7 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
+import Text.Printf
 import Options.Applicative
 import Control.Monad (join)
 import System.IO.Temp
@@ -77,9 +78,8 @@ handleUpdate helper Update{ inline_query = Just q } = do
   unless (result r) $
     liftIO $ putStrLn "answerInlineQuery failed"
 handleUpdate helper Update{ message = Just m } = do
-  liftIO $ putStrLn $ "message: " ++ show (text m)
+  liftIO $ printf "message from %s: %s\n" (maybe "?" user_first_name (from m)) (maybe "" T.unpack (text m))
   withPNGFile helper (hashMessage (fromMaybe "" (text m))) $ \pngFN -> do
-      liftIO $ print pngFN
       rm <- uploadPhotoM $ uploadPhotoRequest
         (ChatId (chat_id (chat m)))
         (FileUpload (Just "image/png") (FileUploadFile pngFN))
