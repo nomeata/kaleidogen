@@ -234,10 +234,8 @@ int main(int argc, char *argv[])
 
   unsigned int vert_len;
   const char *vert_source = load_file(vert_file, &vert_len);
-  fprintf(stderr, "Foo: %s\n", vert_source);
   unsigned int frag_len;
   const char *frag_source = load_file(frag_file, &frag_len);
-  fprintf(stderr, "Foo: %s\n", frag_source);
 
   struct my_display dpy = get_display();
   struct my_config config = get_config(dpy);
