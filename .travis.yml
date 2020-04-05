@@ -39,7 +39,8 @@ before_install:
 
 install:
     # do not fail here, so that partial builds still warm the cache
-    - cabal new-build --ghcjs --dependencies-only kaleidogen || true
+    - cabal new-build --ghcjs --dependencies-only kaleidogen -fjsaddle -f-sdl -f-lambda
+|| true
 
 jobs:
   include:
