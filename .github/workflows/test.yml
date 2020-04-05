@@ -10,5 +10,9 @@ jobs:
     - uses: cachix/install-nix-action@v8
     - uses: cachix/cachix-action@v5
       with:
+        name: static-haskell-nix
+        skipNixBuild: true
+    - uses: cachix/cachix-action@v5
+      with:
         name: kaleidogen
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
