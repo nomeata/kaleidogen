@@ -60,7 +60,7 @@ main = join . customExecParser (prefs showHelpOnError) $
             )
 
 poll :: Maybe String -> Maybe Int -> TelegramClient ()
-poll Maybe helper offset = do
+poll helper offset = do
   liftIO $ putStrLn "Polling"
   updates <- catchError (result <$> getUpdatesM getUpdatesRequest
     { updates_offset = offset
@@ -84,7 +84,7 @@ poll Maybe helper offset = do
     poll helper (Just (update_id u + 1))
 
 work :: Maybe String -> String -> IO ()
-work Maybe helper token = do
+work helper token = do
   let t = Token ("bot" <> T.pack token)
   manager <- newManager tlsManagerSettings
   res <- runTelegramClient t manager $ poll helper Nothing
