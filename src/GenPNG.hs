@@ -36,7 +36,7 @@ genPNG helper bytes = case helper of
             T.hPutStr fragHandle frag
             hClose fragHandle
 
-            (pngData, err) <- readProcess_ (proc h ["1000","1000",vertexFile,fragFile])
+            (pngData, err) <- readProcess_ (proc h ["500","500",vertexFile,fragFile])
 
             return pngData
     Nothing -> pure $ img2Png (toImg rna)

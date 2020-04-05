@@ -201,8 +201,9 @@ executable kaleidogen-headless
 
 executable kaleidogen-telegram
   import: static
-  main-is: Telegram.hs
+  main-is: TelegramMain.hs
   other-modules: GenPNG
+  other-modules: Telegram
   build-depends: optparse-applicative
   build-depends: temporary
   build-depends: typed-process
@@ -228,14 +229,21 @@ executable kaleidogen-amazon-lambda
   main-is: Lambda.hs
   other-modules: GenPNG
   other-modules: Img
+  other-modules: Telegram
   build-depends: exceptions
   build-depends: temporary
   build-depends: typed-process
   build-depends: aeson
-  build-depends: directory
   build-depends: JuicyPixels
   build-depends: base64-bytestring
   build-depends: aws-lambda-haskell-runtime
+  build-depends: telegram-api
+  build-depends: http-client
+  build-depends: http-client-tls
+  build-depends: servant-client
+  build-depends: transformers
+  build-depends: cryptonite
+  build-depends: memory
   default-language:    Haskell2010
 
   if impl(ghcjs)

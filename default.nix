@@ -13,6 +13,68 @@ let compiler = "ghc865"; in
 let strip = true; in
 
 let
+  telegram-api-pkg = { mkDerivation, stdenv, fetchFromGitHub
+	    , aeson
+            , containers
+            , http-api-data
+            , http-client
+            , servant
+            , servant-client
+            , servant-client-core
+            , mtl
+            , text
+            , transformers
+            , http-media
+            , http-types
+            , mime-types
+            , string-conversions
+            , binary
+            , ansi-wl-pprint
+            , hjpath
+            , hspec
+            , http-client-tls
+            , optparse-applicative
+  }:
+      mkDerivation {
+        pname = "telegram-api";
+        version = "0.7.1.0";
+        src = fetchFromGitHub {
+          owner = "klappvisor";
+          repo = "haskell-telegram-api";
+          rev = "abbfd76c40f2783c113b660184a03cc94d58e751";
+          sha256 = "0mzhigdyj5jdwycmz587s05zp5c7wcf7njw3x866iln59kp0rgi3";
+        };
+        isLibrary = true;
+        isExecutable = false;
+        enableSharedExecutables = false;
+        enableSharedLibraries = false;
+        libraryHaskellDepends = [
+	    aeson
+            containers
+            http-api-data
+            http-client
+            servant
+            servant-client
+            servant-client-core
+            mtl
+            text
+            transformers
+            http-media
+            http-types
+            mime-types
+            string-conversions
+            binary
+            ansi-wl-pprint
+            hjpath
+            hspec
+            http-client-tls
+            optparse-applicative
+            servant-client
+	];
+        jailbreak = true;  # want servant-client-0.16.0.1, not 0.16
+        license = stdenv.lib.licenses.bsd3;
+      };
+
   kaleidogen-pkg = { mkDerivation, base, stdenv,
     MonadRandom, colour, exceptions,
     hashable, hex-text, random-shuffle,
@@ -20,6 +82,7 @@ let
     temporary, typed-process,
     aeson, aws-lambda-haskell-runtime,
     JuicyPixels, base64-bytestring,
+    telegram-api, servant-client,
   }:
       mkDerivation {
         pname = "kaleidogen";
@@ -38,9 +101,9 @@ let
 	    hashable hex-text random-shuffle
 	    cryptonite memory
             temporary typed-process
-	    # aeson serverless-haskell
             aeson aws-lambda-haskell-runtime
             JuicyPixels base64-bytestring
+	    telegram-api servant-client
 	];
         license = stdenv.lib.licenses.bsd3;
         configureFlags = [
@@ -60,6 +123,7 @@ let
     overrides = self: super: {
       # Dependencies we need to patch
       hpc-coveralls = appendPatch super.hpc-coveralls (builtins.fetchurl https://github.com/guillaume-nargeot/hpc-coveralls/pull/73/commits/344217f513b7adfb9037f73026f5d928be98d07f.patch);
+      telegram-api = self.callPackage telegram-api-pkg {};
     };
   };
 
