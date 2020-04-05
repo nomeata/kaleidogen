@@ -20,6 +20,7 @@ let
     temporary, typed-process,
     # aeson, serverless-haskell,
     aeson, aws-lambda-haskell-runtime,
+    JuicyPixels,
   }:
       mkDerivation {
         pname = "kaleidogen";
@@ -40,6 +41,7 @@ let
             temporary typed-process
 	    # aeson serverless-haskell
             aeson aws-lambda-haskell-runtime
+            JuicyPixels
 	];
         license = stdenv.lib.licenses.bsd3;
         configureFlags = [

@@ -185,10 +185,12 @@ executable kaleidogen-headless
   import: static
   main-is: Headless.hs
   other-modules: GenPNG
+  other-modules: Img
   build-depends: optparse-applicative
   build-depends: temporary
   build-depends: typed-process
   build-depends: exceptions
+  build-depends: JuicyPixels
 
   if impl(ghcjs)
     buildable: False
@@ -204,6 +206,7 @@ executable kaleidogen-telegram
   build-depends: optparse-applicative
   build-depends: temporary
   build-depends: typed-process
+  build-depends: JuicyPixels
   build-depends: telegram-api
   build-depends: http-client
   build-depends: http-client-tls
@@ -229,6 +232,7 @@ executable kaleidogen-amazon-lambda
   build-depends: typed-process
   build-depends: aeson
   build-depends: directory
+  build-depends: JuicyPixels
   -- build-depends: serverless-haskell
   build-depends: aws-lambda-haskell-runtime
   default-language:    Haskell2010

@@ -14,27 +14,31 @@ import DNA
 import Expression
 import GLSL
 import Shaders
+import Img
 
-genPNG :: String -> BS.ByteString -> IO LBS.ByteString
-genPNG helper bytes = do
-    let dna = BS.unpack bytes
-    let rna = dna2rna dna
-    let vert = circularVertexShader
-    let frag = toFragmentShader rna
+genPNG :: Maybe String -> BS.ByteString -> IO LBS.ByteString
+genPNG helper bytes = case helper of
+    Just h -> do
+        let vert = circularVertexShader
+        let frag = toFragmentShader rna
 
-    withSystemTempFile "kaleidogen.vert" $ \vertexFile vertexHandle ->
-        withSystemTempFile "kaleidogen.frag" $ \fragFile fragHandle -> do
+        withSystemTempFile "kaleidogen.vert" $ \vertexFile vertexHandle ->
+          withSystemTempFile "kaleidogen.frag" $ \fragFile fragHandle -> do
             T.hPutStr vertexHandle vert
             hClose vertexHandle
 
             T.hPutStr fragHandle frag
             hClose fragHandle
 
-            (pngData, err) <- readProcess_ (proc helper ["1000","1000",vertexFile,fragFile])
+            (pngData, err) <- readProcess_ (proc h ["1000","1000",vertexFile,fragFile])
 
             return pngData
+    Nothing -> pure $ img2Png (toImg rna)
+  where
+    dna = BS.unpack bytes
+    rna = dna2rna dna
 
-withPNGFile :: (MonadIO m, MonadMask m) => String -> BS.ByteString -> (FilePath -> m a) -> m a
+withPNGFile :: (MonadIO m, MonadMask m) => Maybe String -> BS.ByteString -> (FilePath -> m a) -> m a
 withPNGFile helper bytes k =
     withSystemTempFile "kaleidogen.png" $ \f h -> do
         liftIO $ do

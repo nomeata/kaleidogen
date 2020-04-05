@@ -1,56 +1,133 @@
+{-# LANGUAGE DoAndIfThenElse #-}
 module Img where
 
+import Data.Fixed (mod')
 import Data.Complex
 import Data.Colour
 import Data.Colour.CIE
 import Data.Colour.SRGB
 import Data.Colour.Names
+import qualified Data.ByteString.Lazy as BS
+import Debug.Trace
+
+import Codec.Picture
 
 import RNA
 
--- Function evaluator (not actually used at the moment)
+-- Functional evaluator
 
-type Img = Complex Double -> Colour Double
+type C = (Double, Double, Double)
 
-scale :: Img -> Img
-scale i c = i (c / 0.8)
-
-mix :: (Complex Double -> Bool) -> Img -> Img -> Img
-mix p i1 i2 c = if p c then i1 c else i2 c
-
-brightness :: Colour Double -> Double
-brightness c = (luminance c) ^ 2
+type Img = Complex Double -> Maybe C
+type Pattern = Complex Double -> C
 
 toImg :: RNA -> Img
-toImg (Op0 o)          = op0Img o
-toImg (Op1 o i1)       = op1Img o (toImg i1)
-toImg (Op2 o i1 i2)    = op2Img o (toImg i1) (toImg i2)
-toImg (Op3 o i1 i2 i3) = op3Img o (toImg i1) (toImg i2) (toImg i3)
+toImg r = \pos ->
+    if magnitude pos > 1.0
+    then Nothing
+    else Just (i pos)
+  where
+    i = go r
 
-op0Img :: Op0 -> Img
-op0Img (Solid col) = f
-  where f c | magnitude c > 1 = black
-            | otherwise       = col
-op0Img Gradient = f
-  where f c | magnitude c > 1 = black
-            | otherwise       = blend (1 - magnitude c) black white
+tween :: Double -> C -> C -> C
+tween x (a1, b1, c1) (a2, b2, c2) =
+  ( (1 - x) * a1 + x * a2
+  , (1 - x) * b1 + x * b2
+  , (1 - x) * c1 + x * c2
+  )
 
-op2Img Before fb bg = mix ((<0.8) . magnitude) (scale fb) bg
-op2Img (Rays n) i1 i2 = mix (\c -> even (round (phase c / pi * fromIntegral n))) i1 i2
-op2Img Checker i1 i2 = mix f i1 i2
-  where f c = let c' = c * cis (pi/4) * 6
-              in even (round (realPart c') + round (imagPart c'))
 
-op1Img Inv i = \c -> i $
-    let (m,p) = polar c in
-    if m > 1 then c else mkPolar (1 - m) p
-op1Img (Swirl x) i = \c -> i $
-    let (m,p) = polar c in
-    mkPolar m (p + (1-m) * x)
+go :: RNA -> Pattern
+go (Solid color) = const (r,g,b)
+  where
+    RGB r g b = color
 
-op3Img Blur i1 i2 i3 = \c ->
-    blend (brightness (i1 c)) (i2 c) (i3 c)
+go (Blend x r1 r2) = error "blend" (\pos -> tween x (i1 pos) (i2 pos))
+  where
+    i1 = go r1
+    i2 = go r2
 
+go (Checker x r1 r2) = \pos -> do
+    let (tmpx :+ tmpy) = realToFrac x * ((1.0 :+ 0.0) + pos)
+    if abs ((tmpx + 1) `mod'` 2 - 1) + abs (tmpy `mod'` 2 - 1) < 1
+      then i1 pos
+      else i2 pos
+  where
+    i1 = go r1
+    i2 = go r2
+
+go (Rotate x r1) = \pos -> do
+    let p' = phase pos
+    let pos' = mkPolar (magnitude pos) p'
+    i1 pos'
+  where
+    i1 = go r1
+
+go (Invert r1) = \pos -> do
+    let mag = magnitude pos
+    let mag' = 1 - mag
+    let pos' = mkPolar mag' (phase pos)
+    i1 pos'
+  where
+    i1 = go r1
+
+go (Swirl x r1) = \pos -> do
+    let mag = magnitude pos
+    let phase' = phase pos + (1.0 - mag) * x
+    let pos' = mkPolar mag phase'
+    i1 pos'
+  where
+    i1 = go r1
+
+go (Dilated r r1) = \pos -> do
+    let p = phase pos
+    let mag = magnitude pos
+    let phase' = p + 1/fromIntegral r * sin (p * fromIntegral r)
+    let pos' = mkPolar mag phase'
+    i1 pos'
+  where
+    i1 = go r1
+
+
+go (Rays r r1 r2) = \pos ->
+    if (phase pos / pi * fromIntegral r + 0.5) `mod'` 2 < 1
+    then i1 pos
+    else i2 pos
+  where
+    i1 = go r1
+    i2 = go r2
+
+go (Gradient r1 r2) = \pos ->
+    tween (magnitude pos) (i1 pos) (i2 pos)
+  where
+    i1 = go r1
+    i2 = go r2
+
+go (Ontop x r1 r2) = \pos -> do
+    let pos1 = realToFrac (1/x) * pos
+    if magnitude pos < x
+    then i1 pos1 else i2 pos
+  where
+    i1 = go r1
+    i2 = go r2
+
+
+
+img2Png :: Img -> BS.ByteString
+img2Png i = encodePng $ generateImage go w h
+  where
+    w = 1000
+    h = 1000
+    go :: Int -> Int -> PixelRGBA8
+    go x y = do
+      let x' = 2 * fromIntegral x / fromIntegral w - 1
+      let y' = 2 * fromIntegral y / fromIntegral h - 1
+      case i (x' :+ y') of
+        Nothing -> PixelRGBA8 0 0 0 0
+        Just (x,y,z) -> PixelRGBA8 (clamp x) (clamp y) (clamp z) 255
+
+    clamp :: Double -> Pixel8
+    clamp = fromIntegral . max (0::Int) . min 255 . round . (* 256)
 
 -- For reference: Parts of the rendering code
 

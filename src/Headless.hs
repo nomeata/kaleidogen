@@ -22,11 +22,18 @@ main = join . customExecParser (prefs showHelpOnError) $
     parser :: Parser (IO ())
     parser =
       work
-        <$> strOption
+        <$> (
+          Just <$> strOption
             (  long "helper"
             <> metavar "PATH"
             <> help "path to kaleidogen-gl-runner"
             )
+          <|>
+          flag' Nothing
+            (  long "pure"
+            <> help "use pure Haskell"
+            )
+          )
         <*> strOption
             (  long "hex"
             <> metavar "HEX"
@@ -39,7 +46,7 @@ main = join . customExecParser (prefs showHelpOnError) $
             <> help "file to write"
             )
 
-work :: String -> String -> String -> IO ()
+work :: Maybe String -> String -> String -> IO ()
 work helper hex out = do
     bytes <- maybe (error "Not a valid hex string") return $ T.decodeHex (T.pack hex)
     pngData <- genPNG helper bytes
