@@ -18,20 +18,12 @@ import RNA
 
 -- Functional evaluator
 
-{-
-div' :: Double -> Double -> Int
-div' n d = floor (toRational n / toRational d)
-{-# INLINE div' #-}
+-- more efficient than Data.Fixed.fmod (I believe)
+foreign import ccall unsafe "math.h fmod" c_fmod :: Double -> Double -> Double
 
-mod' :: Double -> Double -> Double
-mod' n d = n - fromIntegral f * d where
-    f = div' n d
-{-# INLINE mod' #-}
--}
-
-foreign import ccall unsafe "math.h fmod" fmod :: Double -> Double -> Double
-
-x `mod'` y = let z = fmod x y in
+fmod :: Double -> Double -> Double
+x `fmod` y =
+  let z = c_fmod x y in
   if z < 0 then z + y else z
 
 data C = C {-# UNPACK #-} !Double {-# UNPACK #-} !Double {-# UNPACK #-} !Double
@@ -53,7 +45,6 @@ tween x (C a1 b1 c1) (C a2 b2 c2) = C
   ((1 - x) * b1 + x * b2)
   ((1 - x) * c1 + x * c2)
 
-
 go :: RNA -> Pattern
 go _ (!pos) | False = undefined
 
@@ -65,7 +56,7 @@ go (Blend x r1 r2) _pos = error "blend"
 
 go (Checker x r1 r2) pos = do
     let !(tmpx :+ tmpy) = realToFrac x * ((1.0 :+ 0.0) + pos)
-    if abs ((tmpx + 1) `mod'` 2 - 1) + abs (tmpy `mod'` 2 - 1) < 1
+    if abs ((tmpx + 1) `fmod` 2 - 1) + abs (tmpy `fmod` 2 - 1) < 1
       then i1 pos
       else i2 pos
   where
@@ -106,7 +97,7 @@ go (Dilated r r1) pos = do
 
 
 go (Rays r r1 r2) pos =
-    if (phase pos / pi * fromIntegral r + 0.5) `mod'` 2 < 1
+    if (phase pos / pi * fromIntegral r + 0.5) `fmod` 2 < 1
     then i1 pos
     else i2 pos
   where
