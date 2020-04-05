@@ -246,7 +246,6 @@ int main(int argc, char *argv[])
 
   eglMakeCurrent(dpy.egl, window.egl, window.egl, eglCtx);
 
-  glClearColor(1.0, 1.0, 1.0, 0.0);
 
   GLuint vao;
   glGenVertexArrays(1, &vao);
@@ -271,6 +270,7 @@ int main(int argc, char *argv[])
 
   glViewport(0, 0, width, height);
 
+  glClearColor(1.0, 1.0, 1.0, 0.0);
   glClear(GL_COLOR_BUFFER_BIT);
 
   GLuint vertexShader;

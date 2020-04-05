@@ -57,8 +57,8 @@ go (Blend x r1 r2) _pos = error "blend"
 go (Checker x r1 r2) pos = do
     let !(tmpx :+ tmpy) = realToFrac x * ((1.0 :+ 0.0) + pos)
     if abs ((tmpx + 1) `fmod` 2 - 1) + abs (tmpy `fmod` 2 - 1) < 1
-      then i1 pos
-      else i2 pos
+      then i2 pos
+      else i1 pos
   where
     i1 = go r1
     i2 = go r2
@@ -98,8 +98,8 @@ go (Dilated r r1) pos = do
 
 go (Rays r r1 r2) pos =
     if (phase pos / pi * fromIntegral r + 0.5) `fmod` 2 < 1
-    then i1 pos
-    else i2 pos
+    then i2 pos
+    else i1 pos
   where
     i1 = go r1
     i2 = go r2
@@ -129,7 +129,7 @@ img2Png i = encodePng $ generateImage go w h
     go x y = do
       let x' = 2 * fromIntegral x / fromIntegral w - 1
       let y' = 2 * fromIntegral y / fromIntegral h - 1
-      case i (x' :+ y') of
+      case i (y' :+ x') of
         Nothing -> PixelRGBA8 0 0 0 0
         Just (C x y z) -> PixelRGBA8 (clamp x) (clamp y) (clamp z) 255
 
