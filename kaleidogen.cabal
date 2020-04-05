@@ -56,6 +56,14 @@ common static
   build-depends: colour
   build-depends: mtl
 
+common png
+  other-modules: GenPNG
+  other-modules: Img
+  build-depends: temporary
+  build-depends: typed-process
+  build-depends: exceptions
+  build-depends: JuicyPixels
+
 common logic
   import: static
   hs-source-dirs: src
@@ -182,15 +190,9 @@ executable kaleidogen-android-sdl
   ghc-options: -main-is Kaleidogen
 
 executable kaleidogen-headless
-  import: static
+  import: static, png
   main-is: Headless.hs
-  other-modules: GenPNG
-  other-modules: Img
   build-depends: optparse-applicative
-  build-depends: temporary
-  build-depends: typed-process
-  build-depends: exceptions
-  build-depends: JuicyPixels
 
   if impl(ghcjs)
     buildable: False
@@ -200,14 +202,10 @@ executable kaleidogen-headless
 
 
 executable kaleidogen-telegram
-  import: static
+  import: static, png
   main-is: TelegramMain.hs
-  other-modules: GenPNG
   other-modules: Telegram
   build-depends: optparse-applicative
-  build-depends: temporary
-  build-depends: typed-process
-  build-depends: JuicyPixels
   build-depends: telegram-api
   build-depends: http-client
   build-depends: http-client-tls
@@ -215,7 +213,6 @@ executable kaleidogen-telegram
   build-depends: transformers
   build-depends: cryptonite
   build-depends: memory
-  build-depends: exceptions
   default-language:    Haskell2010
 
   if impl(ghcjs)
@@ -225,16 +222,10 @@ executable kaleidogen-telegram
     buildable: False
 
 executable kaleidogen-amazon-lambda
-  import: static
+  import: static, png
   main-is: Lambda.hs
-  other-modules: GenPNG
-  other-modules: Img
   other-modules: Telegram
-  build-depends: exceptions
-  build-depends: temporary
-  build-depends: typed-process
   build-depends: aeson
-  build-depends: JuicyPixels
   build-depends: base64-bytestring
   build-depends: aws-lambda-haskell-runtime
   build-depends: telegram-api
