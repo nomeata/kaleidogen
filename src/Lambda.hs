@@ -62,9 +62,6 @@ data Response = Response
     , isBase64Encoded :: Bool
     } deriving (Generic, ToJSON)
 
-html :: String
-html = "<h1>Hello World</h1>"
-
 isImgPath :: T.Text -> Maybe T.Text
 isImgPath  = T.stripPrefix "/img/" >=> T.stripSuffix ".png"
 
