@@ -40,37 +40,21 @@ hashMessage t = BS.take len s
     len = fromIntegral x `mod` 20
 
 handleUpdate :: Maybe String -> Update -> TelegramClient ()
-handleUpdate helper Update{ inline_query = Just q } = do
-  liftIO $ putStrLn $ "inline query: " ++ show (query_query q)
-  r <- answerInlineQueryM $
-    (answerInlineQueryRequest (query_id q)
-    [ (inlineQueryResultPhoto
-        ("testid" <> query_query q)
-        "https://www.joachim-breitner.de/various/free-paradoxes.jpg"
-        "https://www.joachim-breitner.de/various/free-paradoxes.jpg"
-      ) { iq_res_title = Just "An image!"
-        , iq_res_photo_width = Just 1000
-        , iq_res_photo_height = Just 1000
-        }
-    ]
-    ){ query_cache_time = Just 0 }
-  unless (result r) $
-    liftIO $ putStrLn "answerInlineQuery failed"
 handleUpdate helper Update{ message = Just m } = do
+  let c = ChatId (chat_id (chat m))
   liftIO $ printf "message from %s: %s\n" (maybe "?" user_first_name (from m)) (maybe "" T.unpack (text m))
   if "/start" `T.isPrefixOf` fromMaybe "" (text m)
   then do
-    rm <- sendMessageM $ sendMessageRequest (ChatId (chat_id (chat m))) $
+    rm <- sendMessageM $ sendMessageRequest c $
       "Hi! I am @KaleidogenBot. I will respond to every message from you with a new " <>
       "nice pattern. Note that the same message will always produce the same pattern. " <>
       "You can also go to https://kaleidogen.nomeata.de/ and breed these patterns."
     return ()
-  else
+  else do
+    m1 <- sendMessageM $ sendMessageRequest c "One moment…"
     withPNGFile helper (hashMessage (fromMaybe "" (text m))) $ \pngFN -> do
-      rm <- uploadPhotoM $ uploadPhotoRequest
-        (ChatId (chat_id (chat m)))
+      m2 <- uploadPhotoM $ uploadPhotoRequest c
         (FileUpload (Just "image/png") (FileUploadFile pngFN))
-      -- liftIO $ print rm
       return ()
 handleUpdate _ u =
   liftIO $ putStrLn $ "Unhandled message: " ++ show u
