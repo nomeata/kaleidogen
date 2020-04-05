@@ -227,13 +227,14 @@ executable kaleidogen-amazon-lambda
   import: static
   main-is: Lambda.hs
   other-modules: GenPNG
+  other-modules: Img
   build-depends: exceptions
   build-depends: temporary
   build-depends: typed-process
   build-depends: aeson
   build-depends: directory
   build-depends: JuicyPixels
-  -- build-depends: serverless-haskell
+  build-depends: base64-bytestring
   build-depends: aws-lambda-haskell-runtime
   default-language:    Haskell2010
 

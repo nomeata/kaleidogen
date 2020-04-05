@@ -18,9 +18,8 @@ let
     hashable, hex-text, random-shuffle,
     cryptonite, memory,
     temporary, typed-process,
-    # aeson, serverless-haskell,
     aeson, aws-lambda-haskell-runtime,
-    JuicyPixels,
+    JuicyPixels, base64-bytestring,
   }:
       mkDerivation {
         pname = "kaleidogen";
@@ -41,7 +40,7 @@ let
             temporary typed-process
 	    # aeson serverless-haskell
             aeson aws-lambda-haskell-runtime
-            JuicyPixels
+            JuicyPixels base64-bytestring
 	];
         license = stdenv.lib.licenses.bsd3;
         configureFlags = [

@@ -16,6 +16,12 @@ import GLSL
 import Shaders
 import Img
 
+genPurePNG :: BS.ByteString -> LBS.ByteString
+genPurePNG bytes = img2Png $ toImg rna
+  where
+    dna = BS.unpack bytes
+    rna = dna2rna dna
+
 genPNG :: Maybe String -> BS.ByteString -> IO LBS.ByteString
 genPNG helper bytes = case helper of
     Just h -> do
