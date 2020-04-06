@@ -162,7 +162,7 @@ let
   ghcjsPackages = pkgs.haskell.packages.ghcjs86;
   kaleidogen-web = ghcjsPackages.callPackage kaleidogen-web-pkg {};
 
-  shell = kaleidogen.env.overrideAttrs(old: {
+  shell = kaleidogen-lambda.env.overrideAttrs(old: {
     preferLocalBuild = true;
     allowSubstitutes = true;
   });
