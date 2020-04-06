@@ -60,7 +60,7 @@ go (Checker x r1 r2) pos = do
     i2 = go r2
 
 go (Rotate x r1) pos = do
-    let p' = phase pos
+    let p' = phase pos + x
     let pos' = mkPolar (magnitude pos) p'
     i1 pos'
   where
