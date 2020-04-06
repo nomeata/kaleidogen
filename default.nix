@@ -75,7 +75,7 @@ let
         license = stdenv.lib.licenses.bsd3;
       };
 
-  kaleidogen-pkg = { mkDerivation, base, stdenv,
+  kaleidogen-lambda-pkg = { mkDerivation, base, stdenv,
     MonadRandom, colour, exceptions,
     hashable, hex-text, random-shuffle,
     cryptonite, memory,
@@ -85,7 +85,7 @@ let
     telegram-api, servant-client,
   }:
       mkDerivation {
-        pname = "kaleidogen";
+        pname = "kaleidogen-lambda";
         version = "0.1.0.0";
         src = pkgs.lib.sourceByRegex ./. [
           ".*\.cabal$"
@@ -117,9 +117,8 @@ let
         ] ;
       };
 
-  normalHaskellPackages = pkgs.haskell.packages.${compiler};
 
-  haskellPackages = with pkgs.haskell.lib; normalHaskellPackages.override {
+  haskellPackages = with pkgs.haskell.lib; pkgs.haskell.packages.${compiler}.override {
     overrides = self: super: {
       # Dependencies we need to patch
       hpc-coveralls = appendPatch super.hpc-coveralls (builtins.fetchurl https://github.com/guillaume-nargeot/hpc-coveralls/pull/73/commits/344217f513b7adfb9037f73026f5d928be98d07f.patch);
@@ -127,20 +126,20 @@ let
     };
   };
 
-  kaleidogen = haskellPackages.callPackage kaleidogen-pkg {};
+  kaleidogen-lambda = haskellPackages.callPackage kaleidogen-lambda-pkg {};
 
-  function-zip = pkgs.runCommandNoCC "kaleidogen-lambda" {
+  function-zip = pkgs.runCommandNoCC "kaleidogen-function.zip" {
     buildInputs = [ pkgs.zip ];
   } ''
     mkdir -p $out
-    cp ${kaleidogen}/bin/kaleidogen-amazon-lambda bootstrap
+    cp ${kaleidogen-lambda}/bin/kaleidogen-amazon-lambda bootstrap
     zip $out/function.zip bootstrap
   '';
 
-  shell = kaleidogen.env.overrideAttrs(old: {
+  shell = kaleidogen-lambda.env.overrideAttrs(old: {
     preferLocalBuild = true;
     allowSubstitutes = true;
   });
 
 in
-  { inherit kaleidogen function-zip shell; }
+  { inherit kaleidogen-lambda function-zip shell; }
