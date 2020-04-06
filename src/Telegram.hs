@@ -44,8 +44,7 @@ handleUpdate helper Update{ message = Just m } = do
     _rm2 <- sendGameM $ sendGameRequest (fromIntegral (chat_id (chat m))) "kaleidogen"
 
     return ()
-  else do
-    _m1 <- sendMessageM $ sendMessageRequest c "One moment…"
+  else
     withPNGFile helper (hashMessage (fromMaybe "" (text m))) $ \pngFN -> do
       _m2 <- uploadPhotoM $ uploadPhotoRequest c
         (FileUpload (Just "image/png") (FileUploadFile pngFN))
