@@ -35,10 +35,14 @@ handleUpdate helper Update{ message = Just m } = do
   liftIO $ printf "message from %s: %s\n" (maybe "?" user_first_name (from m)) (maybe "" T.unpack (text m))
   if "/start" `T.isPrefixOf` fromMaybe "" (text m)
   then do
-    _rm <- sendMessageM $ sendMessageRequest c $
+    _rm1 <- sendMessageM $ sendMessageRequest c $
       "Hi! I am @KaleidogenBot. I will respond to every message from you with a new " <>
       "nice pattern. Note that the same message will always produce the same pattern. " <>
-      "You can also go to https://kaleidogen.nomeata.de/ and breed these patterns."
+      "You can also go to https://kaleidogen.nomeata.de/ and breed these patterns. Or " <>
+      "just play below, directly in Telegram (you can share that game, too!):"
+
+    _rm2 <- sendGameM $ sendGameRequest (fromIntegral (chat_id (chat m))) "kaleidogen"
+
     return ()
   else do
     _m1 <- sendMessageM $ sendMessageRequest c "One moment…"
@@ -49,6 +53,7 @@ handleUpdate helper Update{ message = Just m } = do
 handleUpdate _helper Update{ callback_query = Just q } |
   Just "kaleidogen" <- cq_game_short_name q
   = do
+  liftIO $ printf "callback query from %s\n" (user_first_name (cq_from q))
   _ <- answerCallbackQueryM $
     (answerCallbackQueryRequest (cq_id q))
     { cq_url = Just "https://kaleidogen.nomeata.de/"
