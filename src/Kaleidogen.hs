@@ -18,8 +18,10 @@ import Data.Functor
 import GHCJS.DOM.Types hiding (Text)
 import GHCJS.DOM
 import GHCJS.DOM.Element
-import GHCJS.DOM.Document
+import GHCJS.DOM.Document hiding (getLocation)
+import GHCJS.DOM.Window (getLocation)
 import GHCJS.DOM.Performance
+import GHCJS.DOM.Location (getHash)
 import GHCJS.DOM.GlobalPerformance
 import GHCJS.DOM.NonElementParentNode
 import GHCJS.DOM.EventM
@@ -59,13 +61,16 @@ runInBrowser toShader go = do
 
     drawShaderCircles <- shaderCanvas toShader canvas
 
+    loc <- getLocation win
+    isTelegram <- ("tgShareScoreUrl" `T.isInfixOf`) <$> getHash loc
 
-    let setCanDelete True = setClassName del (""::Text)
-        setCanDelete False = setClassName del ("hidden"::Text)
-    let setCanSave True = setClassName save (""::Text)
-        setCanSave False = setClassName save ("hidden"::Text)
-    let setCanAnim True = setClassName anim (""::Text)
-        setCanAnim False = setClassName anim ("hidden"::Text)
+    let showIf e True  = setClassName e (""::Text)
+        showIf e False = setClassName e ("hidden"::Text)
+
+        setCanDelete = showIf del
+        setCanSave = showIf save . (not isTelegram &&)
+        setCanAnim = showIf anim
+
     let currentWindowSize = querySize canvas
     let getCurrentTime = now perf
     let doSave filename toDraw = saveToPNG toShader toDraw filename
