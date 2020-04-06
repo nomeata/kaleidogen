@@ -169,4 +169,6 @@ let
   });
 
 in
-  { inherit kaleidogen-lambda kaleidogen-web function-zip shell; }
+  { inherit kaleidogen-lambda kaleidogen-web function-zip shell;
+    ghcjs = ghcjsPkgs.haskell.compiler.ghcjs86;
+  }
