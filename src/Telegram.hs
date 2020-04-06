@@ -46,6 +46,15 @@ handleUpdate helper Update{ message = Just m } = do
       _m2 <- uploadPhotoM $ uploadPhotoRequest c
         (FileUpload (Just "image/png") (FileUploadFile pngFN))
       return ()
+handleUpdate _helper Update{ callback_query = Just q } |
+  Just "kaleidogen" <- cq_game_short_name q
+  = do
+  _ <- answerCallbackQueryM $
+    (answerCallbackQueryRequest (cq_id q))
+    { cq_url = Just "http://kaleidogen.nomeata.de/"
+    }
+  return ()
+
 handleUpdate _ u =
   liftIO $ putStrLn $ "Unhandled message: " ++ show u
 
