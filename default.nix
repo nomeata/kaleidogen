@@ -137,7 +137,10 @@ let
     zip $out/function.zip bootstrap
   '';
 
-  shell = kaleidogen.env;
+  shell = kaleidogen.env.overrideAttrs(old: {
+    preferLocalBuild = true;
+    allowSubstitutes = true;
+  });
 
 in
   { inherit kaleidogen function-zip shell; }
