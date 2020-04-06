@@ -16,3 +16,15 @@ jobs:
       with:
         name: kaleidogen
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+    - name: Build binary
+      run:
+      - nix-build -A function-zip -o function
+      - zipinfo function/function.zip
+    - name: default deploy
+      uses: appleboy/lambda-action@master
+      with:
+        aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws_region: ${{ secrets.AWS_REGION }}
+        function_name: kaleidogen
+        zip_file: function/function.zip
