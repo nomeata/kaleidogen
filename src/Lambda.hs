@@ -5,17 +5,15 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-orphans  #-}
 
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Lazy.Char8 as BSC (pack)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Text.Hex as T (decodeHex)
 import qualified Data.ByteString.Base64.Lazy as Base64
 import Control.Monad
 import Aws.Lambda
-import Aws.Lambda.Runtime
 import GHC.Generics
 import Data.Aeson
 import Data.Maybe
@@ -29,7 +27,8 @@ import Telegram
 
 type TC = (Token, Manager)
 
-runTC (token, manager) = runTelegramClient token manager
+runTC :: TC -> TelegramClient () -> IO ()
+runTC (token, manager) act = void $ runTelegramClient token manager act
 
 getTelegramSettings :: IO TC
 getTelegramSettings = do
@@ -66,7 +65,7 @@ isImgPath :: T.Text -> Maybe T.Text
 isImgPath  = T.stripPrefix "/img/" >=> T.stripSuffix ".png"
 
 handler :: TC -> Event -> Context -> IO (Either String Response)
-handler tc Event{body, path} context
+handler tc Event{body, path} _context
     | Just bytes <- isImgPath path >>= T.decodeHex = do
         let pngData = genPurePNG bytes
         pure $ Right Response
@@ -78,7 +77,7 @@ handler tc Event{body, path} context
             , body = T.decodeUtf8 $ LBS.toStrict $ Base64.encode pngData
             }
 
-    | Just hex <- isImgPath path =
+    | Just _hex <- isImgPath path =
         pure $ Right Response
             { statusCode = 400
             , headers = object [

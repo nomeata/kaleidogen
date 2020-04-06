@@ -4,13 +4,11 @@ import Control.Monad.Catch
 import Control.Monad.IO.Class
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import System.IO.Temp
 import System.IO
 import System.Process.Typed
 
-import DNA
 import Expression
 import GLSL
 import Shaders
@@ -36,7 +34,7 @@ genPNG helper bytes = case helper of
             T.hPutStr fragHandle frag
             hClose fragHandle
 
-            (pngData, err) <- readProcess_ (proc h ["512","512",vertexFile,fragFile])
+            (pngData, _err) <- readProcess_ (proc h ["512","512",vertexFile,fragFile])
 
             return pngData
     Nothing -> pure $ img2Png (toImg rna)

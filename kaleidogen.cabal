@@ -237,6 +237,8 @@ executable kaleidogen-amazon-lambda
   build-depends: memory
   default-language:    Haskell2010
 
+  ghc-options: -Wall
+
   if impl(ghcjs)
     buildable: False
 
