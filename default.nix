@@ -5,7 +5,7 @@ with
       };
   };
 let pkgs = (import (sources.nixpkgs-static + "/survey/default.nix") {}).pkgs; in
-#let nixpkgs = (import sources.nixpkgs { overlays = [ overlay ] ; config = {}; }); in
+
 #let nixpkgs = import (sources.nixpkgs-static + "/nixpkgs.nix"); in
 #let pkgs = nixpkgs.pkgsMusl; in
 
@@ -159,8 +159,9 @@ let
     zip $out/function.zip bootstrap
   '';
 
-  ghcjsPackages = pkgs.haskell.packages.ghcjs86;
-  kaleidogen-web = ghcjsPackages.callPackage kaleidogen-web-pkg {};
+  ghcjsPkgs = import sources.nixpkgs {};
+  ghcjsHaskellPackages = ghcjsPkgs.haskell.packages.ghcjs86;
+  kaleidogen-web = ghcjsHaskellPackages.callPackage kaleidogen-web-pkg {};
 
   shell = kaleidogen-lambda.env.overrideAttrs(old: {
     preferLocalBuild = true;
