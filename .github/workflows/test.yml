@@ -3,24 +3,28 @@ on:
   pull_request:
   push:
 jobs:
-  tests:
+  lambda:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - uses: cachix/install-nix-action@v8
-    - uses: cachix/cachix-action@v5
+    - name: Add static-haskell-nix
+      uses: cachix/cachix-action@v5
       with:
         name: static-haskell-nix
         skipNixBuild: true
-    - uses: cachix/cachix-action@v5
+    - name: Build kaleidogen-lambda
+      uses: cachix/cachix-action@v5
       with:
         name: kaleidogen
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
-    - name: Build binary
+        attributes: kaleidogen-lambda
+    - name: Build zipfile
       run: |
        nix-build -A function-zip -o function
        cp function/function.zip .
-    - name: default deploy
+    - if: env.BRANCH == 'master'
+      name: Deploy to Amazon Lambda
       uses: appleboy/lambda-action@master
       with:
         aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
