@@ -51,7 +51,7 @@ handleUpdate _helper Update{ callback_query = Just q } |
   = do
   _ <- answerCallbackQueryM $
     (answerCallbackQueryRequest (cq_id q))
-    { cq_url = Just "http://kaleidogen.nomeata.de/"
+    { cq_url = Just "https://kaleidogen.nomeata.de/"
     }
   return ()
 
