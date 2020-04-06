@@ -34,8 +34,8 @@ jobs:
       run: |
        nix-build -A function-zip -o function
        cp function/function.zip .
-    - if: env.BRANCH == 'master'
-      name: Deploy to Amazon Lambda
+    - name: Deploy to Amazon Lambda
+      if: github.ref == 'refs/heads/master'
       uses: appleboy/lambda-action@master
       with:
         aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
