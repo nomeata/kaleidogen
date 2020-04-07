@@ -27,6 +27,7 @@ jobs:
         ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         BRANCH: gh-pages
         FOLDER: gh-page
+        SINGLE_COMMIT: true
 
   lambda:
     runs-on: ubuntu-latest
