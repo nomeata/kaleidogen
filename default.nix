@@ -197,12 +197,22 @@ let
   };
   kaleidogen-web = ghcjsHaskellPackages.callPackage kaleidogen-web-pkg {};
 
+  gh-page = pkgs.runCommandNoCC "gh-page" {} ''
+    mkdir -p $out
+    cp -rv ${kaleidogen-web}/bin/kaleidogen.jsexe/* $out
+    cp -rv ${kaleidogen-web}/bin/kaleidogen-demo.jsexe $out/demo
+  '';
+
   shell = kaleidogen-lambda.env.overrideAttrs(old: {
     preferLocalBuild = true;
     allowSubstitutes = true;
   });
 
 in
-  { inherit kaleidogen-lambda kaleidogen-web function-zip shell;
-    ghcjs = ghcjsPkgs.haskell.compiler.ghcjs86;
+  { inherit
+      kaleidogen-lambda
+      kaleidogen-web
+      function-zip
+      shell
+      gh-page;
   }

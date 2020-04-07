@@ -3,17 +3,6 @@ on:
   pull_request:
   push:
 jobs:
-  ghcjs:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - uses: cachix/install-nix-action@v8
-    - name: Build kaleidogen-web
-      uses: cachix/cachix-action@v5
-      with:
-        name: kaleidogen
-        signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
-        attributes: ghcjs
   web:
     runs-on: ubuntu-latest
     steps:
@@ -24,7 +13,15 @@ jobs:
       with:
         name: kaleidogen
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
-        attributes: kaleidogen-web
+        attributes: gh-page
+    - name: Deploy to Github Pages
+      if: github.ref == 'refs/heads/master'
+      uses: JamesIves/github-pages-deploy-action@releases/v3
+      with:
+        ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        BRANCH: gh-pages
+        FOLDER: result
+
   lambda:
     runs-on: ubuntu-latest
     steps:
