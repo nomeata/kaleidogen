@@ -121,6 +121,7 @@ let
     MonadRandom, colour, exceptions,
     hashable, hex-text, random-shuffle,
     ghcjs-dom, jsaddle, jsaddle-dom,
+    file-embed,
   }:
       mkDerivation {
         pname = "kaleidogen";
@@ -129,6 +130,7 @@ let
           ".*\.cabal$"
           "LICENSE"
           "^src.*"
+          "^vendor.*"
         ];
         isLibrary = false;
         isExecutable = true;
@@ -136,6 +138,7 @@ let
 	    MonadRandom colour exceptions
 	    hashable hex-text random-shuffle
             ghcjs-dom jsaddle jsaddle-dom
+            file-embed
 	];
         license = stdenv.lib.licenses.bsd3;
         configureFlags = [
@@ -164,12 +167,32 @@ let
   ghcjsPkgs = import sources.nixpkgs {};
   ghcjsHaskellPackages = with pkgs.haskell.lib; ghcjsPkgs.haskell.packages.ghcjs86.override {
     overrides = self: super: {
-      # QuickCheck = dontCheck super.QuickCheck; # System.Process.createPipeInternal: not yet supported on GHCJS
-      # ghc-paths =  overrideCabal super.ghc-paths (drv: { patches = []; });
       ghcjs-dom-jsffi = unmarkBroken super.ghcjs-dom-jsffi;
-      # depends on doctest, which depends on ghc-paths:
-      #hex-text = dontCheck super.hex-text;
-      # ghcjs-base = dontCheck super.ghcjs-base;
+
+      # System.Process.createPipeInternal: not yet supported on GHCJS
+      QuickCheck = dontCheck super.QuickCheck;
+
+      # fail quickly please
+      doctest = super.doctest.overrideAttrs(old: { buildPhase = "false"; });
+
+      # depends on doctest, which fails to build:
+      hex-text = dontCheck super.hex-text;
+      http-types = dontCheck super.http-types;
+      lens = dontCheck super.lens;
+      comonad = dontCheck super.comonad;
+      semigroupoids = dontCheck super.semigroupoids;
+
+      # gets stuck running the tests in node, it seems
+      scientific = dontCheck super.scientific;
+      tasty-quickcheck = dontCheck super.tasty-quickcheck;
+
+      # test suite fails
+      time-compat = dontCheck super.time-compat;
+
+      # missing dependency
+      jsaddle = overrideCabal super.jsaddle (drv: {
+        libraryHaskellDepends = drv.libraryHaskellDepends ++ [ self.ghcjs-base ];
+      });
     };
   };
   kaleidogen-web = ghcjsHaskellPackages.callPackage kaleidogen-web-pkg {};
