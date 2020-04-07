@@ -173,7 +173,7 @@ css = T.unlines
     , "  padding:0;"
     , "}"
     , ".toolbar a.hidden {"
-    , "  display:none"
+    , "  display:none;"
     , "}"
     , ".toolbar a {"
     , "  display:inline-block;"
