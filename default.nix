@@ -170,6 +170,5 @@ let
 
 in
   { inherit kaleidogen-lambda kaleidogen-web function-zip shell;
-    warm1 = ghcjsPkgs.haskell.compiler.ghcjs86;
-    warm2 = ghcjsHaskellPackages.haskell-src-exts;
+    ghcjs = ghcjsPkgs.haskell.compiler.ghcjs86;
   }
