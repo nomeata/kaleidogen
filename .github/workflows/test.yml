@@ -3,7 +3,7 @@ on:
   pull_request:
   push:
 jobs:
-  ghcjs:
+  warm-cache:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -13,7 +13,13 @@ jobs:
       with:
         name: kaleidogen
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
-        attributes: ghcjs
+        attributes: warm1
+    - name: Build kaleidogen-web
+      uses: cachix/cachix-action@v5
+      with:
+        name: kaleidogen
+        signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+        attributes: warm2
   web:
     runs-on: ubuntu-latest
     steps:
