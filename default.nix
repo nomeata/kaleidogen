@@ -120,6 +120,7 @@ let
   kaleidogen-web-pkg = { mkDerivation, base, stdenv,
     MonadRandom, colour, exceptions,
     hashable, hex-text, random-shuffle,
+    ghcjs-dom, jsaddle, jsaddle-dom, lens,
   }:
       mkDerivation {
         pname = "kaleidogen";
@@ -134,10 +135,11 @@ let
         executableHaskellDepends = [ base
 	    MonadRandom colour exceptions
 	    hashable hex-text random-shuffle
+            ghcjs-dom jsaddle jsaddle-dom lens
 	];
         license = stdenv.lib.licenses.bsd3;
         configureFlags = [
-	  "-flambda"
+	  "-f-lambda -fjsaddle -f-android -f-clib -f-sdl"
         ] ;
       };
 
@@ -160,7 +162,16 @@ let
   '';
 
   ghcjsPkgs = import sources.nixpkgs {};
-  ghcjsHaskellPackages = ghcjsPkgs.haskell.packages.ghcjs86;
+  ghcjsHaskellPackages = with pkgs.haskell.lib; ghcjsPkgs.haskell.packages.ghcjs86.override {
+    overrides = self: super: {
+      # QuickCheck = dontCheck super.QuickCheck; # System.Process.createPipeInternal: not yet supported on GHCJS
+      # ghc-paths =  overrideCabal super.ghc-paths (drv: { patches = []; });
+      ghcjs-dom-jsffi = unmarkBroken super.ghcjs-dom-jsffi;
+      # depends on doctest, which depends on ghc-paths:
+      #hex-text = dontCheck super.hex-text;
+      # ghcjs-base = dontCheck super.ghcjs-base;
+    };
+  };
   kaleidogen-web = ghcjsHaskellPackages.callPackage kaleidogen-web-pkg {};
 
   shell = kaleidogen-lambda.env.overrideAttrs(old: {
