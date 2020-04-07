@@ -120,7 +120,7 @@ let
   kaleidogen-web-pkg = { mkDerivation, base, stdenv,
     MonadRandom, colour, exceptions,
     hashable, hex-text, random-shuffle,
-    ghcjs-dom, jsaddle, jsaddle-dom, lens,
+    ghcjs-dom, jsaddle, jsaddle-dom,
   }:
       mkDerivation {
         pname = "kaleidogen";
@@ -135,7 +135,7 @@ let
         executableHaskellDepends = [ base
 	    MonadRandom colour exceptions
 	    hashable hex-text random-shuffle
-            ghcjs-dom jsaddle jsaddle-dom lens
+            ghcjs-dom jsaddle jsaddle-dom
 	];
         license = stdenv.lib.licenses.bsd3;
         configureFlags = [
