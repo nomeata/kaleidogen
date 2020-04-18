@@ -29,10 +29,10 @@
         "homepage": "",
         "owner": "nh2",
         "repo": "static-haskell-nix",
-        "rev": "c360f2a15f6947b411ecbd7ebaea925f6dbd68df",
-        "sha256": "0y6ppiagh6dbvdhhnrq572xnw2yzn6d0gcmajrfdgdfwhsl21g95",
+        "rev": "acaffd5fb807aa78f106eb3b4a99b05d3a1ec043",
+        "sha256": "1k2931w5x05yczvqkhjqd9ipgkk777215i0cjgqzkjqdzjzi08l1",
         "type": "tarball",
-        "url": "https://github.com/nh2/static-haskell-nix/archive/c360f2a15f6947b411ecbd7ebaea925f6dbd68df.tar.gz",
+        "url": "https://github.com/nh2/static-haskell-nix/archive/acaffd5fb807aa78f106eb3b4a99b05d3a1ec043.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
