@@ -15,16 +15,17 @@ import Data.FileEmbed
 import Language.Javascript.JSaddle (toJSVal)
 import Language.Javascript.JSaddle.Object
 
--- No need to pull in lens just for this function
-(^.) :: t -> ((a1 -> Const a1 b1) -> t -> Const a2 b2) -> a2
-s ^. l = getConst (l Const s)
-
 import System.Directory
 import System.IO
 import System.IO.Error
 import System.FilePath
 import Control.Monad.Trans
 import System.Process     (rawSystem)
+
+-- No need to pull in lens just for this function
+(^.) :: t -> ((a1 -> Const a1 b1) -> t -> Const a2 b2) -> a2
+s ^. l = getConst (l Const s)
+
 
 src :: BS.ByteString
 src = $(embedFile "vendor/FileSaver.1.3.8.min.js")

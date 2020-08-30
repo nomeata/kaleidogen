@@ -201,6 +201,9 @@ executable kaleidogen-headless
   if flag(lambda)
     buildable: False
 
+  if flag(android)
+    buildable: False
+
 
 executable kaleidogen-telegram
   import: static, png
@@ -220,6 +223,9 @@ executable kaleidogen-telegram
     buildable: False
 
   if flag(lambda)
+    buildable: False
+
+  if flag(android)
     buildable: False
 
 executable kaleidogen-amazon-lambda
@@ -244,6 +250,9 @@ executable kaleidogen-amazon-lambda
     buildable: False
 
   if !flag(lambda)
+    buildable: False
+
+  if flag(android)
     buildable: False
 
 executable kaleidogen-android-clib
