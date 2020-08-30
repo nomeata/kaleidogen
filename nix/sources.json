@@ -11,18 +11,6 @@
         "url": "https://github.com/NixOS/nixpkgs/archive/1fb95d956cc7f3f29366cb275f6254fd1e278bc5.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
-    "reflex-platform": {
-        "branch": "develop",
-        "description": "A curated package set and set of tools that let you build Haskell packages so they can run on a variety of platforms. reflex-platform is built on top of the nix package manager.",
-        "homepage": "https://reflex-frp.org",
-        "owner": "reflex-frp",
-        "repo": "reflex-platform",
-        "rev": "df0bdcca5eb2a3236ec0496e4430d91876b29cf5",
-        "sha256": "1ja3vkq9px8f9iyiazq44mamaahgiphi9l236pvzbl5jvhi5c4qr",
-        "type": "tarball",
-        "url": "https://github.com/reflex-frp/reflex-platform/archive/df0bdcca5eb2a3236ec0496e4430d91876b29cf5.tar.gz",
-        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
-    },
     "nixpkgs-static": {
         "branch": "master",
         "description": "easily build most Haskell programs into fully static Linux executables",
@@ -33,6 +21,18 @@
         "sha256": "084hxnrywsgb73zr41argdkbhkxzm1rqn058pv1l4cp9g1gjr2rr",
         "type": "tarball",
         "url": "https://github.com/nh2/static-haskell-nix/archive/dbce18f4808d27f6a51ce31585078b49c86bd2b5.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "reflex-platform": {
+        "branch": "eac@tweaks-from-wrinkl",
+        "description": "A curated package set and set of tools that let you build Haskell packages so they can run on a variety of platforms. reflex-platform is built on top of the nix package manager.",
+        "homepage": "https://reflex-frp.org",
+        "owner": "reflex-frp",
+        "repo": "reflex-platform",
+        "rev": "ea60e2f15c2a6af074722387010b712415876529",
+        "sha256": "109q2nfrp13mhj05iy5pd11hkx3c51jgqkhj0a6xxxx544cypp1h",
+        "type": "tarball",
+        "url": "https://github.com/reflex-frp/reflex-platform/archive/ea60e2f15c2a6af074722387010b712415876529.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
