@@ -5,8 +5,8 @@ let sources = import (builtins.fetchurl {
 
 let pkgs = import sources.nixpkgs {}; in
 let ghcjsPkgs = pkgs; in
-let staticPkgs = (import (sources.nixpkgs-static + "/survey/default.nix") {}).pkgs; in
-#let staticPkgs = pkgs.pkgsMusl; in
+#let staticPkgs = (import (sources.nixpkgs-static + "/survey/default.nix") {}).pkgs; in
+let staticPkgs = pkgs.pkgsMusl; in
 
 let compiler = "ghc865"; in
 let strip = true; in
