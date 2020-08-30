@@ -46,7 +46,7 @@ let
         };
         haskellOverlays = [ overlay ];
       };
-      buildIcons = platform.nixpkgs.callPackage ./buildIcons.nix { };
+      buildIcons = pkgs.callPackage ./buildIcons.nix { };
       android = platform.android.buildApp {
         package = p: p.kaleidogen;
         executableName = "kaleidogen-android-clib";
@@ -55,6 +55,13 @@ let
         resources = buildIcons {
           src = ./android-icon.png;
         };
+        version = {
+          code = "2";
+          # Must be a monotonically increasing number; defines what it means to "upgrade" the app
+          name = "1.0";
+          # The version that is displayed to the end user
+        };
+        isRelease = true;
         #permissions = ''
         #  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
         #'';
