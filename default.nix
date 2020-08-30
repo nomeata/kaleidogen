@@ -4,7 +4,9 @@ let sources = import (builtins.fetchurl {
   }) { sourcesFile = ./nix/sources.json; } ; in
 
 #let pkgs = (import (sources.nixpkgs-static + "/survey/default.nix") {}).pkgs; in
-let pkgs = (import sources.nixpkgs {}).pkgsMusl; in
+let pkgs = import sources.nixpkgs {}; in
+let ghcjsPkgs = import sources.nixpkgs {}; in
+let staticPkgs = pkgs.pkgsMusl; in
 
 let compiler = "ghc865"; in
 let strip = true; in
@@ -106,9 +108,9 @@ let
         configureFlags = [
 	  "-flambda"
           "--ghc-option=-optl=-static"
-          "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
-          "--extra-lib-dirs=${pkgs.zlib.static}/lib"
-          "--extra-lib-dirs=${pkgs.libffi.overrideAttrs (old: { dontDisableStatic = true; })}/lib"
+          "--extra-lib-dirs=${staticPkgs.gmp6.override { withStatic = true; }}/lib"
+          "--extra-lib-dirs=${staticPkgs.zlib.static}/lib"
+          "--extra-lib-dirs=${staticPkgs.libffi.overrideAttrs (old: { dontDisableStatic = true; })}/lib"
         ] ++ pkgs.lib.optionals (!strip) [
           "--disable-executable-stripping"
         ] ;
@@ -143,7 +145,7 @@ let
         ] ;
       };
 
-  haskellPackages = with pkgs.haskell.lib; pkgs.haskell.packages.${compiler}.override {
+  haskellPackages = with pkgs.haskell.lib; staticPkgs.haskell.packages.${compiler}.override {
     overrides = self: super: {
       # Dependencies we need to patch
       hpc-coveralls = appendPatch super.hpc-coveralls (builtins.fetchurl https://github.com/guillaume-nargeot/hpc-coveralls/pull/73/commits/344217f513b7adfb9037f73026f5d928be98d07f.patch);
@@ -161,7 +163,6 @@ let
     zip $out/function.zip bootstrap
   '';
 
-  ghcjsPkgs = import sources.nixpkgs {};
   ghcjsHaskellPackages = with pkgs.haskell.lib; ghcjsPkgs.haskell.packages.ghcjs86.override {
     overrides = self: super: {
       ghcjs-dom-jsffi = unmarkBroken super.ghcjs-dom-jsffi;
