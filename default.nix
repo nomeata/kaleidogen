@@ -55,7 +55,7 @@ let
     name = "emulate-MyAndroidApp";
     platformVersion = "24";
     abiVersion = "armeabi-v7a"; # mips, x86 or x86_64
-    useGoogleAPIs = false;
+    # useGoogleAPIs = false;
     app = android;
     package = "systems.obsidian";
     activity = ".HaskellActivity";
