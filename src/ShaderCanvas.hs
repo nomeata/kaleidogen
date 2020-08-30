@@ -114,14 +114,14 @@ paintGL gl (w,h) toDraw = do
     clearColor gl 1 1 1 0
     clear gl COLOR_BUFFER_BIT
 
-    for_ toDraw $ \(CompiledProgram {..}, (a,b,c,d)) -> do
+    for_ toDraw $ \(CompiledProgram {..}, (a,b,c,d,e)) -> do
         enableVertexAttribArray gl (fromIntegral positionLocation)
         vertexAttribPointer gl (fromIntegral positionLocation) 2 FLOAT False 0 0
 
         useProgram gl (Just compiledProgram)
 
         uniform2f gl (Just windowSizeLocation) w h
-        uniform4f gl (Just extraDataLocation) a b c d
+        uniform1fv gl (Just extraDataLocation) [a, b, c, d, e]
 
         drawArrays gl TRIANGLES 0 6
 

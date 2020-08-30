@@ -94,6 +94,7 @@ moveMain as =
 data Event
     = ClickEvent (ClickEvent Entity)
     | Delete
+    | Anim
 
 logicMealy :: Seed -> Mealy AppState Event (Cmds Entity AbstractPos)
 logicMealy seed = Mealy
@@ -212,5 +213,13 @@ handleLogic as@AppState{..} e = case e of
              ] ++
              moveAllSmall as'
            )
+
+    Anim
+        | S2.OneSelected k <- sel
+        , let d = as `dnaAtKey` k
+        -> ( as
+           , [ (PreviewInstance d, Animate) ]
+           )
+
     _ -> (as, [])
 

@@ -29,7 +29,7 @@ dna2rna dna@(col1:col2:ops) = fst $ go ops colors
         | otherwise = indexMod op (binaryOps ++ unaryOps)
       where
         binaryOps = binary <$>
-            [ Checker (1  … 6)
+            [ Checker (from [1,2,3,4,5,6])
             , Rays    (2  …… 8)
             , Gradient
             , Ontop   (0.5 … 0.9)

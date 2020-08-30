@@ -22,5 +22,17 @@
         "type": "tarball",
         "url": "https://github.com/reflex-frp/reflex-platform/archive/df0bdcca5eb2a3236ec0496e4430d91876b29cf5.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "nixpkgs-static": {
+        "branch": "master",
+        "description": "easily build most Haskell programs into fully static Linux executables",
+        "homepage": "",
+        "owner": "nh2",
+        "repo": "static-haskell-nix",
+        "rev": "dbce18f4808d27f6a51ce31585078b49c86bd2b5",
+        "sha256": "084hxnrywsgb73zr41argdkbhkxzm1rqn058pv1l4cp9g1gjr2rr",
+        "type": "tarball",
+        "url": "https://github.com/nh2/static-haskell-nix/archive/dbce18f4808d27f6a51ce31585078b49c86bd2b5.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }

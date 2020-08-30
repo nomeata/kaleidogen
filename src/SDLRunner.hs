@@ -62,7 +62,7 @@ runInSDL toShader go = do
 
         clear [GL.ColorBuffer]
 
-        forM_ toDraw $ \(x,(a,b,c,d)) -> do
+        forM_ toDraw $ \(x,(a,b,c,d,e)) -> do
             let (vertexShaderSource, fragmentShaderSource) = toShader x
             program <- createProgram
             vertexShader <- createShader VertexShader
@@ -86,8 +86,16 @@ runInSDL toShader go = do
             vWindowSize <- get (uniformLocation program  "u_windowSize")
             uniform vWindowSize $= Vector2 (fromIntegral w) (fromIntegral h::Float)
 
-            vExtraData <- get (uniformLocation program  "u_extraData")
-            uniform vExtraData $= Vector4 (realToFrac a) (realToFrac b) (realToFrac c) (realToFrac d::Float)
+            vExtraData0 <- get (uniformLocation program  "u_extraData[0]")
+            uniform vExtraData0 $= (realToFrac a :: Float)
+            vExtraData0 <- get (uniformLocation program  "u_extraData[1]")
+            uniform vExtraData0 $= (realToFrac b :: Float)
+            vExtraData0 <- get (uniformLocation program  "u_extraData[2]")
+            uniform vExtraData0 $= (realToFrac c :: Float)
+            vExtraData0 <- get (uniformLocation program  "u_extraData[3]")
+            uniform vExtraData0 $= (realToFrac d :: Float)
+            vExtraData0 <- get (uniformLocation program  "u_extraData[4]")
+            uniform vExtraData0 $= (realToFrac e :: Float)
 
             bindVertexArrayObject $= Just triangles
             drawArrays Triangles 0 6
@@ -106,6 +114,7 @@ runInSDL toShader go = do
 
     let setCanDelete _ = return ()
     let setCanSave _ = return ()
+    let setCanAnim _ = return ()
 
     Callbacks {..} <- go (Backend {..})
 

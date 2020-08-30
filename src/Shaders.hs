@@ -5,19 +5,19 @@ import Data.Text as Text
 
 type Shaders = (Text, Text)
 
--- A single vec4 of extra data
-type ExtraData = (Double, Double, Double, Double)
+-- 5 parameters
+type ExtraData = (Double, Double, Double, Double, Double)
 
 
 circularVertexShader :: Text
 circularVertexShader = Text.unlines
   [ "attribute vec2 a_position;"
   , "uniform vec2 u_windowSize;"
-  , "uniform vec4 u_extraData;"
+  , "uniform float u_extraData[5];"
   , "varying vec2 vDrawCoord;"
   , "void main() {"
-  , "  vec2 pos = u_extraData.yz;"
-  , "  float size = u_extraData.w;"
+  , "  vec2 pos = vec2(u_extraData[1],u_extraData[2]);"
+  , "  float size = u_extraData[3];"
   , "  vDrawCoord = vec2(a_position);"
   , "  vec2 scaled_pos = vec2(1.0,-1.0) * (2.0 * (size * a_position + pos)/u_windowSize - vec2(1,1));"
   , "  gl_Position = vec4(scaled_pos, 0, 1);"
@@ -56,9 +56,9 @@ borderFragmentShader :: Text
 borderFragmentShader = Text.unlines
   [ "varying vec2 vDrawCoord;"
   , "uniform vec2 u_windowSize;"
-  , "uniform vec4 u_extraData;"
+  , "uniform float u_extraData[5];"
   , "void main() {"
-  , "  float r = u_extraData.w;"
+  , "  float r = u_extraData[3];"
   , "  vec2 pos = abs(((abs(vDrawCoord)) * u_windowSize) - u_windowSize);"
   , "  if (length(pos) > r) { gl_FragColor = vec4(0,0,0,0); return; }"
   , "  if (length(vec2(r) - pos) < r) { gl_FragColor = vec4(0,0,0,0); return; }"

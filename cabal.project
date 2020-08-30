@@ -1,6 +1,9 @@
-packages: .
+source-repository-package
+    type: git
+    location: https://github.com/klappvisor/haskell-telegram-api
+    tag: abbfd76c40f2783c113b660184a03cc94d58e751
 
-constraints: primitive < 0.6.4.0
+packages: .
 
 package reflex-dom
   flags: +use-warp -webkit2gtk

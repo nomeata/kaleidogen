@@ -18,8 +18,10 @@ import Data.Functor
 import GHCJS.DOM.Types hiding (Text)
 import GHCJS.DOM
 import GHCJS.DOM.Element
-import GHCJS.DOM.Document
+import GHCJS.DOM.Document hiding (getLocation)
+import GHCJS.DOM.Window (getLocation)
 import GHCJS.DOM.Performance
+import GHCJS.DOM.Location (getHash)
 import GHCJS.DOM.GlobalPerformance
 import GHCJS.DOM.NonElementParentNode
 import GHCJS.DOM.EventM
@@ -54,15 +56,21 @@ runInBrowser toShader go = do
     -- Get Dom elements
     canvas <- getElementByIdUnsafe doc ("canvas" :: Text) >>= unsafeCastTo HTMLCanvasElement
     save <- getElementByIdUnsafe doc ("save" :: Text) >>= unsafeCastTo HTMLAnchorElement
+    anim <- getElementByIdUnsafe doc ("anim" :: Text) >>= unsafeCastTo HTMLAnchorElement
     del <- getElementByIdUnsafe doc ("delete" :: Text) >>= unsafeCastTo HTMLAnchorElement
 
     drawShaderCircles <- shaderCanvas toShader canvas
 
+    loc <- getLocation win
+    isTelegram <- ("tgShareScoreUrl" `T.isInfixOf`) <$> getHash loc
 
-    let setCanDelete True = setClassName del (""::Text)
-        setCanDelete False = setClassName del ("hidden"::Text)
-    let setCanSave True = setClassName save (""::Text)
-        setCanSave False = setClassName save ("hidden"::Text)
+    let showIf e True  = setClassName e (""::Text)
+        showIf e False = setClassName e ("hidden"::Text)
+
+        setCanDelete = showIf del
+        setCanSave = showIf save . (not isTelegram &&)
+        setCanAnim = showIf anim
+
     let currentWindowSize = querySize canvas
     let getCurrentTime = now perf
     let doSave filename toDraw = saveToPNG toShader toDraw filename
@@ -99,6 +107,7 @@ runInBrowser toShader go = do
 
     void $ on del click $ liftJSM (onDel >> render)
     void $ on save click $ liftJSM onSave
+    void $ on anim click $ liftJSM (onAnim >> render)
 
     checkResize <- autoResizeCanvas canvas (\ pos -> onResize pos >> render)
     -- Wish I could use onResize on body, but that does not work somehow
@@ -134,6 +143,7 @@ html = T.unlines
     , "   <div class='toolbar'>"
     , "    <a id='delete'>🗑</a>"
     , "    <a id='save'>💾</a>"
+    , "    <a id='anim'>▶</a>"
     , "   </div>"
     , "   <canvas id='canvas'></canvas>"
     , "  </div>"
@@ -163,7 +173,7 @@ css = T.unlines
     , "  padding:0;"
     , "}"
     , ".toolbar a.hidden {"
-    , "  display:none"
+    , "  display:none;"
     , "}"
     , ".toolbar a {"
     , "  display:inline-block;"
@@ -175,10 +185,12 @@ css = T.unlines
     , "  height:7vh;"
     , "  background-color:lightblue;"
     , "  border-radius: 1vh;"
+    , "  cursor:pointer;"
     , "}"
     , ".toolbar a.disabled {"
     , "  background-color:lightgrey;"
     , "  color:white;"
+    , "  cursor:default;"
     , "}"
     , "canvas {"
     , "  height:calc(100vh - 10vh - 2.5vw);"

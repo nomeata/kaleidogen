@@ -1,0 +1,59 @@
+name: "Test"
+on:
+  push:
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: cachix/install-nix-action@v8
+    - name: Build kaleidogen-web
+      uses: cachix/cachix-action@v5
+      with:
+        name: kaleidogen
+        signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+        attributes: gh-page
+    - name: Copy out of nix store
+      # due to https://github.com/JamesIves/github-pages-deploy-action/issues/241
+      run: |
+       mkdir gh-page
+       cp -vr result/* gh-page
+       chmod u+w -R gh-page
+    - name: Deploy to Github Pages
+      if: github.ref == 'refs/heads/master'
+      uses: JamesIves/github-pages-deploy-action@releases/v3
+      with:
+        ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        BRANCH: gh-pages
+        FOLDER: gh-page
+        SINGLE_COMMIT: true
+
+  lambda:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: cachix/install-nix-action@v8
+    - name: Add static-haskell-nix
+      uses: cachix/cachix-action@v5
+      with:
+        name: static-haskell-nix
+        skipNixBuild: true
+    - name: Build kaleidogen-lambda
+      uses: cachix/cachix-action@v5
+      with:
+        name: kaleidogen
+        signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+        attributes: kaleidogen-lambda
+    - name: Build zipfile
+      run: |
+       nix-build -A function-zip -o function
+       cp function/function.zip .
+    - name: Deploy to Amazon Lambda
+      if: github.ref == 'refs/heads/master'
+      uses: appleboy/lambda-action@master
+      with:
+        aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws_region: ${{ secrets.AWS_REGION }}
+        function_name: kaleidogen
+        zip_file: function.zip

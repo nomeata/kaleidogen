@@ -5,6 +5,7 @@ module Presentation
     ( Time
     , Animating(..)
     , animationSpeed
+    , videoSpeed
     , Presentation
     , LayoutFun
     , initRef
@@ -31,9 +32,13 @@ newtype Animating = Animating Bool
 animationSpeed :: Time
 animationSpeed = 200
 
+videoSpeed :: Time
+videoSpeed = 10000
+
 data AndThen = ThenKeep | ThenDelete
 data Position
     = Stable PosAndScale
+    | Dynamic PosAndScale Time
     | MovingFromTo PosAndScale Time PosAndScale AndThen
 data State k = State
     { pos :: M.Map k Position
@@ -48,19 +53,24 @@ type LayoutFun a = a -> PosAndScale
 
 currentPos :: Ord k => Time -> k -> State k -> Maybe PosAndScale
 currentPos t k s = case M.lookup k (pos s) of
-    Just p -> interpretPos t p
+    Just p -> fst <$> interpretPos t p
     Nothing -> Nothing
 
-interpretPos :: Time -> Position -> Maybe PosAndScale
-interpretPos _ (Stable p) = Just p
+interpretPos :: Time -> Position -> Maybe (PosAndScale, Double)
+interpretPos _ (Stable p) = Just (p, 1)
+interpretPos t (Dynamic p t')
+    | let r = (t-t') / videoSpeed, r < 1
+    = Just (p, r)
+    | otherwise
+    = Just (p, 1)
 interpretPos t (MovingFromTo p_old t' p_new andthen)
     | let r = (t-t') / animationSpeed
     , r < 1
-    = Just (tween r p_old p_new)
+    = Just (tween r p_old p_new, 1)
     | ThenDelete <- andthen
     = Nothing
     | otherwise
-    = Just p_new
+    = Just (p_new, 1)
 
 handleCmd :: Ord k => Time -> LayoutFun a -> State k -> Cmd k a -> State k
 handleCmd t l s@State{pos, zindex, zctr} (k, c) =
@@ -79,12 +89,15 @@ handleCmd t l s@State{pos, zindex, zctr} (k, c) =
             -> M.insert k (MovingFromTo p' t (l ap) ThenDelete) pos
             | otherwise
             -> M.insert k (Stable (l ap)) pos
+        Animate
+            | Just p' <- currentPos t k s
+            -> M.insert k (Dynamic p' t) pos
+            | otherwise
+            -> pos
         Remove -> M.delete k pos
     zindex' = case c of
-        SummonAt _ -> M.insert k zctr' zindex
-        MoveTo _   -> M.insert k zctr' zindex
-        FadeOut _  -> M.insert k zctr' zindex
-        Remove     -> M.delete k zindex
+        Remove  -> M.delete k zindex
+        _       -> M.insert k zctr' zindex
 
 {-
 freeze :: Time -> State -> State
@@ -98,7 +111,7 @@ freeze t = M.mapMaybe go
 
 -- A presentation
 
-type Presentation k = [(k, PosAndScale)]
+type Presentation k = [(k, (PosAndScale, Double))]
 
 presentAt :: Ord k => Time -> State k -> Presentation k
 presentAt t State{pos, zindex} =
@@ -110,18 +123,19 @@ anyMoving :: Time -> State k -> Animating
 anyMoving t = Animating . any go . pos
   where
     go (Stable _) = False
-    go (MovingFromTo _ t' _ _) = (t - t') < animationSpeed
+    go (Dynamic _ t') = t - t' < videoSpeed
+    go (MovingFromTo _ t' _ _) = t - t' < animationSpeed
 
 isIn :: (Double, Double) -> PosAndScale -> Bool
 (x,y) `isIn` ((x',y'),s) = (x - x')**2 + (y - y')**2 <= s**2
 
 locateClick :: Presentation k -> (Double, Double) -> Maybe (k, Pos)
-locateClick p (x,y) = second fst <$> find (((x,y) `isIn`) . snd) p
+locateClick p (x,y) = second (fst . fst) <$> find (((x,y) `isIn`) . fst . snd) p
 
 locateIntersection :: Eq k => Presentation k -> k -> Maybe k
 locateIntersection p k =
-    fst <$> find (((x,y) `isIn`) . snd) (filter ((/=k) . fst) p)
-  where Just ((x,y),_) = lookup k p
+    fst <$> find (((x,y) `isIn`) . fst . snd) (filter ((/=k) . fst) p)
+  where Just (((x,y),_),_) = lookup k p
 
 -- The mutable layer
 type Ref k = IORef (State k)

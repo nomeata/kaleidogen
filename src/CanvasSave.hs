@@ -10,10 +10,14 @@ import GHCJS.DOM.Types hiding (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.ByteString as BS
+import Data.Functor.Const
 import Data.FileEmbed
 import Language.Javascript.JSaddle (toJSVal)
 import Language.Javascript.JSaddle.Object
-import Control.Lens ((^.))
+
+-- No need to pull in lens just for this function
+(^.) :: t -> ((a1 -> Const a1 b1) -> t -> Const a2 b2) -> a2
+s ^. l = getConst (l Const s)
 
 import System.Directory
 import System.IO
