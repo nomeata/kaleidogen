@@ -28,3 +28,15 @@ There is also an SDL version. To build and run:
 
 * Run `cabal new-run kaleidogen-sdl`
 
+
+Android notes
+-------------
+
+Android experiments are happening on and off.
+
+Current state (2020-08-30):
+
+ * Build with nix-build -A android.android
+ * Deploy with adb uninstall de.nomeata.kaleidogen && adb install result/android-app-debug.apk
+ * Saving files is tricky, see https://github.com/reflex-frp/reflex-platform/issues/524
+ * It seems to sometimes crash when animating.
