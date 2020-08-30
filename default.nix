@@ -50,9 +50,9 @@ let
         executableName = "kaleidogen-android-clib";
         applicationId = "de.nomeata.kaleidogen";
         displayName = "Kaleidogen";
-        permissions = ''
-          <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-        '';
+        #permissions = ''
+        #  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+        #'';
       };
 
 
