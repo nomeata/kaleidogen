@@ -1,5 +1,10 @@
 let
-  pkgs = import ~/build/nixpkgs {
+  sources = import (builtins.fetchurl {
+    url = https://raw.githubusercontent.com/nmattia/niv/v0.2.16/nix/sources.nix;
+    sha256 = "03fl8wfm2nhdiws7pmfz2kcbf47mv2f8gk30fzg4m07gb5zdv6gv";
+  }) { sourcesFile = ./nix/sources.json; };
+
+  pkgs = import sources.nixpkgs {
     config = {
       packageOverrides = pkgs: rec {
         haskellPackages = pkgs.haskellPackages.override {
@@ -27,7 +32,7 @@ let
     sdl2 = pkgs.haskell.lib.dontCheck super.sdl2;
   };
 
-  platform = import /home/jojo/build/haskell/reflex/reflex-platform {
+  platform = import sources.reflex-platform {
     config = {
       android_sdk = {
         accept_license = true;
