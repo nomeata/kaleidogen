@@ -318,4 +318,5 @@ executable kaleidogen-android-clib
   if flag(lambda)
     buildable: False
 
+  cpp-options: -DNoSave
   ghc-options: -main-is Kaleidogen
