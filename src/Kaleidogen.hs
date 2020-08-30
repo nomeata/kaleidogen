@@ -63,12 +63,16 @@ runInBrowser toShader go = do
 
     loc <- getLocation win
     isTelegram <- ("tgShareScoreUrl" `T.isInfixOf`) <$> getHash loc
-
+#ifdef NoSave
+    let saveSupported = False
+#else
+    let saveSupported = True
+#endif
     let showIf e True  = setClassName e (""::Text)
         showIf e False = setClassName e ("hidden"::Text)
 
         setCanDelete = showIf del
-        setCanSave = showIf save . (not isTelegram &&)
+        setCanSave = showIf save . (not isTelegram &&) . (saveSupported &&)
         setCanAnim = showIf anim
 
     let currentWindowSize = querySize canvas
