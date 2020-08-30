@@ -1,26 +1,24 @@
 let
-  config = {
-    packageOverrides = pkgs: rec {
-      haskellPackages = pkgs.haskellPackages.override {
-        overrides = haskellPackagesNew: haskellPackagesOld: rec {
-	  kaleidogen = haskellPackagesNew.callPackage ./project0.nix { };
-          # haskell-activity = import /home/jojo/build/haskell/reflex/android-activity {};
+  pkgs = import ~/build/nixpkgs {
+    config = {
+      packageOverrides = pkgs: rec {
+        haskellPackages = pkgs.haskellPackages.override {
+          overrides = haskellPackagesNew: haskellPackagesOld: rec {
+            kaleidogen = haskellPackagesNew.callPackage ./project0.nix { };
+            # haskell-activity = import /home/jojo/build/haskell/reflex/android-activity {};
+          };
         };
       };
+      android_sdk = {
+        accept_license = true;
+      };
+      allowUnfree = true;
     };
-    android_sdk = {
-      accept_license = true;
-    };
-    allowUnfree = true;
   };
-  pkgs = import ~/build/nixpkgs { inherit config; };
 
   kaleidogen-android = pkgs.pkgsCross.aarch64-android-prebuilt.haskellPackages.kaleidogen;
 
   kaleidogen-sdl = pkgs.haskellPackages.callPackage ./kaleidogen-sdl.nix { };
-
-
-
 
   overlay = self: super: {
     kaleidogen = self.callPackage ./project0.nix { };
