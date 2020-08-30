@@ -109,7 +109,7 @@ executable kaleidogen
 
   if !impl(ghcjs)
     build-depends: jsaddle >=0.9.2 && <0.10
-    build-depends: jsaddle-warp >=0.9.2 && <0.10
+    -- build-depends: jsaddle-warp >=0.9.2 && <0.10
 
   if !flag(jsaddle)
     buildable: False
@@ -215,8 +215,8 @@ executable kaleidogen-android-clib
   build-depends: process
   build-depends: filepath
 
-  if flag(android)
-     build-depends: jsaddle-clib
+  --if flag(android)
+  --   build-depends: jsaddle-clib
 
   if impl(ghcjs)
     buildable: False

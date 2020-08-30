@@ -30,16 +30,16 @@ in mkDerivation {
   isExecutable = true;
   executableHaskellDepends = [
     base bytestring colour containers
-    hashable hex-text linear MonadRandom mtl StateVar text
+    hashable hex-text MonadRandom mtl StateVar text
     random-shuffle file-embed
   ] ++ (
     if isAndroid then
       if use-sdl
-      then [ OpenGL sdl2 android-activity ]
+      then [ linear OpenGL sdl2 android-activity ]
       else [ ghcjs-dom jsaddle-dom jsaddle reflex-dom ]
     else
       if use-sdl
-      then [ OpenGL sdl2 ]
+      then [ linear OpenGL sdl2 ]
       else [ ghcjs-dom jsaddle-dom jsaddle reflex-dom ]
   );
   homepage = "https://github.com/nomeata/kaleidogen";
