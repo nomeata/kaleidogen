@@ -30,6 +30,7 @@ let
 
       kaleidogen-sdl = pkgs.haskellPackages.callPackage ./kaleidogen-sdl.nix { };
 
+
       overlay = self: super: {
         kaleidogen = self.callPackage ./project0.nix { };
         kaleidogen-sdl = self.callPackage ./project0.nix { use-sdl = true; };
@@ -45,11 +46,15 @@ let
         };
         haskellOverlays = [ overlay ];
       };
+      buildIcons = platform.nixpkgs.callPackage ./buildIcons.nix { };
       android = platform.android.buildApp {
         package = p: p.kaleidogen;
         executableName = "kaleidogen-android-clib";
         applicationId = "de.nomeata.kaleidogen";
         displayName = "Kaleidogen";
+        resources = buildIcons {
+          src = ./android-icon.png;
+        };
         #permissions = ''
         #  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
         #'';
