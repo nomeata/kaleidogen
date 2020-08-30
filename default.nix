@@ -4,7 +4,6 @@ let
     sha256 = "03fl8wfm2nhdiws7pmfz2kcbf47mv2f8gk30fzg4m07gb5zdv6gv";
   }) { sourcesFile = ./nix/sources.json; };
 
-
   # android experiments
 
   android =
@@ -90,8 +89,8 @@ let
 
   pkgs = import sources.nixpkgs {};
   ghcjsPkgs = pkgs;
-  staticPkgs = (import (sources.nixpkgs-static + "/survey/default.nix") {}).pkgs;
-  #staticPkgs = pkgs.pkgsMusl;
+  #staticPkgs = (import (sources.nixpkgs-static + "/survey/default.nix") {}).pkgs;
+  staticPkgs = pkgs.pkgsMusl;
 
   compiler = "ghc865";
   strip = true;
