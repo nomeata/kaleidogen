@@ -6,13 +6,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: cachix/install-nix-action@v8
+    - uses: cachix/install-nix-action@v12
     - name: Build kaleidogen-web
-      uses: cachix/cachix-action@v5
+      uses: cachix/cachix-action@v8
       with:
         name: kaleidogen
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
-        attributes: gh-page
+    - run: nix-build -A gh-page
     - name: Copy out of nix store
       # due to https://github.com/JamesIves/github-pages-deploy-action/issues/241
       run: |
@@ -32,18 +32,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: cachix/install-nix-action@v8
+    - uses: cachix/install-nix-action@v12
     - name: Add static-haskell-nix
-      uses: cachix/cachix-action@v5
+      uses: cachix/cachix-action@v8
       with:
         name: static-haskell-nix
-        skipNixBuild: true
     - name: Build kaleidogen-lambda
-      uses: cachix/cachix-action@v5
+      uses: cachix/cachix-action@v8
       with:
         name: kaleidogen
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
-        attributes: kaleidogen-lambda
+    - run: nix-build -A kaleidogen-lambda
     - name: Build zipfile
       run: |
        nix-build -A function-zip -o function
