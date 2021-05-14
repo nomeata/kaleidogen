@@ -27,5 +27,7 @@ jobs:
           blacklist: ''
           # Let's not show merges in the changelog
           show_merges: false
+          # https://github.com/knl/niv-updater-action/issues/45
+          niv_version: 'af958e8057f345ee1aca714c1247ef3ba1c15f5e'
 
 
