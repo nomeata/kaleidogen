@@ -14,7 +14,6 @@ synopsis: Grow kaleidoscopes
 description:
 category: Games
 
-
 source-repository head
   type: git
   location: https://github.com/nomeata/kaleidogen
