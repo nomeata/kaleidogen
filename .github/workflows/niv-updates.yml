@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: niv-updater-action
-        uses: knl/niv-updater-action@v9
+        uses: knl/niv-updater-action@60f23607814cf4f2e80a1e32ee74f8323897d09e
         env:
           GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         with:
@@ -27,7 +27,6 @@ jobs:
           blacklist: ''
           # Let's not show merges in the changelog
           show_merges: false
-          # https://github.com/knl/niv-updater-action/issues/45
-          niv_version: 'af958e8057f345ee1aca714c1247ef3ba1c15f5e'
+          # niv_version: 'af958e8057f345ee1aca714c1247ef3ba1c15f5e'
 
 
