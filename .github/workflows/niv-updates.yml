@@ -12,21 +12,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         with:
-          # NOTE: All inputs are optional. This list them with their default values.
-          # Use the default branch for the repository
-          pull_request_base: ''
-          # The prefix to add to every created branch
-          branch_prefix: 'update/'
-          # If there are revisions in form 'v1.2' (not SHAs), skip updating them
-          skip_versioned_revisions: true
-          # Do not skip dependencies in repos accessed via ssh from updating
-          skip_ssh_repos: false
-          # Update all dependencies tracked by niv. Another example: 'common,jq,hub'
-          whitelist: ''
-          # Do not blacklist any of the dependencies. Another example: 'nixpkgs,niv'
-          blacklist: ''
-          # Let's not show merges in the changelog
-          show_merges: false
-          # niv_version: 'af958e8057f345ee1aca714c1247ef3ba1c15f5e'
+          keep_updating: true
+          github_changelog_no_backreferences: true
 
 
