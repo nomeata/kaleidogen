@@ -12,6 +12,8 @@ jobs:
       with:
         name: kaleidogen
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+    # until https://github.com/cachix/cachix-action/issues/86 is fixed:
+    - run: cachix watch-store kaleidogen &
     - run: nix-build -A gh-page
     - name: Copy out of nix store
       # due to https://github.com/JamesIves/github-pages-deploy-action/issues/241
@@ -42,6 +44,8 @@ jobs:
       with:
         name: kaleidogen
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+    # until https://github.com/cachix/cachix-action/issues/86 is fixed:
+    - run: cachix watch-store kaleidogen &
     - run: nix-build -A kaleidogen-lambda
     - name: Build zipfile
       run: |
