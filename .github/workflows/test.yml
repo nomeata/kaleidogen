@@ -7,7 +7,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: cachix/install-nix-action@v12
-    - name: Cachix: kaleidogen
+    - name: Add kaleidogen cachix
       uses: cachix/cachix-action@v8
       with:
         name: kaleidogen
@@ -36,11 +36,11 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: cachix/install-nix-action@v12
-    - name: Cachix: Add static-haskell-nix
+    - name: Add static-haskell-nix cachix
       uses: cachix/cachix-action@v8
       with:
         name: static-haskell-nix
-    - name: Cachix: kaleidogen
+    - name: Add kaleidogen cachix
       uses: cachix/cachix-action@v8
       with:
         name: kaleidogen
