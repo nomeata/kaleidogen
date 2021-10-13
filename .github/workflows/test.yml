@@ -7,14 +7,15 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: cachix/install-nix-action@v12
-    - name: Build kaleidogen-web
+    - name: Cachix: kaleidogen
       uses: cachix/cachix-action@v8
       with:
         name: kaleidogen
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
     # until https://github.com/cachix/cachix-action/issues/86 is fixed:
     - run: cachix watch-store kaleidogen &
-    - run: nix-build -A gh-page
+    - name: Build kaleidogen-web
+      run: nix-build -A gh-page
     - name: Copy out of nix store
       # due to https://github.com/JamesIves/github-pages-deploy-action/issues/241
       run: |
@@ -35,11 +36,11 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: cachix/install-nix-action@v12
-    - name: Add static-haskell-nix
+    - name: Cachix: Add static-haskell-nix
       uses: cachix/cachix-action@v8
       with:
         name: static-haskell-nix
-    - name: Build kaleidogen-lambda
+    - name: Cachix: kaleidogen
       uses: cachix/cachix-action@v8
       with:
         name: kaleidogen
