@@ -12,28 +12,31 @@ let compiler = "ghc865"; in
 let strip = true; in
 
 let
-  telegram-api-pkg = { mkDerivation, stdenv, fetchFromGitHub
-	    , aeson
-            , containers
-            , http-api-data
-            , http-client
-            , servant
-            , servant-client
-            , servant-client-core
-            , mtl
-            , text
-            , transformers
-            , http-media
-            , http-types
-            , mime-types
-            , string-conversions
-            , binary
-            , ansi-wl-pprint
-            , hjpath
-            , hspec
-            , http-client-tls
-            , optparse-applicative
-  }:
+  telegram-api-pkg =
+    { mkDerivation
+    , stdenv
+    , fetchFromGitHub
+    , aeson
+    , containers
+    , http-api-data
+    , http-client
+    , servant
+    , servant-client
+    , servant-client-core
+    , mtl
+    , text
+    , transformers
+    , http-media
+    , http-types
+    , mime-types
+    , string-conversions
+    , binary
+    , ansi-wl-pprint
+    , hjpath
+    , hspec
+    , http-client-tls
+    , optparse-applicative
+    }:
       mkDerivation {
         pname = "telegram-api";
         version = "0.7.1.0";
