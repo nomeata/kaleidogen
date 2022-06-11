@@ -45,7 +45,7 @@ common static
   other-modules: GLSL
   other-modules: Shaders
   other-modules: Expression
-  build-depends: hashable==1.2.*
+  build-depends: hashable
   build-depends: text
   build-depends: hex-text
   build-depends: bytestring
@@ -191,6 +191,9 @@ executable kaleidogen-headless
   main-is: Headless.hs
   build-depends: optparse-applicative
 
+  if flag(jsaddle)
+    buildable: False
+
   if impl(ghcjs)
     buildable: False
 
@@ -211,6 +214,9 @@ executable kaleidogen-telegram
   build-depends: cryptonite
   build-depends: memory
   default-language:    Haskell2010
+
+  if flag(jsaddle)
+    buildable: False
 
   if impl(ghcjs)
     buildable: False
@@ -260,7 +266,7 @@ executable kaleidogen-android-clib
   other-modules: Layout
   build-depends: base >=4.11 && <5
   build-depends: MonadRandom ==0.5.*
-  build-depends: hashable ==1.2.*
+  build-depends: hashable
   build-depends: containers
   build-depends: text
   build-depends: hex-text

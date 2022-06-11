@@ -8,7 +8,6 @@ let ghcjsPkgs = pkgs; in
 #let staticPkgs = (import (sources.nixpkgs-static + "/survey/default.nix") {}).pkgs; in
 let staticPkgs = pkgs.pkgsMusl; in
 
-let compiler = "ghc865"; in
 let strip = true; in
 
 let
@@ -74,89 +73,54 @@ let
             servant-client
 	];
         jailbreak = true;  # want servant-client-0.16.0.1, not 0.16
-        license = stdenv.lib.licenses.bsd3;
+        license = pkgs.lib.licenses.bsd3;
       };
 
-  kaleidogen-lambda-pkg = { mkDerivation, base, stdenv,
-    MonadRandom, colour, exceptions,
-    hashable, hex-text, random-shuffle,
-    cryptonite, memory,
-    temporary, typed-process,
-    aeson, aws-lambda-haskell-runtime,
-    JuicyPixels, base64-bytestring,
-    telegram-api, servant-client,
-  }:
-      mkDerivation {
-        pname = "kaleidogen-lambda";
-        version = "0.1.0.0";
-        src = pkgs.lib.sourceByRegex ./. [
-          ".*\.cabal$"
-          "LICENSE"
-          "^src.*"
-        ];
-        isLibrary = false;
-        isExecutable = true;
-        enableSharedExecutables = false;
-        enableSharedLibraries = false;
-        executableHaskellDepends = [ base
-	    MonadRandom colour exceptions
-	    hashable hex-text random-shuffle
-	    cryptonite memory
-            temporary typed-process
-            aeson aws-lambda-haskell-runtime
-            JuicyPixels base64-bytestring
-	    telegram-api servant-client
-	];
-        license = stdenv.lib.licenses.bsd3;
-        configureFlags = [
-	  "-flambda"
-          "--ghc-option=-optl=-static"
-          "--extra-lib-dirs=${staticPkgs.gmp6.override { withStatic = true; }}/lib"
-          "--extra-lib-dirs=${staticPkgs.zlib.static}/lib"
-          "--extra-lib-dirs=${staticPkgs.libffi.overrideAttrs (old: { dontDisableStatic = true; })}/lib"
-        ] ++ pkgs.lib.optionals (!strip) [
-          "--disable-executable-stripping"
-        ] ;
-      };
+  kaleidogen-src = pkgs.lib.sourceByRegex ./. [
+    ".*\.cabal$"
+    "LICENSE"
+    "^src.*"
+    "^vendor.*"
+  ];
 
-  kaleidogen-web-pkg = { mkDerivation, base, stdenv,
-    MonadRandom, colour, exceptions,
-    hashable, hex-text, random-shuffle,
-    ghcjs-dom, jsaddle, jsaddle-dom,
-    file-embed,
-  }:
-      mkDerivation {
-        pname = "kaleidogen";
-        version = "0.1.0.0";
-        src = pkgs.lib.sourceByRegex ./. [
-          ".*\.cabal$"
-          "LICENSE"
-          "^src.*"
-          "^vendor.*"
-        ];
-        isLibrary = false;
-        isExecutable = true;
-        executableHaskellDepends = [ base
-	    MonadRandom colour exceptions
-	    hashable hex-text random-shuffle
-            ghcjs-dom jsaddle jsaddle-dom
-            file-embed
-	];
-        license = stdenv.lib.licenses.bsd3;
-        configureFlags = [
-	  "-f-lambda -fjsaddle -f-android -f-clib -f-sdl"
-        ] ;
-      };
-
-  haskellPackages = with pkgs.haskell.lib; staticPkgs.haskell.packages.${compiler}.override {
+  staticHaskellPackages = with pkgs.haskell.lib; staticPkgs.haskellPackages.override {
     overrides = self: super: {
       # Dependencies we need to patch
       hpc-coveralls = appendPatch super.hpc-coveralls (builtins.fetchurl https://github.com/guillaume-nargeot/hpc-coveralls/pull/73/commits/344217f513b7adfb9037f73026f5d928be98d07f.patch);
       telegram-api = self.callPackage telegram-api-pkg {};
+      aws-lambda-haskell-runtime = unmarkBroken super.aws-lambda-haskell-runtime;
     };
   };
+  kaleidogen-lambda = staticHaskellPackages.mkDerivation {
+    pname = "kaleidogen-lambda";
+    version = "0.1.0.0";
+    src = kaleidogen-src;
+    isLibrary = false;
+    isExecutable = true;
+    enableSharedExecutables = false;
+    enableSharedLibraries = false;
+    executableHaskellDepends = with staticHaskellPackages; [
+       base
+       MonadRandom colour exceptions
+       hashable hex-text random-shuffle
+       cryptonite memory
+       temporary typed-process
+       aeson aws-lambda-haskell-runtime
+       JuicyPixels base64-bytestring
+       telegram-api servant-client
+    ];
+    license = pkgs.lib.licenses.bsd3;
+    configureFlags = [
+     "-flambda"
+      "--ghc-option=-optl=-static"
+      "--extra-lib-dirs=${staticPkgs.gmp6.override { withStatic = true; }}/lib"
+      "--extra-lib-dirs=${staticPkgs.zlib.static}/lib"
+      "--extra-lib-dirs=${staticPkgs.libffi.overrideAttrs (old: { dontDisableStatic = true; })}/lib"
+    ] ++ pkgs.lib.optionals (!strip) [
+      "--disable-executable-stripping"
+    ] ;
 
-  kaleidogen-lambda = haskellPackages.callPackage kaleidogen-lambda-pkg {};
+  };
 
   function-zip = pkgs.runCommandNoCC "kaleidogen-function.zip" {
     buildInputs = [ pkgs.zip ];
@@ -166,7 +130,7 @@ let
     zip $out/function.zip bootstrap
   '';
 
-  ghcjsHaskellPackages = with pkgs.haskell.lib; ghcjsPkgs.haskell.packages.ghcjs86.override {
+  ghcjsHaskellPackages = with pkgs.haskell.lib; ghcjsPkgs.haskell.packages.ghcjs.override {
     overrides = self: super: {
       ghcjs-dom-jsffi = unmarkBroken super.ghcjs-dom-jsffi;
 
@@ -174,7 +138,7 @@ let
       QuickCheck = dontCheck super.QuickCheck;
 
       # fail quickly please
-      doctest = super.doctest.overrideAttrs(old: { buildPhase = "false"; });
+      #doctest = super.doctest.overrideAttrs(old: { buildPhase = "false"; });
 
       # depends on doctest, which fails to build:
       hex-text = dontCheck super.hex-text;
@@ -206,7 +170,51 @@ let
       });
     };
   };
-  kaleidogen-web = ghcjsHaskellPackages.callPackage kaleidogen-web-pkg {};
+  kaleidogen-web = ghcjsHaskellPackages.mkDerivation {
+    pname = "kaleidogen";
+    version = "0.1.0.0";
+    src = kaleidogen-src;
+    isLibrary = false;
+    isExecutable = true;
+    executableHaskellDepends =  with haskellPackages; [
+      base
+      MonadRandom colour exceptions
+      hashable hex-text random-shuffle
+      ghcjs-dom jsaddle jsaddle-dom
+      file-embed
+    ];
+    license = pkgs.lib.licenses.bsd3;
+    configureFlags = [
+      "-f-lambda -fjsaddle -f-android -f-clib -f-sdl"
+    ] ;
+  };
+
+  haskellPackages = with pkgs.haskell.lib; pkgs.haskellPackages.override {
+    overrides = self: super: {
+      ghcjs-dom-jsffi = unmarkBroken super.ghcjs-dom-jsffi;
+      jsaddle-warp = unmarkBroken super.jsaddle-warp;
+    };
+  };
+  kaleidogen-local = haskellPackages.mkDerivation {
+    pname = "kaleidogen";
+    version = "0.1.0.0";
+    src = kaleidogen-src;
+    isLibrary = false;
+    isExecutable = true;
+    executableHaskellDepends =  with haskellPackages; [
+      base
+      MonadRandom colour exceptions
+      hashable hex-text random-shuffle
+      ghcjs-dom jsaddle jsaddle-dom
+      file-embed
+      # The following only for local
+      jsaddle-warp warp
+    ];
+    license = pkgs.lib.licenses.bsd3;
+    configureFlags = [
+      "-f-lambda -fjsaddle -f-android -f-clib -f-sdl"
+    ] ;
+  };
 
   gh-page = pkgs.runCommandNoCC "gh-page" {} ''
     mkdir -p $out
@@ -223,6 +231,7 @@ in
   { inherit
       kaleidogen-lambda
       kaleidogen-web
+      kaleidogen-local
       function-zip
       shell
       gh-page;
