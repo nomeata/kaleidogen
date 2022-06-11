@@ -166,7 +166,7 @@ let
     src = kaleidogen-src;
     isLibrary = false;
     isExecutable = true;
-    executableHaskellDepends =  with haskellPackages; [
+    executableHaskellDepends = with ghcjsHaskellPackages; [
       base
       MonadRandom colour exceptions
       hashable hex-text random-shuffle
@@ -176,7 +176,7 @@ let
     license = pkgs.lib.licenses.bsd3;
     configureFlags = [
       "-f-lambda -fjsaddle -f-android -f-clib -f-sdl"
-    ] ;
+    ];
   };
 
   haskellPackages = with pkgs.haskell.lib; pkgs.haskellPackages.override {
@@ -201,6 +201,9 @@ let
       jsaddle-warp warp
     ];
     license = pkgs.lib.licenses.bsd3;
+    preConfigure = ''
+      find /build/setup-package.conf.d
+    '';
     configureFlags = [
       "-f-lambda -fjsaddle -f-android -f-clib -f-sdl"
     ] ;
