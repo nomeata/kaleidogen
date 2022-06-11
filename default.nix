@@ -194,6 +194,16 @@ let
       jsaddle = overrideCabal super.jsaddle (drv: {
         libraryHaskellDepends = drv.libraryHaskellDepends ++ [ self.ghcjs-base ];
       });
+
+      # uses git: URL, can be fixed when upgrading to nixpkgs da2cbf54e8ec3e66e2e24d2c55823bce98a7f96b
+      ghcjs-base = super.ghcjs-base.overrideAttrs(d: {
+        src = pkgs.fetchFromGitHub {
+          owner = "ghcjs";
+          repo = "ghcjs-base";
+          rev = "01014ade3f8f5ae677df192d7c2a208bd795b96c";
+          sha256 = "0qr05m0djll3x38dhl85pl798arsndmwfhil8yklhb70lxrbvfrs";
+        };
+      });
     };
   };
   kaleidogen-web = ghcjsHaskellPackages.callPackage kaleidogen-web-pkg {};
