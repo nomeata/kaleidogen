@@ -88,7 +88,13 @@ let
       # Dependencies we need to patch
       hpc-coveralls = appendPatch super.hpc-coveralls (builtins.fetchurl https://github.com/guillaume-nargeot/hpc-coveralls/pull/73/commits/344217f513b7adfb9037f73026f5d928be98d07f.patch);
       telegram-api = self.callPackage telegram-api-pkg {};
-      aws-lambda-haskell-runtime = unmarkBroken super.aws-lambda-haskell-runtime;
+      aws-lambda-haskell-runtime = pkgs.haskell.lib.appendPatch
+        (unmarkBroken super.aws-lambda-haskell-runtime)
+        (pkgs.fetchpatch {
+          # https://github.com/theam/aws-lambda-haskell-runtime/pull/121
+          url = "https://github.com/theam/aws-lambda-haskell-runtime/commit/fa19268282a5afff7aa0ba8babc723d835bed4f1.patch";
+          sha256 = "sha256-pHxd3Ox5IIwJhG5bFROqotqmIu60zZ5NkBRRfz8xcnk=";
+        });
     };
   };
   kaleidogen-lambda = staticHaskellPackages.mkDerivation {
