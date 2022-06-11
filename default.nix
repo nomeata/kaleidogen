@@ -137,16 +137,6 @@ let
       # System.Process.createPipeInternal: not yet supported on GHCJS
       QuickCheck = dontCheck super.QuickCheck;
 
-      # fail quickly please
-      #doctest = super.doctest.overrideAttrs(old: { buildPhase = "false"; });
-
-      # depends on doctest, which fails to build:
-      hex-text = dontCheck super.hex-text;
-      http-types = dontCheck super.http-types;
-      lens = dontCheck super.lens;
-      comonad = dontCheck super.comonad;
-      semigroupoids = dontCheck super.semigroupoids;
-
       # gets stuck running the tests in node, it seems
       scientific = dontCheck super.scientific;
       tasty-quickcheck = dontCheck super.tasty-quickcheck;
