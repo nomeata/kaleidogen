@@ -6,13 +6,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: cachix/install-nix-action@v8
-    - name: Build kaleidogen-web
-      uses: cachix/cachix-action@v5
+    - uses: cachix/install-nix-action@v16
+    - name: Add kaleidogen cachix
+      uses: cachix/cachix-action@v8
       with:
         name: kaleidogen
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
-        attributes: gh-page
+    # until https://github.com/cachix/cachix-action/issues/86 is fixed:
+    - run: cachix watch-store kaleidogen &
+    - name: Build kaleidogen-web
+      run: nix-build -A gh-page
     - name: Copy out of nix store
       # due to https://github.com/JamesIves/github-pages-deploy-action/issues/241
       run: |
@@ -32,18 +35,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: cachix/install-nix-action@v8
-    - name: Add static-haskell-nix
-      uses: cachix/cachix-action@v5
+    - uses: cachix/install-nix-action@v16
+    - name: Add static-haskell-nix cachix
+      uses: cachix/cachix-action@v8
       with:
         name: static-haskell-nix
-        skipNixBuild: true
-    - name: Build kaleidogen-lambda
-      uses: cachix/cachix-action@v5
+    - name: Add kaleidogen cachix
+      uses: cachix/cachix-action@v8
       with:
         name: kaleidogen
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
-        attributes: kaleidogen-lambda
+    # until https://github.com/cachix/cachix-action/issues/86 is fixed:
+    - run: cachix watch-store kaleidogen &
+    - run: nix-build -A kaleidogen-lambda
     - name: Build zipfile
       run: |
        nix-build -A function-zip -o function
