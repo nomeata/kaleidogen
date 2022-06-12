@@ -27,7 +27,7 @@ runInSDL toShader go = do
     initializeAll
     window <- createWindow "My SDL Application" $
         defaultWindow
-            { windowOpenGL = Just defaultOpenGL --  { glProfile = ES Normal 3 0 }
+            { windowGraphicsContext = OpenGLContext defaultOpenGL --  { glProfile = ES Normal 3 0 }
             , windowHighDPI = True
             , windowResizable = True
             }

@@ -12,7 +12,6 @@ import qualified Data.Text.Encoding as T
 import qualified Data.ByteString as BS
 import Data.Functor.Const
 import Data.FileEmbed
-import Language.Javascript.JSaddle (toJSVal)
 import Language.Javascript.JSaddle.Object
 
 -- No need to pull in lens just for this function

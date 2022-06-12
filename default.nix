@@ -203,13 +203,12 @@ let
       file-embed
       # The following only for local
       jsaddle-warp warp
+      # For SDL
+      OpenGL StateVar linear sdl2
     ];
     license = pkgs.lib.licenses.bsd3;
-    preConfigure = ''
-      find /build/setup-package.conf.d
-    '';
     configureFlags = [
-      "-f-lambda -fjsaddle -f-android -f-clib -f-sdl"
+      "-f-lambda -fjsaddle -f-android -f-clib -fsdl"
     ] ;
   };
 
@@ -219,10 +218,15 @@ let
     cp -rv ${kaleidogen-web}/bin/kaleidogen-demo.jsexe $out/demo
   '';
 
-  shell = kaleidogen-lambda.env.overrideAttrs(old: {
-    preferLocalBuild = true;
-    allowSubstitutes = true;
-  });
+  shell = haskellPackages.shellFor {
+    packages = p: [ kaleidogen-local ];
+    buildInputs = [
+      pkgs.cabal-install
+      pkgs.ghcid
+      haskellPackages.haskell-language-server
+    ];
+  };
+
 
 in
   { inherit
