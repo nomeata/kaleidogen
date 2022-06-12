@@ -148,6 +148,9 @@ let
       # test suite fails
       time-compat = dontCheck super.time-compat;
 
+      # Just loops
+      text-short = dontCheck super.text-short;
+
       # missing dependency
       jsaddle = overrideCabal super.jsaddle (drv: {
         libraryHaskellDepends = drv.libraryHaskellDepends ++ [ self.ghcjs-base ];
