@@ -40,10 +40,12 @@ let
         pname = "telegram-api";
         version = "0.7.1.0";
         src = fetchFromGitHub {
-          owner = "klappvisor";
+          owner = "nomeata";
           repo = "haskell-telegram-api";
-          rev = "abbfd76c40f2783c113b660184a03cc94d58e751";
-          sha256 = "0mzhigdyj5jdwycmz587s05zp5c7wcf7njw3x866iln59kp0rgi3";
+          # branch kaleidogen-fork
+          # see https://github.com/klappvisor/haskell-telegram-api/pull/131
+          rev = "0fe586a19883329ce11963189759bc044898f670";
+          sha256 = "sha256-0akdSUrpqgNuWkzPOzcIUb3Szt7pOaweMNDgYPRJKGk=";
         };
         isLibrary = true;
         isExecutable = false;
@@ -72,7 +74,6 @@ let
             optparse-applicative
             servant-client
 	];
-        jailbreak = true;  # want servant-client-0.16.0.1, not 0.16
         license = pkgs.lib.licenses.bsd3;
       };
 
