@@ -56,8 +56,12 @@ The Telegram Bot runs on Amazon Lambda, and needs to be compiled statically.
 This, too, requires a warm cache or it will build a lot of things (such as a
 complete static environment):
 
-    nix-build -A kaleidogen-lambda  # the binary
-    nix-build -A function-zip       # the lambda function zip file
+    # the binary
+    nix-build -A kaleidogen-lambda
+    # the lambda function zip file
+    nix-build -A function-zip
+    # Deploy locally (master branch deploys automatically)
+    aws lambda update-function-code --region us-east-2 --function-name kaleidogen --zip-file fileb://result/function.zip
 
 There is an experimental Andorid build using reflex-platform, but it has not
 made it to the `master` branch yet, see branch `android`.

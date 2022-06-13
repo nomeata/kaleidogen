@@ -43,7 +43,7 @@ main :: IO ()
 main = do
     tc <- getTelegramSettings
     runLambdaHaskellRuntime defaultDispatcherOptions (pure ()) id $ do
-       addStandaloneLambdaHandler "handler" (handler tc)
+       addStandaloneLambdaHandler "Provided" (handler tc)
 
 -- deriving instance Show LambdaOptions
 
