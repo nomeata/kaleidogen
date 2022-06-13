@@ -35,7 +35,10 @@ data AppState = AppState
     }
 
 -- Events passed on to the presentation layer
-data AbstractPos = MainPos | SmallPos Int Int | DeletedPos Int Int
+data AbstractPos
+    = MainPos            -- ^ The big one on top
+    | SmallPos Int Int   -- ^ A little position. Parameters are count and index
+    | DeletedPos Int Int -- ^ A little position, for the ghost of a just deleted element
 
 -- The main instance can be selected, the preview instance not
 data Entity = PreviewInstance DNA | MainInstance DNA
