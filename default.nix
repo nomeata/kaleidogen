@@ -156,13 +156,13 @@ let
         libraryHaskellDepends = drv.libraryHaskellDepends ++ [ self.ghcjs-base ];
       });
 
-      # uses git: URL, can be fixed when upgrading to nixpkgs da2cbf54e8ec3e66e2e24d2c55823bce98a7f96b
+      # bump to newer version
       ghcjs-base = super.ghcjs-base.overrideAttrs(d: {
         src = pkgs.fetchFromGitHub {
           owner = "ghcjs";
           repo = "ghcjs-base";
-          rev = "01014ade3f8f5ae677df192d7c2a208bd795b96c";
-          sha256 = "0qr05m0djll3x38dhl85pl798arsndmwfhil8yklhb70lxrbvfrs";
+          rev = "fbaae59b05b020e91783df122249095e168df53f";
+          sha256 = "sha256-x6eCAK1Hne0QkV3Loi9YpxbleNHU593E4AO8cbk2vUc=";
         };
       });
     };
