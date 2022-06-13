@@ -61,6 +61,9 @@ conclude pat = do
   l "  float anim = u_extraData[4];"
   l "  if (length(vDrawCoord) > 1.0) { gl_FragColor = vec4(0.0,0.0,0.0,0.0); return; }"
   col <- pat "vDrawCoord" "anim"
+  l "  if (extraData > 2.5) {" -- extraData == 3: grey out
+  l $ "  " <> col <> " = vec3(dot(vec3(0.299, 0.587, 0.114), " <> col <> "));"
+  l "  }"
   l $ "  gl_FragColor = vec4(" <> col <> ", 1.0);"
   l "}"
 
@@ -69,7 +72,7 @@ highlight pat pos0 anim = do
   pos1 <- vec2 "pos" pos0
   l "  if (extraData > 0.5) {" -- need a hightlighting border
   l $ "    if (length(" <> pos0 <> ") > 0.9) {"
-  l "      if (extraData > 1.5) {"
+  l "      if (extraData > 1.5 && extraData < 2.5) {"
   l "        gl_FragColor = vec4(0,0,1.0,1.0);"
   l "      } else {"
   l "        gl_FragColor = vec4(0,0,0,0.0);"

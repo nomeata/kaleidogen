@@ -17,12 +17,12 @@ import qualified Data.Text as T
 import Data.IORef
 import Control.Monad.IO.Class
 import Data.Foldable
+import Data.Maybe
 
 import Shaders
 import Expression
 import GLSL
 import DNA
-import qualified SelectTwo as S2
 import Layout
 import Mealy
 import Logic
@@ -122,11 +122,14 @@ mainProgram Backend {..} = do
         { onDraw = do
             t <- getCurrentTime
             as <- liftIO $ readIORef asRef
-            setCanDelete (S2.isOneSelected (sel as))
-            setCanSave (S2.isOneSelected (sel as))
-            setCanAnim (S2.isOneSelected (sel as))
+            setCanDelete (isJust (sel as))
+            setCanSave (isJust (sel as))
+            setCanAnim (isJust (sel as))
             (p, borderRadius, continue) <- getModPres t
-            let extraData (MainInstance d) = if isSelected as d then 2 else 1
+            let extraData (MainInstance d)
+                  | isSelected as d = 2
+                  | isInactive as d = 3
+                  | otherwise       = 1
                 extraData (PreviewInstance _) = 0
             let toDraw =
                     (Border, (0,0,0,borderRadius,1)) :
