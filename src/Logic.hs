@@ -132,7 +132,7 @@ handleLogic as@AppState{..} e = case e of
     -- Adding a new pattern
     ClickEvent (Click (PreviewInstance d))
         | Just new <- newDNA as, d == new
-        , new `notElem` M.elems dnas
+        , new `notElem` M.elems dnas -- this should never be True, due to isInactive
         , let newKey = succ (fst (M.findMax dnas))
         , let dnas' = M.insert newKey new dnas
         , let as' = as { sel = S2.empty, dnas = dnas' }
@@ -142,15 +142,6 @@ handleLogic as@AppState{..} e = case e of
              ] ++
              moveAllSmall as'
            )
-    -- Clicking an already added pattern
-    ClickEvent (Click (PreviewInstance d))
-        | Just new <- newDNA as
-        , d == new
-        , Just i <- elemIndex d (M.elems dnas)
-        -> -- send preview move event
-           ( as { sel = S2.empty, dnas = dnas }
-           , [ (PreviewInstance new, FadeOut (SmallPos (length dnas) i)) ] )
-
     -- Changing selection
     ClickEvent (Click (MainInstance d))
         | not (isInactive as d)
@@ -189,7 +180,7 @@ handleLogic as@AppState{..} e = case e of
     ClickEvent EndDrag
         | Just _ <- drag
         , Just new <- newDNA as
-        , new `notElem` M.elems dnas
+        , new `notElem` M.elems dnas -- should always be true, due to isInactive
         , let newKey = succ (fst (M.findMax dnas))
         , let dnas' = M.insert newKey new dnas
         , let as' = as { drag = Nothing, dragOn = Nothing, dnas = dnas' }
@@ -199,13 +190,6 @@ handleLogic as@AppState{..} e = case e of
              ] ++
              moveAllSmall as'
            )
-
-        | Just d <- drag
-        , Just new <- newDNA as
-        , Just i <- elemIndex new (M.elems dnas)
-        -> ( as { drag = Nothing }
-           , [ (PreviewInstance new, FadeOut (SmallPos (length dnas) i))
-             , moveOneSmall as d ] )
 
         | Just d <- drag
         -> ( as { drag = Nothing }, [ moveOneSmall as d ] )
