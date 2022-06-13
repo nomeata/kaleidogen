@@ -126,7 +126,10 @@ mainProgram Backend {..} = do
             setCanSave (S2.isOneSelected (sel as))
             setCanAnim (S2.isOneSelected (sel as))
             (p, borderRadius, continue) <- getModPres t
-            let extraData (MainInstance d) = if isSelected as d then 2 else 1
+            let extraData (MainInstance d)
+                  | isSelected as d = 2
+                  | isInactive as d = 3
+                  | otherwise       = 1
                 extraData (PreviewInstance _) = 0
             let toDraw =
                     (Border, (0,0,0,borderRadius,1)) :

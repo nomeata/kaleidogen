@@ -8,7 +8,7 @@ module Logic (
     AppState(..),
     Event(..),
     logicMealy,
-    isSelected, entity2dna, selectedDNA,
+    isSelected, isInactive, entity2dna, selectedDNA,
     canDrag,
     ) where
 
@@ -65,12 +65,24 @@ selectedDNA as@AppState{..}
 preview :: AppState -> Maybe DNA
 preview as = newDNA as <|> selectedDNA as
 
+isInactive :: AppState -> DNA -> Bool
+isInactive as@AppState{..} = if
+    | S2.TwoSelected x _ <- sel -> alreadyCombinedWith as (as `dnaAtKey` x)
+    | S2.OneSelected x <- sel   -> alreadyCombinedWith as (as `dnaAtKey` x)
+    | Just d <- drag            -> alreadyCombinedWith as d
+    | otherwise -> const False
+
 isSelected :: AppState -> DNA -> Bool
 isSelected as@AppState{..} = if
     | S2.TwoSelected x y <- sel -> \d -> d `elem` [as `dnaAtKey` x, as `dnaAtKey` y]
     | S2.OneSelected x <- sel -> \d -> d == (as `dnaAtKey` x)
     | Just x <- drag, Just y <- dragOn -> \d -> d `elem` [x,y]
     | otherwise -> const False
+
+alreadyCombinedWith :: AppState -> DNA -> DNA -> Bool
+alreadyCombinedWith as d1 d2 =
+    -- Is this too slow, recombining them all the time?
+    crossover (seed  as) d1 d2 `elem` M.elems (dnas as)
 
 moveAllSmall :: AppState -> Cmds Entity AbstractPos
 moveAllSmall as =
@@ -105,7 +117,7 @@ logicMealy seed = Mealy
   where
     as0 = AppState {..}
       where
-        dnas = M.fromList $ zipWith (\n d -> (n,d)) [0..] initialDNAs
+        dnas = M.fromList $ zip [0..] initialDNAs
         sel = S2.duolton 0 1
         drag = Nothing
         dragOn = Nothing
@@ -141,7 +153,8 @@ handleLogic as@AppState{..} e = case e of
 
     -- Changing selection
     ClickEvent (Click (MainInstance d))
-        | (k:_) <- [ k | (k,d') <- M.toList dnas, d == d' ]
+        | not (isInactive as d)
+        , (k:_) <- [ k | (k,d') <- M.toList dnas, d == d' ]
         -> let as' = as { sel = S2.flip sel k , drag = Nothing }
            in
            ( as'
@@ -164,6 +177,7 @@ handleLogic as@AppState{..} e = case e of
 
     ClickEvent (DragOn (MainInstance d'))
         | Just _ <- drag
+        , not (isInactive as d')
         , let as' = as { dragOn = Just d' }
         -> ( as', [ (PreviewInstance new, SummonAt MainPos) | Just new <- pure $ newDNA as' ] )
 
