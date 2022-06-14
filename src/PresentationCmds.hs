@@ -6,5 +6,6 @@ data Cmd' a
     | FadeOut a
     | Remove
     | Animate
+  deriving (Show, Eq)
 type Cmd k a = (k, Cmd' a)
 type Cmds k a = [Cmd k a]

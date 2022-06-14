@@ -42,6 +42,7 @@ data ClickEvent k
     | DragOff k
     | EndDrag
     | CancelDrag
+  deriving Show
 
 data DragState k = DragState
     { initialPhase :: Maybe (MousePos, Time)

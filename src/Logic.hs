@@ -22,7 +22,7 @@ import Drag (ClickEvent(..))
 import Mealy
 
 -- Lets keep the keys separate from the sequential indices
-newtype Key = Key Int deriving (Num, Eq, Ord, Enum)
+newtype Key = Key Int deriving (Num, Eq, Ord, Enum, Show)
 
 type Seed = Int
 
@@ -33,12 +33,14 @@ data AppState = AppState
     , dragOn :: Maybe DNA
     , sel :: Maybe Key
     }
+  deriving Show
 
 -- Events passed on to the presentation layer
 data AbstractPos
     = MainPos            -- ^ The big one on top
     | SmallPos Int Int   -- ^ A little position. Parameters are count and index
     | DeletedPos Int Int -- ^ A little position, for the ghost of a just deleted element
+  deriving (Show, Eq)
 
 -- The main instance can be selected, the preview instance not
 data Entity = PreviewInstance DNA | MainInstance DNA
@@ -98,12 +100,13 @@ moveOneSmall as d = (MainInstance d, MoveTo (SmallPos c n))
 moveMain :: AppState -> Cmds Entity AbstractPos
 moveMain as =
     [ (PreviewInstance d, MoveTo MainPos)
-    | Just d <- return $ newDNA as ]
+    | Just d <- return $ preview as ]
 
 data Event
     = ClickEvent (ClickEvent Entity)
     | Delete
     | Anim
+  deriving Show
 
 logicMealy :: Seed -> Mealy AppState Event (Cmds Entity AbstractPos)
 logicMealy seed = Mealy
@@ -129,6 +132,7 @@ handleLogic as@AppState{..} e = case e of
     -- Changing selection
     ClickEvent (Click (MainInstance d))
         | not (isInactive as d)
+        , Nothing <- drag
         , (k:_) <- [ k | (k,d') <- M.toList dnas, d == d' ]
         -> let as' = as { sel = Just k, drag = Nothing }
            in
@@ -143,6 +147,8 @@ handleLogic as@AppState{..} e = case e of
 
     -- Beginning a drag-and-drop action
     ClickEvent (BeginDrag (MainInstance d))
+        | Nothing <- sel
+        , Nothing <- drag
         -> ( as { drag = Just d, sel = Nothing }
            , [ (PreviewInstance (as `dnaAtKey` k_old), Remove)
              | Just k_old <- [sel]
@@ -150,8 +156,10 @@ handleLogic as@AppState{..} e = case e of
            )
 
     ClickEvent (DragOn (MainInstance d'))
-        | Just _ <- drag
-        , not (isInactive as d')
+        | Just d <- drag
+        , Nothing <- dragOn
+        , d' /= d                -- Should not happen
+        , not (isInactive as d') -- Should not happen
         , let as' = as { dragOn = Just d' }
         -> ( as', [ (PreviewInstance new, SummonAt MainPos) | Just new <- [newDNA as']] )
 
@@ -176,11 +184,11 @@ handleLogic as@AppState{..} e = case e of
            )
 
         | Just d <- drag
-        -> ( as { drag = Nothing }, [ moveOneSmall as d ] )
+        -> ( as { drag = Nothing, dragOn = Nothing }, [ moveOneSmall as d ] )
 
     ClickEvent CancelDrag
         | Just d <- drag
-        -> ( as { drag = Nothing }
+        -> ( as { drag = Nothing, dragOn = Nothing }
            , [ (PreviewInstance new, Remove) | Just new <- [newDNA as]] ++
              [ moveOneSmall as d ] )
 
