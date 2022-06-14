@@ -5,7 +5,7 @@ let sources = import (builtins.fetchurl {
 
 let pkgs = import sources.nixpkgs {}; in
 let ghcjsPkgs = pkgs; in
-let staticPkgs = pkgs.pkgsMusl; in
+let staticPkgs = pkgs.pkgsStatic; in
 
 let strip = true; in
 
@@ -115,11 +115,7 @@ let
     ];
     license = pkgs.lib.licenses.bsd3;
     configureFlags = [
-     "-flambda"
-      "--ghc-option=-optl=-static"
-      "--extra-lib-dirs=${staticPkgs.gmp6.override { withStatic = true; }}/lib"
-      "--extra-lib-dirs=${staticPkgs.zlib.static}/lib"
-      "--extra-lib-dirs=${staticPkgs.libffi.overrideAttrs (old: { dontDisableStatic = true; })}/lib"
+      "-flambda"
     ] ++ pkgs.lib.optionals (!strip) [
       "--disable-executable-stripping"
     ] ;
