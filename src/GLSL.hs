@@ -14,7 +14,7 @@ import RNA
 import Control.Monad.State.Strict
 
 toFragmentShader :: RNA -> T.Text
-toFragmentShader rna = runG $ conclude $ highlight $ go rna
+toFragmentShader rna = runG $ conclude $ go rna
 
 -- The name of a variable
 type GLVar = Builder
@@ -67,8 +67,9 @@ conclude pat = do
   l $ "  gl_FragColor = vec4(" <> col <> ", 1.0);"
   l "}"
 
-highlight :: Pattern -> Pattern
-highlight pat pos0 anim = do
+-- Blue highlighting border. Currently unused
+_highlight :: Pattern -> Pattern
+_highlight pat pos0 anim = do
   pos1 <- vec2 "pos" pos0
   l "  if (extraData > 0.5) {" -- need a hightlighting border
   l $ "    if (length(" <> pos0 <> ") > 0.9) {"

@@ -127,9 +127,9 @@ mainProgram Backend {..} = do
             setCanAnim (isJust (sel as))
             (p, borderRadius, continue) <- getModPres t
             let extraData d
-                  | isSelected as d = 2
+                  -- | isSelected as d = 2
                   | isInactive as d = 3
-                  | otherwise       = 1
+                  | otherwise       = 0
             let toDraw =
                     (Border, (0,0,0,borderRadius,1)) :
                     [ (DNA (entity2dna k), (extraData k,x,y,s,f)) | (k,(((x,y),s),f)) <- p ]
