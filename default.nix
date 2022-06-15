@@ -119,7 +119,7 @@ let
     ] ++ pkgs.lib.optionals (!strip) [
       "--disable-executable-stripping"
     ] ;
-
+    doCheck = false;
   };
 
   function-zip = pkgs.runCommandNoCC "kaleidogen-function.zip" {
@@ -180,6 +180,7 @@ let
     configureFlags = [
       "-f-lambda -fjsaddle -f-android -f-clib -f-sdl"
     ];
+    doCheck = false;
   };
 
   haskellPackages = with pkgs.haskell.lib; pkgs.haskellPackages.override {
@@ -204,6 +205,9 @@ let
       jsaddle-warp warp
       # For SDL
       OpenGL StateVar linear sdl2
+    ];
+    testHaskellDepends =  with haskellPackages; [
+      QuickCheck tasty tasty-quickcheck
     ];
     license = pkgs.lib.licenses.bsd3;
     configureFlags = [

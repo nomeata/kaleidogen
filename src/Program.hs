@@ -95,28 +95,28 @@ mainProgram Backend {..} = do
     sizeRef <- liftIO $ newIORef size0
     pRef <- liftIO Presentation.initRef
     let handleCmds cs = do
-        t <- getCurrentTime
-        lf <- liftIO $ layoutFun <$> readIORef sizeRef
-        liftIO $ Presentation.handleCmdsRef t lf cs pRef
+          t <- getCurrentTime
+          lf <- liftIO $ layoutFun <$> readIORef sizeRef
+          liftIO $ Presentation.handleCmdsRef t lf cs pRef
     handleCmds (reconstruct mealy as0)
 
     let handleEvent e = do
-        as <- liftIO (readIORef asRef)
-        let (as', cs) = handle mealy as e
-        liftIO $ writeIORef asRef as'
-        handleCmds cs
+          as <- liftIO (readIORef asRef)
+          let (as', cs) = handle mealy as e
+          liftIO $ writeIORef asRef as'
+          handleCmds cs
 
     let getPresentation t = liftIO (Presentation.presentAtRef t pRef)
 
     let canDragM k = do
-        as <- liftIO (readIORef asRef)
-        return (Logic.canDrag as k)
+          as <- liftIO (readIORef asRef)
+          return (Logic.canDrag as k)
 
     (dragHandler, getModPres) <- mkDragHandler canDragM getPresentation
 
     let handleClickEvents re = do
-        t <- getCurrentTime
-        dragHandler t re >>= mapM_ (handleEvent . ClickEvent)
+          t <- getCurrentTime
+          dragHandler t re >>= mapM_ (handleEvent . ClickEvent)
 
     return $ Callbacks
         { onDraw = do

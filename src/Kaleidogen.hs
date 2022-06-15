@@ -112,8 +112,8 @@ runInBrowser toShader go = do
     checkResize <- autoResizeCanvas canvas (\ pos -> onResize pos >> render)
     -- Wish I could use onResize on body, but that does not work somehow
     let regularlyCheckSize = do
-        checkResize
-        () <$ inAnimationFrame' (const regularlyCheckSize)
+          checkResize
+          () <$ inAnimationFrame' (const regularlyCheckSize)
     regularlyCheckSize -- should trigger the initial render as well
 
 

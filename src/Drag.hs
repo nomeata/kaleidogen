@@ -79,25 +79,25 @@ mkDragHandler canDrag getPres = do
     lastIntersection <- liftIO $ newIORef Nothing
 
     let getModifiedPres t = do
-        liftIO $ modifyIORef dragAnimState (DragAnim.cleanup t)
-        DragAnim.pres <$> liftIO (readIORef dragAnimState)
-                      <*> pure t
-                      <*> getPres t
+          liftIO $ modifyIORef dragAnimState (DragAnim.cleanup t)
+          DragAnim.pres <$> liftIO (readIORef dragAnimState)
+                        <*> pure t
+                        <*> getPres t
 
     let posToKey t pos = do
-        (p,_,_) <- getModifiedPres t
-        return $ Presentation.locateClick p pos
+          (p,_,_) <- getModifiedPres t
+          return $ Presentation.locateClick p pos
 
     let intersectToKey t k = do
-        (p,_,_) <- getModifiedPres t
-        return $ Presentation.locateIntersection p k
+          (p,_,_) <- getModifiedPres t
+          return $ Presentation.locateIntersection p k
 
     let finishDrag t = do
-            ds <- liftIO $ readIORef dragState
-            liftIO $ writeIORef dragState Nothing
-            liftIO $ writeIORef lastIntersection Nothing
-            liftIO $ modifyIORef dragAnimState (DragAnim.stop t)
-            return ds
+          ds <- liftIO $ readIORef dragState
+          liftIO $ writeIORef dragState Nothing
+          liftIO $ writeIORef lastIntersection Nothing
+          liftIO $ modifyIORef dragAnimState (DragAnim.stop t)
+          return ds
 
     let cancelDrag t = finishDrag t >>= \case
             Just ds | dragging ds -> tell [CancelDrag]

@@ -19,20 +19,20 @@ animate draw = do
     animating <- liftIO $ newIORef False
 
     let continueAnimation t = do
-        Animating continue <- draw t
-        if continue then () <$ inAnimationFrame' continueAnimation
-                    else liftIO $ writeIORef animating False
+          Animating continue <- draw t
+          if continue then () <$ inAnimationFrame' continueAnimation
+                      else liftIO $ writeIORef animating False
 
 
     let drawAndAnimate t = do
-        Animating continue <- draw t
-        -- If there is something to animate
-        when continue $ do
-           -- And no animation loop is running
-            isAnimating <- liftIO (readIORef animating)
-            unless isAnimating $ do
-                liftIO $ writeIORef animating True
-                () <$ inAnimationFrame' continueAnimation
+          Animating continue <- draw t
+          -- If there is something to animate
+          when continue $ do
+             -- And no animation loop is running
+              isAnimating <- liftIO (readIORef animating)
+              unless isAnimating $ do
+                  liftIO $ writeIORef animating True
+                  () <$ inAnimationFrame' continueAnimation
 
     return $ do
         t <- now perf

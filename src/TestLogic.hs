@@ -1,6 +1,5 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
-
-module TestLogic where
+module TestLogic (canReconstruct) where
 
 import qualified Data.Map as M
 import Test.QuickCheck
@@ -44,8 +43,6 @@ canReconstruct as = forAll (elements (nextActions as)) $ \e ->
   where
     m = logicMealy 1
     p aps = unlines [ show x ++ ": " ++ show y | (x,y) <- M.toList aps ]
-
-
 
 
 finalPos :: Ord k => Cmds k a -> M.Map k a

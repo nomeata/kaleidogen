@@ -114,6 +114,7 @@ common SDL
 executable kaleidogen
   import: logic, canvas-save, shader-canvas
   main-is: Kaleidogen.hs
+  default-language: Haskell2010
   other-modules: Animate
   other-modules: RunWidget
   build-depends: base >=4.11 && <5
@@ -135,6 +136,7 @@ executable kaleidogen
 executable kaleidogen-demo
   import: logic, canvas-save, shader-canvas
   main-is: Demo.hs
+  default-language: Haskell2010
   other-modules: RunWidget
   other-modules: PrettyRna
   build-depends: base >=4.11 && <5
@@ -157,6 +159,7 @@ executable kaleidogen-demo
 executable kaleidogen-sdl
   import: logic,SDL
   main-is: KaleidogenSDL.hs
+  default-language: Haskell2010
 
   if !flag(sdl)
     buildable: False
@@ -167,6 +170,7 @@ executable kaleidogen-android-sdl
   import: logic,SDL
   main-is: Kaleidogen.hs
   build-depends: android-activity
+  default-language: Haskell2010
 
   if !flag(android) || !flag(sdl)
     buildable: False
@@ -177,6 +181,7 @@ executable kaleidogen-headless
   import: static, png
   main-is: Headless.hs
   build-depends: optparse-applicative
+  default-language: Haskell2010
 
   if !flag(headless)
     buildable: False
@@ -256,7 +261,19 @@ executable kaleidogen-android-clib
   build-depends: jsaddle
   build-depends: jsaddle-clib
   build-depends: reflex-dom
+  default-language: Haskell2010
 
   if !flag(clib)
     buildable: False
   --  ghc-options: -main-is KaleidogenAndroid
+
+test-suite tests
+  import: logic
+  hs-source-dirs: src
+  other-modules: TestLogic
+  build-depends: tasty
+  build-depends: tasty-quickcheck
+  build-depends: QuickCheck
+  main-is: tests.hs
+  type: exitcode-stdio-1.0
+  default-language: Haskell2010
