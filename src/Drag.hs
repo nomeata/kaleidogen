@@ -42,6 +42,7 @@ data ClickEvent k
     | DragOff k
     | EndDrag
     | CancelDrag
+    | OtherClick
   deriving Show
 
 data DragState k = DragState
@@ -124,7 +125,7 @@ mkDragHandler canDrag getPres = do
                                 -- This makes the UI more smooth.
                             return ()
                         False -> tell [Click k]
-                    Nothing -> return ()
+                    Nothing -> tell [OtherClick]
             Move pos -> do
                 liftIO $ modifyIORef dragState $ fmap $ \ ds -> ds { curPos = pos }
                 liftIO $ modifyIORef dragAnimState (DragAnim.move pos)

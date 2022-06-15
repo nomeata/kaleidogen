@@ -18,7 +18,8 @@ nextActions as =
     [ ClickEvent EndDrag ] ++
     [ ClickEvent CancelDrag ] ++
     [ Delete ] ++
-    [ Anim ]
+    [ Anim ] ++
+    [ ClickEvent OtherClick ]
   where
     ds = M.elems (dnas as)
 
