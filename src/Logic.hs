@@ -170,7 +170,7 @@ handleLogic as@AppState{..} e = case e of
 
     ClickEvent EndDrag
         -- Adding a new pattern
-        | Just _ <- drag
+        | Just d <- drag
         , Just new <- newDNA as
         , new `notElem` M.elems dnas -- should always be true, due to isInactive
         , let newKey = succ (fst (M.findMax dnas))
@@ -179,8 +179,8 @@ handleLogic as@AppState{..} e = case e of
         -> ( as'
            , [ (PreviewInstance new, Remove)
              , (MainInstance new, SummonAt MainPos)
-             ] ++
-             moveAllSmall as'
+             , moveOneSmall as d
+             ]
            )
 
         | Just d <- drag
