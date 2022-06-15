@@ -38,7 +38,7 @@ data AppState = AppState
 data AbstractPos
     = MainPos            -- ^ The big one on top
     | SmallPos Int Int   -- ^ A little position. Parameters are count and index
-    | DeletedPos Int Int -- ^ A little position, for the ghost of a just deleted element
+    | DeletedPos         -- ^ The big one, for the shrinking of deleted ones
   deriving (Show, Eq)
 
 type Entity = DNA
@@ -185,13 +185,10 @@ handleLogic as@AppState{..} e = case e of
 
     Delete
         | Just k <- sel
-        , Just i <- M.lookupIndex k dnas
         , let d = as `dnaAtKey` k
         , let as' = as { sel = Nothing, dnas = M.delete k dnas }
         -> ( as'
-           , [ (d, Remove)
-             , (d, FadeOut (DeletedPos (length dnas) i))
-             ] ++
+           , [ (d, FadeOut DeletedPos) ] ++
              moveAll as'
            )
 

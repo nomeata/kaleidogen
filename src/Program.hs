@@ -40,9 +40,9 @@ layoutFun :: (Double, Double) -> AbstractPos -> PosAndScale
 layoutFun size MainPos
     = topHalf (padding layoutFullCirlce) size ()
 layoutFun size (SmallPos c n)
-    = bottomHalf (padding (layoutGrid False c)) size n
-layoutFun size (DeletedPos c n)
-    = bottomHalf (padding (layoutGrid True c)) size n
+    = bottomHalf (padding (layoutGrid c)) size n
+layoutFun size DeletedPos
+    = topHalf (padding layoutCenterDot) size ()
 
 
 showFullDNA :: DNA -> (Double,Double) -> (Graphic, ExtraData)

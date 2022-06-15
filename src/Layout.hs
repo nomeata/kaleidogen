@@ -28,13 +28,13 @@ layoutFullCirlce (w, h) = \() -> pas
     pas = ((w/2, h/2), s)
     s = min (w/2) (h/2)
 
-layoutGrid :: Bool -> Int -> Layout Int
-layoutGrid _  _ (w,h) | w == 0 || h == 0 = const ((0,0),0)
-layoutGrid deleteSpot count (w,h) =
-    \n -> translate (toPos n) $
-        if deleteSpot
-        then ((s/2, s/2), 0)
-        else ((s/2, s/2), s/2)
+layoutCenterDot :: Layout ()
+layoutCenterDot (w, h) = \() -> ((w/2, h/2), 0)
+
+layoutGrid :: Int -> Layout Int
+layoutGrid _ (w,h) | w == 0 || h == 0 = const ((0,0),0)
+layoutGrid count (w,h) =
+    \n -> translate (toPos n) ((s/2, s/2), s/2)
   where
     max_size = min (w/6) (h/2)
     min_per_row = ceiling (w / max_size)
@@ -48,7 +48,7 @@ layoutGrid deleteSpot count (w,h) =
     s = w/fromIntegral per_row
     row_height = sqrt 3 / 2 * s
 
-    toPos n = (x + dx,y)
+    toPos n = (x,y)
       where
         i' = n `mod` per_double_row
         j' = n `div` per_double_row
@@ -60,9 +60,3 @@ layoutGrid deleteSpot count (w,h) =
         x | even j    = s * fromIntegral i
           | otherwise = w - s * fromIntegral i - s - s/2
         y = h - row_height * fromIntegral j - s
-
-        -- Offset for the “delete spot”
-        dx =
-          if deleteSpot
-          then if even j then negate (s/2) else s/2
-          else 0
