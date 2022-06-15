@@ -3,7 +3,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Logic (
-    Entity(..),
+    Entity,
     AbstractPos(..),
     AppState(..),
     Event(..),
@@ -41,13 +41,10 @@ data AbstractPos
     | DeletedPos Int Int -- ^ A little position, for the ghost of a just deleted element
   deriving (Show, Eq)
 
--- The main instance can be selected, the preview instance not
-data Entity = PreviewInstance DNA | MainInstance DNA
-    deriving (Eq, Ord, Show)
+type Entity = DNA
 
 entity2dna :: Entity -> DNA
-entity2dna (MainInstance d) = d
-entity2dna (PreviewInstance d) = d
+entity2dna = id
 
 dnaAtKey :: AppState -> Key -> DNA
 dnaAtKey AppState{..} k = dnas M.! k
@@ -81,16 +78,16 @@ alreadyCombinedWith as d1 d2 =
 moveAll :: AppState -> Cmds Entity AbstractPos
 moveAll as =
     [ if Just d == selectedDNA as
-      then (MainInstance d, MoveTo MainPos)
-      else (MainInstance d, MoveTo (SmallPos c n))
+      then (d, MoveTo MainPos)
+      else (d, MoveTo (SmallPos c n))
     | (n, d) <- zip [0..] (M.elems (dnas as))
     ] ++
-    [ (MainInstance d, MoveTo MainPos) | Just d <- [newDNA as] ]
+    [ (d, MoveTo MainPos) | Just d <- [newDNA as] ]
   where
     c = length (dnas as)
 
 moveOneSmall :: AppState -> DNA -> Cmd Entity AbstractPos
-moveOneSmall as d = (MainInstance d, MoveTo (SmallPos c n))
+moveOneSmall as d = (d, MoveTo (SmallPos c n))
   where
     c = length (dnas as)
     Just n = elemIndex d (M.elems (dnas as))
@@ -117,13 +114,12 @@ logicMealy seed = Mealy
 
 
 canDrag :: AppState -> Entity -> Bool
-canDrag _ (MainInstance _) = True
-canDrag _ _ = False
+canDrag _ _ = True
 
 handleLogic :: AppState -> Event -> (AppState, Cmds Entity AbstractPos)
 handleLogic as@AppState{..} e = case e of
     -- Changing selection
-    ClickEvent (Click (MainInstance d))
+    ClickEvent (Click d)
         | not (isInactive as d)
         , Just d /= ((as `dnaAtKey`) <$> sel)
         , Nothing <- drag
@@ -131,29 +127,29 @@ handleLogic as@AppState{..} e = case e of
         , let as' = as { sel = Just k, drag = Nothing }
         -> ( as'
            , [ moveOneSmall as' (as `dnaAtKey` k_old) | Just k_old <- [sel] ] ++
-             [ (MainInstance d, MoveTo MainPos) ]
+             [ (d, MoveTo MainPos) ]
            )
 
     -- Beginning a drag-and-drop action
-    ClickEvent (BeginDrag (MainInstance d))
+    ClickEvent (BeginDrag d)
         | Nothing <- drag
         , let as' = as { drag = Just d, sel = Nothing }
         -> ( as'
            , [ moveOneSmall as' (as `dnaAtKey` k_old) | Just k_old <- [sel] ]
            )
 
-    ClickEvent (DragOn (MainInstance d'))
+    ClickEvent (DragOn d')
         | Just d <- drag
         , Nothing <- dragOn
         , d' /= d                -- Should not happen
         , not (isInactive as d') -- Should not happen
         , let as' = as { dragOn = Just d' }
-        -> ( as', [ (MainInstance new, SummonAt MainPos) | Just new <- [newDNA as']] )
+        -> ( as', [ (new, SummonAt MainPos) | Just new <- [newDNA as']] )
 
-    ClickEvent (DragOff (MainInstance _))
+    ClickEvent (DragOff _)
         | Just _ <- drag
         , let as' = as { dragOn = Nothing }
-        -> ( as', [ (MainInstance new, Remove) | Just new <- [newDNA as]] )
+        -> ( as', [ (new, Remove) | Just new <- [newDNA as]] )
 
     ClickEvent EndDrag
         -- Adding a new pattern
@@ -173,7 +169,7 @@ handleLogic as@AppState{..} e = case e of
     ClickEvent CancelDrag
         | Just d <- drag
         -> ( as { drag = Nothing, dragOn = Nothing }
-           , [ (MainInstance new, Remove) | Just new <- [newDNA as]] ++
+           , [ (new, Remove) | Just new <- [newDNA as]] ++
              [ moveOneSmall as d ] )
 
     -- Fall-through: Unselect if necessary
@@ -193,8 +189,8 @@ handleLogic as@AppState{..} e = case e of
         , let d = as `dnaAtKey` k
         , let as' = as { sel = Nothing, dnas = M.delete k dnas }
         -> ( as'
-           , [ (MainInstance d, Remove)
-             , (MainInstance d, FadeOut (DeletedPos (length dnas) i))
+           , [ (d, Remove)
+             , (d, FadeOut (DeletedPos (length dnas) i))
              ] ++
              moveAll as'
            )
@@ -203,7 +199,7 @@ handleLogic as@AppState{..} e = case e of
         | Just k <- sel
         , let d = as `dnaAtKey` k
         -> ( as
-           , [ (MainInstance d, Animate) ]
+           , [ (d, Animate) ]
            )
 
     _ -> (as, [])

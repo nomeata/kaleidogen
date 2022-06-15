@@ -126,11 +126,10 @@ mainProgram Backend {..} = do
             setCanSave (isJust (sel as))
             setCanAnim (isJust (sel as))
             (p, borderRadius, continue) <- getModPres t
-            let extraData (MainInstance d)
+            let extraData d
                   | isSelected as d = 2
                   | isInactive as d = 3
                   | otherwise       = 1
-                extraData (PreviewInstance _) = 0
             let toDraw =
                     (Border, (0,0,0,borderRadius,1)) :
                     [ (DNA (entity2dna k), (extraData k,x,y,s,f)) | (k,(((x,y),s),f)) <- p ]

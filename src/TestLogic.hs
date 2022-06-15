@@ -11,10 +11,10 @@ import PresentationCmds
 
 nextActions :: AppState -> [Event]
 nextActions as =
-    [ ClickEvent (Click (MainInstance d))     | d <- ds ] ++
-    [ ClickEvent (BeginDrag (MainInstance d)) | d <- ds ] ++
-    [ ClickEvent (DragOn (MainInstance d))    | d <- ds ] ++
-    [ ClickEvent (DragOff (MainInstance d))   | d <- ds ] ++
+    [ ClickEvent (Click d)     | d <- ds ] ++
+    [ ClickEvent (BeginDrag d) | d <- ds ] ++
+    [ ClickEvent (DragOn d)    | d <- ds ] ++
+    [ ClickEvent (DragOff d)   | d <- ds ] ++
     [ ClickEvent EndDrag ] ++
     [ ClickEvent CancelDrag ] ++
     [ Delete ] ++
