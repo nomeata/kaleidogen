@@ -150,7 +150,8 @@ presentAtRef :: Ord k => Time -> Ref k -> IO (Presentation k, Double, Animating)
 presentAtRef t r = do
     s <- readIORef r
     let pres = presentAt t s
-        radius | null pres = 100
-               | otherwise = minimum [2 * scale | (_, (_,scale)) <- pres]
+        radius = minimum $ 100 : [ 2*scale | (_, (((x,y),scale),_)) <- pres, min x y < 2*scale]
+            -- This is a bit of a hack: Only look at spheres near the border.
+            -- The proper solution would require knowing the width and height here, so I am lazy
         continue = anyMoving t s
     return (pres, radius, continue)
