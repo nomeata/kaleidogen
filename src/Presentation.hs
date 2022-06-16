@@ -21,7 +21,7 @@ import Data.IORef
 import Data.List
 import Data.Bifunctor
 
-import Layout (Pos, PosAndScale)
+import Layout (PosAndScale)
 import PresentationCmds (Cmds, Cmd, Cmd'(..))
 import Tween
 
@@ -129,8 +129,8 @@ anyMoving t = Animating . any go . pos
 isIn :: (Double, Double) -> PosAndScale -> Bool
 (x,y) `isIn` ((x',y'),s) = (x - x')**2 + (y - y')**2 <= s**2
 
-locateClick :: Presentation k -> (Double, Double) -> Maybe (k, Pos)
-locateClick p (x,y) = second (fst . fst) <$> find (((x,y) `isIn`) . fst . snd) p
+locateClick :: Presentation k -> (Double, Double) -> Maybe (k, PosAndScale)
+locateClick p (x,y) = second fst <$> find (((x,y) `isIn`) . fst . snd) p
 
 locateIntersection :: Eq k => Presentation k -> k -> Maybe k
 locateIntersection p k =

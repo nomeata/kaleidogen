@@ -1,12 +1,15 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternGuards #-}
 {- |
-  This module implements the visual effect of draggin on a presentation:
+  This module implements the visual effect of dragging on a presentation:
    * Currently dragged things are relocated
    * Recently dragged things are moved back by animation
 -}
 module DragAnim
-    ( State
+    ( MousePos
+    , ObjOffset
+    , offsetWithin
+    , State
     , empty
     , start
     , move
@@ -18,20 +21,33 @@ module DragAnim
 import Data.List
 import Data.Coerce
 
-import Layout (Pos)
+import Layout (Pos, PosAndScale)
 import Presentation
 import Tween
 
+type MousePos = (Double, Double)
+
+-- Position within an object where the user started dragging.
+-- Normalized with regard to object scale, so that it is stable when
+-- dragging an object that changes size
+data ObjOffset = ObjOffset Double Double
+
+offsetWithin :: MousePos -> PosAndScale -> ObjOffset
+offsetWithin (x1,y1) ((x2, y2),s) = ObjOffset ((x2 - x1)/s) ((y2 - y1)/s)
+
+addOffset :: MousePos -> Double -> ObjOffset -> PosAndScale
+addOffset (x1,y1) s (ObjOffset x2 y2) = ((x1 + s * x2, y1 + s * y2), s)
+
+
 data State k = State
-    { currentlyDragged :: Maybe (k, Pos, Pos)
-        -- the second Pos is the offset, makes the client code simpler
-    , recentlyDragged :: [(k, Pos, Time)]
+    { currentlyDragged :: Maybe (k, Pos, ObjOffset)
+    , recentlyDragged :: [(k, Pos, ObjOffset, Time)]
     }
 
 empty :: State k
 empty = State Nothing []
 
-start :: k -> Pos -> Pos -> State k -> State k
+start :: k -> Pos -> ObjOffset -> State k -> State k
 start k pos offset s =
     s { currentlyDragged = Just (k, pos, offset) }
 
@@ -43,7 +59,7 @@ stop :: Time -> State k -> State k
 stop t s = State
     { currentlyDragged = Nothing
     , recentlyDragged =
-        [ (k, pos `add` offset, t)
+        [ (k, pos, offset, t)
         | Just (k, pos, offset) <- return (currentlyDragged s)
         ] ++ recentlyDragged s
     }
@@ -51,7 +67,7 @@ stop t s = State
 cleanup :: Time -> State k -> State k
 cleanup t s = s { recentlyDragged = filter go (recentlyDragged s) }
   where
-    go (_, _, t') = (t - t') < animationSpeed
+    go (_, _, _, t') = (t - t') < animationSpeed
 
 pres ::
     Eq k =>
@@ -69,19 +85,16 @@ pres State{..} t (ps, radius, animating) =
         | Just (k', newPos, offset) <- currentlyDragged
         , k == k'
         = ( 2::Int
-          , (k, ((newPos `add` offset, scale), f))
+          , (k, (addOffset newPos scale offset, f))
           )
-        | Just (_, p_old, t') <- find (\(k', _, _) -> k == k') recentlyDragged
+        | Just (_, p_old, offset, t') <- find (\(k', _, _, _) -> k == k') recentlyDragged
         , let r = (t-t') / animationSpeed
         , r < 1
         = ( 1
-          , (k, ((tween r p_old pos, scale), f))
+          , (k, (tween r (addOffset p_old scale offset) (pos, scale), f))
           )
         | otherwise
         = ( 0
           , (k, ((pos, scale), f))
           )
-
-add :: (Double, Double) -> (Double, Double) -> (Double, Double)
-(x1,y1) `add` (x2, y2) = (x2 + x1, y2 + y1)
 

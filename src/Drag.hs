@@ -23,11 +23,8 @@ import Data.Foldable
 import Data.Maybe
 import Presentation (Presentation, Time, Animating)
 import qualified Presentation
+import DragAnim (MousePos, ObjOffset, offsetWithin)
 import qualified DragAnim
-
-
-type MousePos = (Double, Double)
-type ObjOffset = (Double, Double)
 
 data RawEvent
     = MouseDown MousePos
@@ -110,7 +107,7 @@ mkDragHandler canDrag getPres = do
                 lift (posToKey t pos) >>= \case
                     Just (k, objPos) -> lift (canDrag k) >>= \case
                         True -> liftIO $ do
-                            let offset = pos `sub` objPos
+                            let offset = offsetWithin pos objPos
                             writeIORef dragState $ Just $ DragState
                                 { initialPhase = Just (pos, t)
                                 , curPos = pos
@@ -120,7 +117,7 @@ mkDragHandler canDrag getPres = do
                             writeIORef lastIntersection Nothing
                             modifyIORef dragAnimState (DragAnim.start k pos offset)
                                 -- NB: We always display moving the drag, even if the drag
-                                -- is still small enought that it might just be a click, and
+                                -- is still small enough that it might just be a click, and
                                 -- before we report it to the game logic.
                                 -- This makes the UI more smooth.
                             return ()
@@ -154,5 +151,5 @@ mkDragHandler canDrag getPres = do
 
     return (handleEvent, getModifiedPres)
 
-sub :: (Double, Double) -> (Double, Double) -> (Double, Double)
+sub :: MousePos -> MousePos -> (Double, Double)
 (x1,y1) `sub` (x2, y2) = (x2 - x1, y2 - y1)
