@@ -6,6 +6,7 @@ module Logic (
     Entity,
     AbstractPos(..),
     AppState(..),
+    Key(..), -- A bit fishy
     Event(..),
     logicMealy,
     isSelected, isInactive, entity2dna, selectedDNA,

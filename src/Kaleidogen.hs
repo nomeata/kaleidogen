@@ -41,7 +41,8 @@ main :: IO ()
 main = runWidget mainWidget
 
 mainWidget :: JSM ()
-mainWidget = runInBrowser renderGraphic mainProgram
+-- mainWidget = runInBrowser renderGraphic mainProgram
+mainWidget = runInBrowser renderGraphic tutorialProgram
 
 runInBrowser :: BackendRunner JSM
 runInBrowser toShader go = do

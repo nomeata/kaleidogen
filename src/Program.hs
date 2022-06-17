@@ -1,12 +1,14 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TupleSections #-}
 module Program
   ( BackendRunner
   , Callbacks(..)
   , Backend(..)
   , renderGraphic
   , mainProgram
+  , tutorialProgram
   , Graphic
   , showFullDNA
   )
@@ -14,6 +16,8 @@ where
 
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Map as M
+import qualified Data.List as L
 import Data.IORef
 import Control.Monad.IO.Class
 import Data.Foldable
@@ -29,6 +33,8 @@ import Logic
 import Presentation (Animating)
 import qualified Presentation
 import Drag
+import qualified Tutorial as Tut
+import Tween
 
 reorderExtraData :: ((x, a), (((b,c),d),e)) -> (x, (a, b, c, d, e))
 reorderExtraData ((d,b),(((x,y),s),e)) = (d, (b, x, y, s, e))
@@ -140,6 +146,132 @@ mainProgram Backend {..} = do
         , onMouseOut = handleClickEvents MouseOut
         , onDel = handleEvent Delete
         , onAnim = handleEvent Anim
+        , onSave = do
+            as <- liftIO (readIORef asRef)
+            for_ (selectedDNA as) $ \dna ->
+                doSave (toFilename dna) (showFullDNA dna (1000,1000))
+        , onResize = \size -> do
+            liftIO $ writeIORef sizeRef size
+            as <- liftIO $ readIORef asRef
+            handleCmds (reconstruct mealy as)
+        }
+
+-- TODO: Find new abstractions to remove duplication with above
+
+tutorialProgram :: MonadIO m => Backend m Graphic -> m (Callbacks m Graphic)
+tutorialProgram Backend {..} = do
+    -- Fixed state
+    let seed0  = 1
+
+    let mealy = logicMealy seed0
+    let as0 = initial mealy
+    asRef <- liftIO $ newIORef as0
+    size0 <- currentWindowSize
+    sizeRef <- liftIO $ newIORef size0
+    pRef <- liftIO Presentation.initRef
+
+    let handleCmds cs = do
+          t <- getCurrentTime
+          lf <- liftIO $ layoutFun <$> readIORef sizeRef
+          liftIO $ Presentation.handleCmdsRef t lf cs pRef
+    handleCmds (reconstruct mealy as0)
+
+    let handleEvent e = do
+          as <- liftIO (readIORef asRef)
+          let (as', cs) = handle mealy as e
+          liftIO $ writeIORef asRef as'
+          handleCmds cs
+
+    let getPresentation t = liftIO (Presentation.presentAtRef t pRef)
+
+    let canDragM k = do
+          as <- liftIO (readIORef asRef)
+          return (Logic.canDrag as k)
+
+    (dragHandler, getModPres) <- mkDragHandler canDragM getPresentation
+
+    let handleClickEvents re = do
+          t <- getCurrentTime
+          dragHandler t re >>= mapM_ (handleEvent . ClickEvent)
+
+    -- Tutorial animation handling
+
+    let getPosOf t (Tut.DNA n) = do
+          as <- liftIO $ readIORef asRef
+          let d = dnas as M.! Key n
+          (p, _borderRadius, _continue) <- getModPres t
+          let Just (((x,y),_s),_f) = L.lookup d p
+          pure (x,y)
+        getPosOf _ Tut.Center = do
+          (w,h) <- liftIO $ readIORef sizeRef
+          pure (w/2, h/2)
+
+    scriptRef <- liftIO $ newIORef Tut.tutorial
+    t0 <- getCurrentTime
+    scriptStepStartRef <- liftIO $ newIORef t0
+    lastMousePosition <- getPosOf t0 Tut.Center >>= liftIO . newIORef
+    let tickAnimation t = do
+            s <- liftIO $ readIORef scriptRef
+            (x1,y1) <- liftIO $ readIORef lastMousePosition
+            t1 <- liftIO $ readIORef scriptStepStartRef
+            case s of
+                [] -> pure ()
+                (Tut.Wait n):s'
+                  | t > t1 + n -> do
+                    -- Wait is done
+                    liftIO $ writeIORef scriptStepStartRef (t1 + n)
+                    liftIO $ writeIORef scriptRef s'
+                    tickAnimation t
+                  | otherwise -> pure () -- Wait is not done
+                (Tut.MoveMouseTo d n):s'
+                  | t > t1 + n -> do
+                    -- Mouse move is done
+                    (x,y) <- getPosOf (t1 + n) d
+                    handleClickEvents (Move (x,y))
+                    liftIO $ writeIORef scriptStepStartRef (t1 + n)
+                    liftIO $ writeIORef lastMousePosition (x,y)
+                    liftIO $ writeIORef scriptRef s'
+                    tickAnimation t
+                  | otherwise -> do
+                    -- Mouse move is happening
+                    (x,y) <- getPosOf (t1 + n) d
+                    handleClickEvents (Move (tween ((t-t1)/n) (x1,y1) (x,y)))
+                Tut.MouseDown:s' -> do
+                    handleClickEvents (MouseDown (x1,y1))
+                    liftIO $ writeIORef scriptRef s'
+                    tickAnimation t
+                Tut.MouseUp:s' -> do
+                    handleClickEvents MouseUp
+                    liftIO $ writeIORef scriptRef s'
+                    tickAnimation t
+
+
+
+    return $ Callbacks
+        { onDraw = do
+            t <- getCurrentTime
+
+            tickAnimation t
+
+            as <- liftIO $ readIORef asRef
+            setCanDelete (isJust (sel as))
+            setCanSave (isJust (sel as))
+            setCanAnim (isJust (sel as))
+            (p, borderRadius, _continue) <- getModPres t
+            let extraData d
+                  -- | isSelected as d = 2
+                  | isInactive as d = 3
+                  | otherwise       = 0
+            let toDraw =
+                    (Border, (0,0,0,borderRadius,1)) :
+                    [ (DNA (entity2dna k), (extraData k,x,y,s,f)) | (k,(((x,y),s),f)) <- p ]
+            return (toDraw, Presentation.Animating True)
+        , onMouseDown = const (pure ()) -- handleClickEvents . MouseDown
+        , onMove      = const (pure ()) -- handleClickEvents . Move
+        , onMouseUp   = pure () -- handleClickEvents MouseUp
+        , onMouseOut  = pure () -- handleClickEvents MouseOut
+        , onDel       = pure () -- handleEvent Delete
+        , onAnim      = pure () -- handleEvent Anim
         , onSave = do
             as <- liftIO (readIORef asRef)
             for_ (selectedDNA as) $ \dna ->
