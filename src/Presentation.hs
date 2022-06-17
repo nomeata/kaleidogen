@@ -9,6 +9,7 @@ module Presentation
     , Presentation
     , LayoutFun
     , initRef
+    , resetRef
     , handleCmdsRef
     , presentAtRef
     , locateClick
@@ -142,6 +143,9 @@ type Ref k = IORef (State k)
 
 initRef :: IO (Ref k)
 initRef = newIORef initialState
+
+resetRef :: Ref k -> IO ()
+resetRef r = writeIORef r  initialState
 
 handleCmdsRef :: Ord k => Time -> LayoutFun a -> Cmds k a -> Ref k -> IO ()
 handleCmdsRef t l cs r = modifyIORef r (\s -> foldl (handleCmd t l) s cs)

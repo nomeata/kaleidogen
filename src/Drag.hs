@@ -70,6 +70,7 @@ mkDragHandler ::
     (Time -> m (Presentation k, Double, Animating)) ->
     m ( Time -> RawEvent -> m [ClickEvent k]
       , Time -> m (Presentation k, Double, Animating)
+      , m ()
       )
 mkDragHandler canDrag getPres = do
     dragState <- liftIO $ newIORef (Nothing :: Maybe (DragState k))
@@ -149,7 +150,12 @@ mkDragHandler canDrag getPres = do
             MouseOut -> cancelDrag t
 
 
-    return (handleEvent, getModifiedPres)
+    let reset = liftIO $ do
+            writeIORef dragState (Nothing :: Maybe (DragState k))
+            writeIORef dragAnimState DragAnim.empty
+            writeIORef lastIntersection Nothing
+
+    return (handleEvent, getModifiedPres, reset)
 
 sub :: MousePos -> MousePos -> (Double, Double)
 (x1,y1) `sub` (x2, y2) = (x2 - x1, y2 - y1)
