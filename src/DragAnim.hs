@@ -73,11 +73,10 @@ pres ::
     Eq k =>
     State k ->
     Time ->
-    (Presentation k, Double, Animating) ->
-    (Presentation k, Double, Animating)
-pres State{..} t (ps, radius, animating) =
+    (Presentation k, Animating) ->
+    (Presentation k, Animating)
+pres State{..} t (ps, animating) =
     ( map snd (sortOn fst (map go ps))
-    , radius
     , coerce (||) animating (not (null recentlyDragged))
     )
   where

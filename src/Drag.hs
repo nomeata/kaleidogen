@@ -67,9 +67,9 @@ mkDragHandler ::
     Eq k =>
     MonadIO m =>
     (k -> m Bool) ->
-    (Time -> m (Presentation k, Double, Animating)) ->
+    (Time -> m (Presentation k, Animating)) ->
     m ( Time -> RawEvent -> m [ClickEvent k]
-      , Time -> m (Presentation k, Double, Animating)
+      , Time -> m (Presentation k, Animating)
       , m ()
       )
 mkDragHandler canDrag getPres = do
@@ -84,11 +84,11 @@ mkDragHandler canDrag getPres = do
                         <*> getPres t
 
     let posToKey t pos = do
-          (p,_,_) <- getModifiedPres t
+          (p,_) <- getModifiedPres t
           return $ Presentation.locateClick p pos
 
     let intersectToKey t k = do
-          (p,_,_) <- getModifiedPres t
+          (p,_) <- getModifiedPres t
           return $ Presentation.locateIntersection p k
 
     let finishDrag t = do

@@ -129,7 +129,11 @@ mainProgram t0 size0 = do
             let canDelete = isJust (sel as)
             let canSave   = isJust (sel as)
             let canAnim   = isJust (sel as)
-            (p, borderRadius, stillAnimating) <- getModPres t
+            (p, stillAnimating) <- getModPres t
+            -- Calcualting the border radius
+            size <- liftIO $ readIORef sizeRef
+            -- A bit of a hack to access as here
+            let borderRadius = gridBorderRadius (M.size (dnas as)) size
             let extraData d
                   -- | isSelected as d = 2
                   | isInactive as d = 3
@@ -194,7 +198,7 @@ tutorialProgram t0 size0 = do
     let getPosOf t (Tut.DNA n v) = do
           as <- liftIO $ readIORef asRef
           let d = dnas as M.! Key n
-          (p, _borderRadius, _continue) <- getModPres t
+          (p, _continue) <- getModPres t
           let Just (((x,y),s),_f) = L.lookup d p
           case v of
             Tut.NE -> pure (x + s/5,y - s/5)
@@ -262,7 +266,11 @@ tutorialProgram t0 size0 = do
             let canDelete = isJust (sel as)
             let canSave = isJust (sel as)
             let canAnim = isJust (sel as)
-            (p, borderRadius, _continue) <- getModPres t
+            (p, _continue) <- getModPres t
+            -- Calcualting the border radius
+            size <- liftIO $ readIORef sizeRef
+            -- A bit of a hack to access as here
+            let borderRadius = gridBorderRadius (M.size (dnas as)) size
             let extraData d
                   -- | isSelected as d = 2
                   | isInactive as d = 3
