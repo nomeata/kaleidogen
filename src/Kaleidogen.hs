@@ -45,7 +45,7 @@ mainWidget :: JSM ()
 mainWidget = runInBrowser renderGraphic mainProgram
 -- mainWidget = runInBrowser renderGraphic tutorialProgram
 
-runInBrowser :: BackendRunner JSM
+runInBrowser :: ProgramRunner JSM
 runInBrowser toShader go = do
     doc <- currentDocumentUnchecked
     docEl <- getDocumentElementUnchecked doc
@@ -69,12 +69,13 @@ runInBrowser toShader go = do
     let showIf e True  = setClassName e (""::Text)
         showIf e False = setClassName e ("hidden"::Text)
     size0 <- querySize canvas
-    let getCurrentTime = now perf
+    t0 <- now perf
 
-    Callbacks{..} <- go size0 (Backend {..})
+    Callbacks{..} <- go t0 size0
 
     render <- Animate.animate $ \_ -> do
-        DrawResult {..} <- onDraw
+        t <- now perf
+        DrawResult {..} <- onDraw t
         drawShaderCircles objects
         showIf del canDelete
         showIf save (not isTelegram && canSave)
@@ -82,41 +83,58 @@ runInBrowser toShader go = do
         return stillAnimating
 
     void $ on canvas mouseDown $ do
+        t <- now perf
         pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
-        liftJSM (onMouseDown pos >> render)
+        liftJSM (onMouseDown t pos >> render)
 
     void $ on canvas mouseMove $ do
+        t <- now perf
         pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
-        liftJSM (onMove pos >> render)
+        liftJSM (onMove t pos >> render)
 
-    void $ on canvas mouseUp $ liftJSM (onMouseUp >> render)
-    void $ on canvas mouseLeave $ liftJSM (onMouseOut >> render)
+    void $ on canvas mouseUp $ do
+        t <- now perf
+        liftJSM (onMouseUp t >> render)
+    void $ on canvas mouseLeave $ do
+        t <- now perf
+        liftJSM (onMouseOut t >> render)
 
     void $ on canvas touchStart $ do
+        t <- now perf
         pos <- touchOffsetXY canvas
-        liftJSM (onMouseDown pos >> render)
+        liftJSM (onMouseDown t pos >> render)
         preventDefault
 
     void $ on canvas touchMove $ do
+        t <- now perf
         pos <- touchOffsetXY canvas
-        liftJSM (onMove pos >> render)
+        liftJSM (onMove t pos >> render)
 
-    void $ on canvas touchEnd $ liftJSM (onMouseUp >> render)
+    void $ on canvas touchEnd $ do
+        t <- now perf
+        liftJSM (onMouseUp t >> render)
 
+    void $ on del click $ do
+        t <- now perf
+        liftJSM (onDel t >> render)
 
-    void $ on del click $ liftJSM (onDel >> render)
     void $ on save click $ liftJSM $ do
-        onSave >>= \case
+        t <- now perf
+        onSave t >>= \case
             Nothing -> pure ()
             Just (filename, toDraw) -> saveToPNG toShader toDraw filename
 
-    void $ on anim click $ liftJSM (onAnim >> render)
+    void $ on anim click $ do
+        t <- now perf
+        liftJSM (onAnim t >> render)
 
-    checkResize <- autoResizeCanvas canvas (\ pos -> onResize pos >> render)
+    checkResize <- autoResizeCanvas canvas $ \ pos -> do
+        t <- now perf
+        onResize t pos >> render
     -- Wish I could use onResize on body, but that does not work somehow
     let regularlyCheckSize = do
           checkResize
-          () <$ inAnimationFrame' (const regularlyCheckSize)
+          void $ inAnimationFrame' (const regularlyCheckSize)
     regularlyCheckSize -- should trigger the initial render as well
 
 

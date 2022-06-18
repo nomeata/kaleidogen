@@ -3,9 +3,9 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
 module Program
-  ( BackendRunner
+  ( ProgramRunner
   , Callbacks(..)
-  , Backend(..)
+  , Time
   , DrawResult(..)
   , renderGraphic
   , mainProgram
@@ -55,9 +55,7 @@ showFullDNA :: DNA -> (Double,Double) -> (Graphic, ExtraData)
 showFullDNA dna (w,h) =
     reorderExtraData ((DNA dna,0), (layoutFullCirlce (w,h) (), 1))
 
-newtype Backend m a = Backend
-    { getCurrentTime :: m Double
-    }
+type Time = Double
 
 data DrawResult a = DrawResult
     { objects :: [(a, ExtraData)]
@@ -68,21 +66,21 @@ data DrawResult a = DrawResult
     }
 
 data Callbacks m a = Callbacks
-    { onDraw :: m (DrawResult a)
-    , onMouseDown :: (Double,Double) -> m ()
-    , onMove :: (Double,Double) -> m ()
-    , onMouseUp :: m ()
-    , onMouseOut :: m ()
-    , onDel :: m ()
-    , onSave :: m (Maybe (Text, (a, ExtraData)))
-    , onAnim :: m ()
-    , onResize :: (Double,Double) -> m ()
+    { onDraw      :: Time -> m (DrawResult a)
+    , onMouseDown :: Time -> (Double,Double) -> m ()
+    , onMove      :: Time -> (Double,Double) -> m ()
+    , onMouseUp   :: Time -> m ()
+    , onMouseOut  :: Time -> m ()
+    , onDel       :: Time -> m ()
+    , onSave      :: Time -> m (Maybe (Text, (a, ExtraData)))
+    , onAnim      :: Time -> m ()
+    , onResize    :: Time -> (Double,Double) -> m ()
     }
 
-type BackendRunner m = forall a.
+type ProgramRunner m = forall a.
     Ord a =>
     (a -> Shaders) ->
-    ((Double, Double) -> Backend m a -> m (Callbacks m a)) ->
+    (Time -> (Double, Double) -> m (Callbacks m a)) ->
     m ()
 
 data Graphic = DNA DNA | Border | Mouse deriving (Eq, Ord)
@@ -93,8 +91,8 @@ renderGraphic Border = borderShaders
 renderGraphic Mouse  = (circularVertexShader, mouseFragmentShader)
 
 
-mainProgram :: MonadIO m => (Double, Double) -> Backend m Graphic -> m (Callbacks m Graphic)
-mainProgram size0 Backend{..} = do
+mainProgram :: MonadIO m => Time -> (Double, Double) -> m (Callbacks m Graphic)
+mainProgram t0 size0 = do
     -- Set up global state
     seed0 <- liftIO getRandom
 
@@ -103,7 +101,6 @@ mainProgram size0 Backend{..} = do
     asRef <- liftIO $ newIORef as0
     sizeRef <- liftIO $ newIORef size0
     pRef <- liftIO Presentation.initRef
-    t0 <- getCurrentTime
     let handleCmds t cs = do
           lf <- liftIO $ layoutFun <$> readIORef sizeRef
           liftIO $ Presentation.handleCmdsRef t lf cs pRef
@@ -123,13 +120,11 @@ mainProgram size0 Backend{..} = do
 
     (dragHandler, getModPres, _resetDrag) <- mkDragHandler canDragM getPresentation
 
-    let handleClickEvents re = do
-          t <- getCurrentTime
+    let handleClickEvents t re = do
           dragHandler t re >>= mapM_ (handleEvent t . ClickEvent)
 
     return $ Callbacks
-        { onDraw = do
-            t <- getCurrentTime
+        { onDraw = \t -> do
             as <- liftIO $ readIORef asRef
             let canDelete = isJust (sel as)
             let canSave   = isJust (sel as)
@@ -143,21 +138,16 @@ mainProgram size0 Backend{..} = do
                     (Border, (0,0,0,borderRadius,1)) :
                     [ (DNA (entity2dna k), (extraData k,x,y,s,f)) | (k,(((x,y),s),f)) <- p ]
             return (DrawResult {..})
-        , onMouseDown = handleClickEvents . MouseDown
-        , onMove = handleClickEvents . Move
-        , onMouseUp = handleClickEvents MouseUp
-        , onMouseOut = handleClickEvents MouseOut
-        , onDel = do
-            t <- getCurrentTime
-            handleEvent t Delete
-        , onAnim = do
-            t <- getCurrentTime
-            handleEvent t Anim
-        , onSave = do
+        , onMouseDown = \t -> handleClickEvents t . MouseDown
+        , onMove = \t -> handleClickEvents t . Move
+        , onMouseUp = \t -> handleClickEvents t MouseUp
+        , onMouseOut = \t -> handleClickEvents t MouseOut
+        , onDel = \t -> handleEvent t Delete
+        , onAnim = \t -> handleEvent t Anim
+        , onSave = \_ -> do
             as <- liftIO (readIORef asRef)
             pure $ (\dna -> (toFilename dna, showFullDNA dna (1000,1000))) <$> selectedDNA as
-        , onResize = \size -> do
-            t <- getCurrentTime
+        , onResize = \t size -> do
             liftIO $ writeIORef sizeRef size
             as <- liftIO $ readIORef asRef
             handleCmds t (reconstruct mealy as)
@@ -166,8 +156,8 @@ mainProgram size0 Backend{..} = do
 -- TODO: Find new abstractions to remove duplication with above
 -- TODO: Make it all pure? Or state monad?
 
-tutorialProgram :: MonadIO m => (Double,Double) -> Backend m Graphic -> m (Callbacks m Graphic)
-tutorialProgram size0 Backend {..} = do
+tutorialProgram :: MonadIO m => Time -> (Double,Double) -> m (Callbacks m Graphic)
+tutorialProgram t0 size0 = do
     -- Fixed state
     let seed0  = 1
 
@@ -176,7 +166,6 @@ tutorialProgram size0 Backend {..} = do
     asRef <- liftIO $ newIORef as0
     sizeRef <- liftIO $ newIORef size0
     pRef <- liftIO Presentation.initRef
-    t0 <- getCurrentTime
 
     let handleCmds t cs = do
           lf <- liftIO $ layoutFun <$> readIORef sizeRef
@@ -266,9 +255,7 @@ tutorialProgram size0 Backend {..} = do
 
 
     return $ Callbacks
-        { onDraw = do
-            t <- getCurrentTime
-
+        { onDraw = \t -> do
             tickAnimation t
 
             as <- liftIO $ readIORef asRef
@@ -291,14 +278,14 @@ tutorialProgram size0 Backend {..} = do
                     [ (Mouse, (mouseExtraData, mx, my, borderRadius/4, 1)) ]
             let stillAnimating = Presentation.Animating True
             return (DrawResult {..})
-        , onMouseDown = const (pure ()) -- handleClickEvents . MouseDown
-        , onMove      = const (pure ()) -- handleClickEvents . Move
-        , onMouseUp   = pure () -- handleClickEvents MouseUp
-        , onMouseOut  = pure () -- handleClickEvents MouseOut
-        , onDel       = pure () -- handleEvent Delete
-        , onAnim      = pure () -- handleEvent Anim
-        , onSave = pure Nothing
-        , onResize = \size -> do
+        , onMouseDown = \_ _ -> pure ()
+        , onMove      = \_ _ -> pure ()
+        , onMouseUp   = \_ -> pure ()
+        , onMouseOut  = \_ -> pure ()
+        , onDel       = \_ -> pure ()
+        , onAnim      = \_ -> pure ()
+        , onSave      = \_ -> pure Nothing
+        , onResize = \t size -> do
             liftIO $ writeIORef sizeRef size
             -- This is a problem: resizing completely messes up with ongoing scripted interaction.
             -- Possible solution: The tutorial animation mouse movement is just for show,
@@ -315,6 +302,5 @@ tutorialProgram size0 Backend {..} = do
             liftIO $ readIORef lastMousePosition >>= writeIORef currentMousePos
             liftIO $ writeIORef mouseDownRef False
             -- And now replay
-            t1 <- getCurrentTime
-            tickAnimation t1
+            tickAnimation t
         }

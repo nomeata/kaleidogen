@@ -22,7 +22,7 @@ import Foreign.Storable
 import Shaders
 import Program
 
-runInSDL :: BackendRunner IO
+runInSDL :: ProgramRunner IO
 runInSDL toShader go = do
     initializeAll
     window <- createWindow "My SDL Application" $
@@ -112,17 +112,21 @@ runInSDL toShader go = do
     size0 <- currentWindowSize
 
     let getCurrentTime = (1000*) <$> time
+    t0 <- getCurrentTime
 
-    Callbacks {..} <- go size0 (Backend {..})
+    Callbacks {..} <- go t0 size0
 
     let render = do
-        DrawResult{..} <- onDraw
+        t <- getCurrentTime
+        DrawResult{..} <- onDraw t
         drawShaderCircles objects
         return ()
 
-    let handleEvent e = case eventPayload e of
+    let handleEvent e = do
+          t <- getCurrentTime
+          case eventPayload e of
             WindowResizedEvent _
-                -> currentWindowSize >>= onResize
+                -> currentWindowSize >>= onResize t
 
             KeyboardEvent keyboardEvent
                 | keyboardEventKeyMotion keyboardEvent == Pressed
@@ -133,16 +137,16 @@ runInSDL toShader go = do
                 | mouseButtonEventButton me == ButtonLeft
                 , mouseButtonEventMotion me == Pressed
                 , let P (V2 x y) = mouseButtonEventPos me
-                -> onMouseDown (fromIntegral x, fromIntegral y)
+                -> onMouseDown t (fromIntegral x, fromIntegral y)
 
             MouseButtonEvent me
                 | mouseButtonEventButton me == ButtonLeft
                 , mouseButtonEventMotion me == Released
-                -> onMouseUp
+                -> onMouseUp t
 
             MouseMotionEvent me
                 | let P (V2 x y) = mouseMotionEventPos me
-                -> onMove (fromIntegral x, fromIntegral y)
+                -> onMove t (fromIntegral x, fromIntegral y)
 
             _ -> return ()
 
