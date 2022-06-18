@@ -8,6 +8,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE LambdaCase #-}
 module Kaleidogen (main) where
 
 import Data.Text (Text)
@@ -41,8 +42,8 @@ main :: IO ()
 main = runWidget mainWidget
 
 mainWidget :: JSM ()
--- mainWidget = runInBrowser renderGraphic mainProgram
-mainWidget = runInBrowser renderGraphic tutorialProgram
+mainWidget = runInBrowser renderGraphic mainProgram
+-- mainWidget = runInBrowser renderGraphic tutorialProgram
 
 runInBrowser :: BackendRunner JSM
 runInBrowser toShader go = do
@@ -69,7 +70,6 @@ runInBrowser toShader go = do
         showIf e False = setClassName e ("hidden"::Text)
     let currentWindowSize = querySize canvas
     let getCurrentTime = now perf
-    let doSave filename toDraw = saveToPNG toShader toDraw filename
 
     Callbacks{..} <- go (Backend {..})
 
@@ -105,7 +105,11 @@ runInBrowser toShader go = do
 
 
     void $ on del click $ liftJSM (onDel >> render)
-    void $ on save click $ liftJSM onSave
+    void $ on save click $ liftJSM $ do
+        onSave >>= \case
+            Nothing -> pure ()
+            Just (filename, toDraw) -> saveToPNG toShader toDraw filename
+
     void $ on anim click $ liftJSM (onAnim >> render)
 
     checkResize <- autoResizeCanvas canvas (\ pos -> onResize pos >> render)

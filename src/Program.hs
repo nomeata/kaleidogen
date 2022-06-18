@@ -21,7 +21,6 @@ import qualified Data.Map as M
 import qualified Data.List as L
 import Data.IORef
 import Control.Monad.IO.Class
-import Data.Foldable
 import Data.Maybe
 
 import Shaders
@@ -59,7 +58,6 @@ showFullDNA dna (w,h) =
 data Backend m a = Backend
     { currentWindowSize :: m (Double,Double)
     , getCurrentTime :: m Double
-    , doSave :: Text -> (a,ExtraData) -> m ()
     }
 
 data DrawResult a = DrawResult
@@ -77,7 +75,7 @@ data Callbacks m a = Callbacks
     , onMouseUp :: m ()
     , onMouseOut :: m ()
     , onDel :: m ()
-    , onSave :: m ()
+    , onSave :: m (Maybe (Text, (a, ExtraData)))
     , onAnim :: m ()
     , onResize :: (Double,Double) -> m ()
     }
@@ -155,8 +153,7 @@ mainProgram Backend {..} = do
         , onAnim = handleEvent Anim
         , onSave = do
             as <- liftIO (readIORef asRef)
-            for_ (selectedDNA as) $ \dna ->
-                doSave (toFilename dna) (showFullDNA dna (1000,1000))
+            pure $ (\dna -> (toFilename dna, showFullDNA dna (1000,1000))) <$> selectedDNA as
         , onResize = \size -> do
             liftIO $ writeIORef sizeRef size
             as <- liftIO $ readIORef asRef
@@ -298,10 +295,7 @@ tutorialProgram Backend {..} = do
         , onMouseOut  = pure () -- handleClickEvents MouseOut
         , onDel       = pure () -- handleEvent Delete
         , onAnim      = pure () -- handleEvent Anim
-        , onSave = do
-            as <- liftIO (readIORef asRef)
-            for_ (selectedDNA as) $ \dna ->
-                doSave (toFilename dna) (showFullDNA dna (1000,1000))
+        , onSave = pure Nothing
         , onResize = \size -> do
             liftIO $ writeIORef sizeRef size
             -- This is a problem: resizing completely messes up with ongoing scripted interaction.
