@@ -6,6 +6,7 @@ module Program
   ( BackendRunner
   , Callbacks(..)
   , Backend(..)
+  , DrawResult(..)
   , renderGraphic
   , mainProgram
   , tutorialProgram
@@ -64,8 +65,16 @@ data Backend m a = Backend
     , doSave :: Text -> (a,ExtraData) -> m ()
     }
 
+data DrawResult a = DrawResult
+    { objects :: [(a, ExtraData)]
+    , stillAnimating :: Animating
+    , canDelete :: Bool
+    , canSave :: Bool
+    , canAnim :: Bool
+    }
+
 data Callbacks m a = Callbacks
-    { onDraw :: m ([(a,ExtraData)], Animating)
+    { onDraw :: m (DrawResult a)
     , onMouseDown :: (Double,Double) -> m ()
     , onMove :: (Double,Double) -> m ()
     , onMouseUp :: m ()
@@ -129,18 +138,18 @@ mainProgram Backend {..} = do
         { onDraw = do
             t <- getCurrentTime
             as <- liftIO $ readIORef asRef
-            setCanDelete (isJust (sel as))
-            setCanSave (isJust (sel as))
-            setCanAnim (isJust (sel as))
-            (p, borderRadius, continue) <- getModPres t
+            let canDelete = isJust (sel as)
+            let canSave   = isJust (sel as)
+            let canAnim   = isJust (sel as)
+            (p, borderRadius, stillAnimating) <- getModPres t
             let extraData d
                   -- | isSelected as d = 2
                   | isInactive as d = 3
                   | otherwise       = 0
-            let toDraw =
+            let objects =
                     (Border, (0,0,0,borderRadius,1)) :
                     [ (DNA (entity2dna k), (extraData k,x,y,s,f)) | (k,(((x,y),s),f)) <- p ]
-            return (toDraw, continue)
+            return (DrawResult {..})
         , onMouseDown = handleClickEvents . MouseDown
         , onMove = handleClickEvents . Move
         , onMouseUp = handleClickEvents MouseUp
@@ -267,9 +276,9 @@ tutorialProgram Backend {..} = do
             tickAnimation t
 
             as <- liftIO $ readIORef asRef
-            setCanDelete (isJust (sel as))
-            setCanSave (isJust (sel as))
-            setCanAnim (isJust (sel as))
+            let canDelete = isJust (sel as)
+            let canSave = isJust (sel as)
+            let canAnim = isJust (sel as)
             (p, borderRadius, _continue) <- getModPres t
             let extraData d
                   -- | isSelected as d = 2
@@ -280,11 +289,12 @@ tutorialProgram Backend {..} = do
                   | isMouseDown = 1
                   | otherwise   = 0
             (mx,my) <- liftIO $ readIORef currentMousePos
-            let toDraw =
+            let objects =
                     (Border, (0,0,0,borderRadius,1)) :
                     [ (DNA (entity2dna k), (extraData k,x,y,s,f)) | (k,(((x,y),s),f)) <- p ] ++
                     [ (Mouse, (mouseExtraData, mx, my, borderRadius/4, 1)) ]
-            return (toDraw, Presentation.Animating True)
+            let stillAnimating = Presentation.Animating True
+            return (DrawResult {..})
         , onMouseDown = const (pure ()) -- handleClickEvents . MouseDown
         , onMove      = const (pure ()) -- handleClickEvents . Move
         , onMouseUp   = pure () -- handleClickEvents MouseUp

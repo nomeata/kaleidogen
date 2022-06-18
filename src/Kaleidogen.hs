@@ -79,9 +79,12 @@ runInBrowser toShader go = do
     Callbacks{..} <- go (Backend {..})
 
     render <- Animate.animate $ \_ -> do
-        (toDraw, continue) <- onDraw
-        drawShaderCircles toDraw
-        return continue
+        DrawResult {..} <- onDraw
+        drawShaderCircles objects
+        showIf del canDelete
+        showIf save (not isTelegram && canSave)
+        showIf anim canAnim
+        return stillAnimating
 
     void $ on canvas mouseDown $ do
         pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
