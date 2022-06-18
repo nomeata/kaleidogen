@@ -55,9 +55,8 @@ showFullDNA :: DNA -> (Double,Double) -> (Graphic, ExtraData)
 showFullDNA dna (w,h) =
     reorderExtraData ((DNA dna,0), (layoutFullCirlce (w,h) (), 1))
 
-data Backend m a = Backend
-    { currentWindowSize :: m (Double,Double)
-    , getCurrentTime :: m Double
+newtype Backend m a = Backend
+    { getCurrentTime :: m Double
     }
 
 data DrawResult a = DrawResult
@@ -83,7 +82,7 @@ data Callbacks m a = Callbacks
 type BackendRunner m = forall a.
     Ord a =>
     (a -> Shaders) ->
-    (Backend m a -> m (Callbacks m a)) ->
+    ((Double, Double) -> Backend m a -> m (Callbacks m a)) ->
     m ()
 
 data Graphic = DNA DNA | Border | Mouse deriving (Eq, Ord)
@@ -94,28 +93,27 @@ renderGraphic Border = borderShaders
 renderGraphic Mouse  = (circularVertexShader, mouseFragmentShader)
 
 
-mainProgram :: MonadIO m => Backend m Graphic -> m (Callbacks m Graphic)
-mainProgram Backend {..} = do
+mainProgram :: MonadIO m => (Double, Double) -> Backend m Graphic -> m (Callbacks m Graphic)
+mainProgram size0 Backend{..} = do
     -- Set up global state
     seed0 <- liftIO getRandom
 
     let mealy = logicMealy seed0
     let as0 = initial mealy
     asRef <- liftIO $ newIORef as0
-    size0 <- currentWindowSize
     sizeRef <- liftIO $ newIORef size0
     pRef <- liftIO Presentation.initRef
-    let handleCmds cs = do
-          t <- getCurrentTime
+    t0 <- getCurrentTime
+    let handleCmds t cs = do
           lf <- liftIO $ layoutFun <$> readIORef sizeRef
           liftIO $ Presentation.handleCmdsRef t lf cs pRef
-    handleCmds (reconstruct mealy as0)
+    handleCmds t0 (reconstruct mealy as0)
 
-    let handleEvent e = do
+    let handleEvent t e = do
           as <- liftIO (readIORef asRef)
           let (as', cs) = handle mealy as e
           liftIO $ writeIORef asRef as'
-          handleCmds cs
+          handleCmds t cs
 
     let getPresentation t = liftIO (Presentation.presentAtRef t pRef)
 
@@ -127,7 +125,7 @@ mainProgram Backend {..} = do
 
     let handleClickEvents re = do
           t <- getCurrentTime
-          dragHandler t re >>= mapM_ (handleEvent . ClickEvent)
+          dragHandler t re >>= mapM_ (handleEvent t . ClickEvent)
 
     return $ Callbacks
         { onDraw = do
@@ -149,29 +147,33 @@ mainProgram Backend {..} = do
         , onMove = handleClickEvents . Move
         , onMouseUp = handleClickEvents MouseUp
         , onMouseOut = handleClickEvents MouseOut
-        , onDel = handleEvent Delete
-        , onAnim = handleEvent Anim
+        , onDel = do
+            t <- getCurrentTime
+            handleEvent t Delete
+        , onAnim = do
+            t <- getCurrentTime
+            handleEvent t Anim
         , onSave = do
             as <- liftIO (readIORef asRef)
             pure $ (\dna -> (toFilename dna, showFullDNA dna (1000,1000))) <$> selectedDNA as
         , onResize = \size -> do
+            t <- getCurrentTime
             liftIO $ writeIORef sizeRef size
             as <- liftIO $ readIORef asRef
-            handleCmds (reconstruct mealy as)
+            handleCmds t (reconstruct mealy as)
         }
 
 -- TODO: Find new abstractions to remove duplication with above
 -- TODO: Make it all pure? Or state monad?
 
-tutorialProgram :: MonadIO m => Backend m Graphic -> m (Callbacks m Graphic)
-tutorialProgram Backend {..} = do
+tutorialProgram :: MonadIO m => (Double,Double) -> Backend m Graphic -> m (Callbacks m Graphic)
+tutorialProgram size0 Backend {..} = do
     -- Fixed state
     let seed0  = 1
 
     let mealy = logicMealy seed0
     let as0 = initial mealy
     asRef <- liftIO $ newIORef as0
-    size0 <- currentWindowSize
     sizeRef <- liftIO $ newIORef size0
     pRef <- liftIO Presentation.initRef
     t0 <- getCurrentTime

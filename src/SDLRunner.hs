@@ -109,12 +109,11 @@ runInSDL toShader go = do
     let currentWindowSize = do
         V2 w h <- get (windowSize window)
         return (fromIntegral w,fromIntegral h)
+    size0 <- currentWindowSize
 
     let getCurrentTime = (1000*) <$> time
 
-    Callbacks {..} <- go (Backend {..})
-
-    currentWindowSize >>= onResize
+    Callbacks {..} <- go size0 (Backend {..})
 
     let render = do
         DrawResult{..} <- onDraw

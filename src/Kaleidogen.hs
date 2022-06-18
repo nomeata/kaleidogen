@@ -68,10 +68,10 @@ runInBrowser toShader go = do
 
     let showIf e True  = setClassName e (""::Text)
         showIf e False = setClassName e ("hidden"::Text)
-    let currentWindowSize = querySize canvas
+    size0 <- querySize canvas
     let getCurrentTime = now perf
 
-    Callbacks{..} <- go (Backend {..})
+    Callbacks{..} <- go size0 (Backend {..})
 
     render <- Animate.animate $ \_ -> do
         DrawResult {..} <- onDraw
