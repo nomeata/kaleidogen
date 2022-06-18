@@ -158,6 +158,7 @@ mainProgram Backend {..} = do
         }
 
 -- TODO: Find new abstractions to remove duplication with above
+-- TODO: Make it all pure? Or state monad?
 
 tutorialProgram :: MonadIO m => Backend m Graphic -> m (Callbacks m Graphic)
 tutorialProgram Backend {..} = do
@@ -296,20 +297,21 @@ tutorialProgram Backend {..} = do
                 doSave (toFilename dna) (showFullDNA dna (1000,1000))
         , onResize = \size -> do
             liftIO $ writeIORef sizeRef size
-            t1 <- getCurrentTime
             -- This is a problem: resizing completely messes up with ongoing scripted interaction.
             -- Possible solution: The tutorial animation mouse movement is just for show,
             -- and it generates abstract Logic events instead.
-            -- Or simply restart animation when resizing. That is it for now.
-            -- handleCmds t (reconstruct mealy as)
+            -- So replay the whole animation with the new screen size
             liftIO $ writeIORef asRef $ initial mealy
             liftIO $ Presentation.resetRef pRef
             resetDrag
             liftIO $ writeIORef scriptRef Tut.tutorial
-            liftIO $ writeIORef scriptStepStartRef t1
+            liftIO $ writeIORef scriptStepStartRef t0
 
-            handleCmds t1 (reconstruct mealy as0)
-            getPosOf t1 Tut.Center >>= liftIO . writeIORef lastMousePosition
+            handleCmds t0 (reconstruct mealy as0)
+            getPosOf t0 Tut.Center >>= liftIO . writeIORef lastMousePosition
             liftIO $ readIORef lastMousePosition >>= writeIORef currentMousePos
             liftIO $ writeIORef mouseDownRef False
+            -- And now replay
+            t1 <- getCurrentTime
+            tickAnimation t1
         }
