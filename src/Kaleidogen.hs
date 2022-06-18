@@ -67,11 +67,6 @@ runInBrowser toShader go = do
 
     let showIf e True  = setClassName e (""::Text)
         showIf e False = setClassName e ("hidden"::Text)
-
-        setCanDelete = showIf del
-        setCanSave = showIf save . (not isTelegram &&)
-        setCanAnim = showIf anim
-
     let currentWindowSize = querySize canvas
     let getCurrentTime = now perf
     let doSave filename toDraw = saveToPNG toShader toDraw filename

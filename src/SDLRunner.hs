@@ -112,17 +112,13 @@ runInSDL toShader go = do
 
     let getCurrentTime = (1000*) <$> time
 
-    let setCanDelete _ = return ()
-    let setCanSave _ = return ()
-    let setCanAnim _ = return ()
-
     Callbacks {..} <- go (Backend {..})
 
     currentWindowSize >>= onResize
 
     let render = do
-        (toDraw, continue) <- onDraw
-        drawShaderCircles toDraw
+        DrawResult{..} <- onDraw
+        drawShaderCircles objects
         return ()
 
     let handleEvent e = case eventPayload e of

@@ -57,10 +57,7 @@ showFullDNA dna (w,h) =
     reorderExtraData ((DNA dna,0), (layoutFullCirlce (w,h) (), 1))
 
 data Backend m a = Backend
-    { setCanDelete :: Bool -> m ()
-    , setCanSave :: Bool -> m ()
-    , setCanAnim :: Bool -> m ()
-    , currentWindowSize :: m (Double,Double)
+    { currentWindowSize :: m (Double,Double)
     , getCurrentTime :: m Double
     , doSave :: Text -> (a,ExtraData) -> m ()
     }
