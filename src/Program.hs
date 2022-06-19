@@ -130,7 +130,7 @@ mainProgram seed0 t0 size0 = do
             let canDelete = isJust (sel as)
             let canSave   = isJust (sel as)
             let canAnim   = isJust (sel as)
-            (p, stillAnimating) <- getModPres t
+            (p, stillAnimating, stillVideoPlaying) <- getModPres t
             -- Calcualting the border radius
             size <- liftIO $ readIORef sizeRef
             -- A bit of a hack to access as here
@@ -142,7 +142,7 @@ mainProgram seed0 t0 size0 = do
             let objects =
                     (Border, (0,0,0,borderRadius,1)) :
                     [ (DNA (entity2dna k), (extraData k,x,y,s,f)) | (k,(((x,y),s),f)) <- p ]
-            let animInProgress = False -- TODO
+            let animInProgress = stillVideoPlaying == Presentation.VideoPlaying True
             let tutInProgress = False
             return (DrawResult {..})
         , onMouseDown = \t -> handleClickEvent t . MouseDown
@@ -164,7 +164,7 @@ mainProgram seed0 t0 size0 = do
               as <- liftIO $ readIORef asRef
               case M.lookup (Key n) (dnas as) of
                 Just d ->  do
-                  (p, _continue) <- getModPres t
+                  (p, _, _) <- getModPres t
                   let Just (((x,y),s),_f) = L.lookup d p
                   case v of
                     Tut.NE -> pure (x + s/5,y - s/5)

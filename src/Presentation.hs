@@ -4,6 +4,7 @@
 module Presentation
     ( Time
     , Animating(..)
+    , VideoPlaying(..)
     , animationSpeed
     , videoSpeed
     , Presentation
@@ -29,6 +30,7 @@ import Tween
 type Time = Double
 
 newtype Animating = Animating Bool deriving Eq
+newtype VideoPlaying = VideoPlaying Bool deriving Eq
 
 animationSpeed :: Time
 animationSpeed = 200
@@ -127,6 +129,12 @@ anyMoving t = Animating . any go . pos
     go (Dynamic _ t') = t - t' < videoSpeed
     go (MovingFromTo _ t' _ _) = t - t' < animationSpeed
 
+anyVideo :: Time -> State k -> VideoPlaying
+anyVideo t = VideoPlaying . any go . pos
+  where
+    go (Dynamic _ t') = t - t' < videoSpeed
+    go _ = False
+
 isIn :: (Double, Double) -> PosAndScale -> Bool
 (x,y) `isIn` ((x',y'),s) = (x - x')**2 + (y - y')**2 <= s**2
 
@@ -150,9 +158,7 @@ resetRef r = writeIORef r  initialState
 handleCmdsRef :: Ord k => Time -> LayoutFun a -> Cmds k a -> Ref k -> IO ()
 handleCmdsRef t l cs r = modifyIORef r (\s -> foldl (handleCmd t l) s cs)
 
-presentAtRef :: Ord k => Time -> Ref k -> IO (Presentation k, Animating)
+presentAtRef :: Ord k => Time -> Ref k -> IO (Presentation k, Animating, VideoPlaying)
 presentAtRef t r = do
     s <- readIORef r
-    let pres = presentAt t s
-        continue = anyMoving t s
-    return (pres, continue)
+    pure (presentAt t s, anyMoving t s, anyVideo t s)

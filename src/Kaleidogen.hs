@@ -172,11 +172,12 @@ html = T.unlines
     , " </head>"
     , " <body>"
     , "  <div align='center'>"
-    , "   <div class='toolbar'>"
-    , "    <a id='anim'>▶</a>"
-    , "    <a id='save'>💾</a>"
-    , "    <a id='delete'>🗑</a>"
-    , "    <a id='tut'>❓</a>"
+    -- Avoid whitespace between the buttons. Stupid HTML.
+    , "   <div class='toolbar'>" <>
+          "<a id='anim'>▶</a>" <>
+          "<a id='save'>💾</a>" <>
+          "<a id='delete'>🗑</a>" <>
+          "<a id='tut'>❓</a>"
     , "   </div>"
     , "   <canvas id='canvas'></canvas>"
     , "  </div>"

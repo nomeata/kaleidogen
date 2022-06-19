@@ -21,7 +21,7 @@ import Control.Monad.Writer
 import Data.IORef
 import Data.Foldable
 import Data.Maybe
-import Presentation (Presentation, Time, Animating)
+import Presentation (Presentation, Time, Animating, VideoPlaying)
 import qualified Presentation
 import DragAnim (MousePos, ObjOffset, offsetWithin)
 import qualified DragAnim
@@ -67,9 +67,9 @@ mkDragHandler ::
     Eq k =>
     MonadIO m =>
     (k -> m Bool) ->
-    (Time -> m (Presentation k, Animating)) ->
+    (Time -> m (Presentation k, Animating, VideoPlaying)) ->
     m ( Time -> RawEvent -> m [ClickEvent k]
-      , Time -> m (Presentation k, Animating)
+      , Time -> m (Presentation k, Animating, VideoPlaying)
       , m ()
       )
 mkDragHandler canDrag getPres = do
@@ -84,11 +84,11 @@ mkDragHandler canDrag getPres = do
                         <*> getPres t
 
     let posToKey t pos = do
-          (p,_) <- getModifiedPres t
+          (p,_,_) <- getModifiedPres t
           return $ Presentation.locateClick p pos
 
     let intersectToKey t k = do
-          (p,_) <- getModifiedPres t
+          (p,_,_) <- getModifiedPres t
           return $ Presentation.locateIntersection p k
 
     let finishDrag t = do
