@@ -10,6 +10,7 @@ module Program
   , renderGraphic
   , mainProgram
   , tutorialProgram
+  , switchProgram
   , Graphic
   , showFullDNA
   )
@@ -75,6 +76,7 @@ data Callbacks m a = Callbacks
     , onSave      :: Time -> m (Maybe (Text, (a, ExtraData)))
     , onAnim      :: Time -> m ()
     , onResize    :: Time -> (Double,Double) -> m ()
+    , onTut       :: Time -> m ()
     , resolveDest :: Time -> Tut.Destination -> m (Double,Double)
     }
 
@@ -154,6 +156,7 @@ mainProgram seed0 t0 size0 = do
             liftIO $ writeIORef sizeRef size
             as <- liftIO $ readIORef asRef
             handleCmds t (reconstruct mealy as)
+        , onTut = \_ -> pure ()
         , resolveDest = \ t -> \case
             (Tut.DNA n v) -> do
               as <- liftIO $ readIORef asRef
@@ -177,7 +180,6 @@ mainProgram seed0 t0 size0 = do
 
 tutorialProgram :: MonadIO m => Int -> Time -> (Double,Double) -> m (Callbacks m Graphic)
 tutorialProgram seed0 t0 size0 = do
-    -- TODO: Fix state!
     progRef <- mainProgram seed0 t0 size0 >>= liftIO . newIORef
     let withProg act = liftIO (readIORef progRef) >>= act
     let getPosOf t d = withProg $ \p -> resolveDest p t d
@@ -254,9 +256,11 @@ tutorialProgram seed0 t0 size0 = do
             -- TODO: mouse size
             let mouseObject = (Mouse, (mouseExtraData, mx, my, s, 1))
 
+            stillAnimating <- Presentation.Animating . not . null <$> liftIO (readIORef scriptRef)
+
             pure $ dr
                 { objects = objects dr ++ [mouseObject]
-                , stillAnimating = Presentation.Animating True
+                , stillAnimating = stillAnimating
                 }
 
         , onMouseDown = \_ _ -> pure ()
@@ -266,6 +270,7 @@ tutorialProgram seed0 t0 size0 = do
         , onDel       = \_ -> pure ()
         , onAnim      = \_ -> pure ()
         , onSave      = \_ -> pure Nothing
+        , onTut       = \_ -> pure ()
         , onResize = \t size -> do
             liftIO $ writeIORef sizeRef size
             -- This is a problem: resizing completely messes up with ongoing scripted interaction.
@@ -283,3 +288,53 @@ tutorialProgram seed0 t0 size0 = do
             tickAnimation t
         , resolveDest = \t d -> withProg $ \p -> resolveDest p t d
         }
+
+switchProgram :: MonadIO m => Int -> Time -> (Double,Double) -> m (Callbacks m Graphic)
+switchProgram seed0 t0 size0 = do
+    mainRef <- mainProgram seed0 t0 size0 >>= liftIO . newIORef
+    tutRef <- liftIO $ newIORef Nothing
+
+    let withTut act = liftIO (readIORef tutRef) >>= \case
+            Just p -> act p
+            Nothing -> pure ()
+    let withMain act = liftIO (readIORef mainRef) >>= act
+    let withTutOrMain act = liftIO (readIORef tutRef) >>= \case
+            Just p -> act p
+            Nothing -> liftIO (readIORef mainRef) >>= \p -> act p
+    let withTutAndMain act = withTut act >> withMain act
+
+    let startTutorial t = do
+            tutorialProgram seed0 t size0  >>= liftIO . writeIORef tutRef . Just
+    let stopTutorial = liftIO $ writeIORef tutRef Nothing
+
+    return $ Callbacks
+        { onDraw      = \t      -> withTutOrMain  $ \p -> do
+            dr <- onDraw p t
+            case stillAnimating dr of
+                -- Still running
+                Presentation.Animating True -> pure dr
+                -- Presentation stopped, switch to main program
+                Presentation.Animating False -> do
+                    stopTutorial
+                    withMain $ \p' -> onDraw p' t
+
+        , onMouseDown = \t pos  -> withTutOrMain  $ \p -> onMouseDown p t pos
+        , onMove      = \t pos  -> withTutOrMain  $ \p -> onMove p t pos
+        , onMouseUp   = \t      -> withTutOrMain  $ \p -> onMouseUp p t
+        , onMouseOut  = \t      -> withTutOrMain  $ \p -> onMouseOut p t
+        , onDel       = \t      -> withTutOrMain  $ \p -> onDel p t
+        , onAnim      = \t      -> withTutOrMain  $ \p -> onAnim p t
+        , onSave      = \t      -> withTutOrMain  $ \p -> onSave p t
+        , onResize    = \t size -> withTutAndMain $ \p -> onResize p t size
+                -- NB: We keep updating the screen size for both
+        , resolveDest = \t d    -> withTutOrMain  $ \p -> resolveDest p t d
+        , onTut = \t -> liftIO (readIORef tutRef) >>= \case
+            -- Tutorial is not running, so
+            Nothing -> do
+                -- Pretend the mouse went out on the real program
+                withMain $ \p -> onMouseOut p t
+                startTutorial t
+            -- Tutorial is running, so stop it
+            Just _ -> stopTutorial
+        }
+

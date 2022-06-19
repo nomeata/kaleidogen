@@ -45,7 +45,8 @@ main = runWidget mainWidget
 
 mainWidget :: JSM ()
 -- mainWidget = runInBrowser renderGraphic mainProgram
-mainWidget = runInBrowser renderGraphic tutorialProgram
+-- mainWidget = runInBrowser renderGraphic tutorialProgram
+mainWidget = runInBrowser renderGraphic switchProgram
 
 runInBrowser :: ProgramRunner JSM
 runInBrowser toShader go = do
@@ -62,6 +63,7 @@ runInBrowser toShader go = do
     save <- getElementByIdUnsafe doc ("save" :: Text) >>= unsafeCastTo HTMLAnchorElement
     anim <- getElementByIdUnsafe doc ("anim" :: Text) >>= unsafeCastTo HTMLAnchorElement
     del <- getElementByIdUnsafe doc ("delete" :: Text) >>= unsafeCastTo HTMLAnchorElement
+    tut <- getElementByIdUnsafe doc ("tut" :: Text) >>= unsafeCastTo HTMLAnchorElement
 
     drawShaderCircles <- shaderCanvas toShader canvas
 
@@ -83,6 +85,7 @@ runInBrowser toShader go = do
         showIf del canDelete
         showIf save (not isTelegram && canSave)
         showIf anim canAnim
+        showIf tut True
         return stillAnimating
 
     void $ on canvas mouseDown $ do
@@ -131,6 +134,10 @@ runInBrowser toShader go = do
         t <- now perf
         liftJSM (onAnim t >> render)
 
+    void $ on tut click $ do
+        t <- now perf
+        liftJSM (onTut t >> render)
+
     checkResize <- autoResizeCanvas canvas $ \ pos -> do
         t <- now perf
         onResize t pos >> render
@@ -168,6 +175,7 @@ html = T.unlines
     , "    <a id='delete'>🗑</a>"
     , "    <a id='save'>💾</a>"
     , "    <a id='anim'>▶</a>"
+    , "    <a id='tut'>❓</a>"
     , "   </div>"
     , "   <canvas id='canvas'></canvas>"
     , "  </div>"

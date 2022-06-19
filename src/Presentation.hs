@@ -28,7 +28,7 @@ import Tween
 
 type Time = Double
 
-newtype Animating = Animating Bool
+newtype Animating = Animating Bool deriving Eq
 
 animationSpeed :: Time
 animationSpeed = 200
