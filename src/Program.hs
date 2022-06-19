@@ -14,6 +14,7 @@ where
 
 import Data.Text (Text)
 import Control.Monad.Ref
+import Data.Int
 
 import Shaders
 import Presentation (Animating)
@@ -46,7 +47,7 @@ data Callbacks m = Callbacks
     , resolveDest :: Time -> Tut.Destination -> m (Double,Double)
     }
 
-type Program m = (Int -> Time -> (Double, Double) -> m (Callbacks m))
+type Program m = (Int64 -> Time -> (Double, Double) -> m (Callbacks m))
 type ProgramRunner m = Program m -> m ()
 
 

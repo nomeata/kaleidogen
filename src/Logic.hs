@@ -15,6 +15,7 @@ module Logic (
 
 import qualified Data.Map as M
 import Data.List
+import Data.Int
 
 import DNA
 import PresentationCmds (Cmds, Cmd, Cmd'(..))
@@ -24,7 +25,7 @@ import Mealy
 -- Lets keep the keys separate from the sequential indices
 newtype Key = Key Int deriving (Num, Eq, Ord, Enum, Show)
 
-type Seed = Int
+type Seed = Int64
 
 data AppState = AppState
     { seed :: Seed

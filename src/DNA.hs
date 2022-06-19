@@ -9,9 +9,10 @@ module DNA
     ) where
 
 import Control.Monad.Random.Strict
-import Data.Hashable
+import System.Random.SplitMix
 import Data.List
 import Data.Word
+import Data.Int
 import qualified Data.Text as T
 import qualified Data.ByteString as BS
 import Text.Hex
@@ -21,11 +22,11 @@ type DNA = [Word8]
 dna2hex :: DNA -> T.Text
 dna2hex = encodeHex . BS.pack
 
-crossover :: Int -> DNA -> DNA -> DNA
+crossover :: Int64 -> DNA -> DNA -> DNA
 crossover seed x' y' =
-    evalRand (crossover' x y) $ mkStdGen (hash (seed,x,y))
+    evalRand (crossover' x y) $ mkSMGen $ sum $ (fromIntegral seed:) $ map fromIntegral (x <> y)
   where
-    [x, y] = sortOn hash [x', y']
+    [x, y] = sort [x', y']
 
 crossover' :: MonadRandom m => DNA -> DNA -> m DNA
 crossover' [] dna2 = pure dna2

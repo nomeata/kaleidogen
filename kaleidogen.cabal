@@ -51,7 +51,6 @@ common static
   other-modules: GLSL
   other-modules: Shaders
   other-modules: Expression
-  build-depends: hashable
   build-depends: text
   build-depends: hex-text
   build-depends: bytestring
@@ -87,6 +86,7 @@ common logic
   other-modules: Tutorial
   build-depends: containers
   build-depends: ref-tf
+  build-depends: splitmix
 
 common canvas-save
   hs-source-dirs: src
@@ -247,7 +247,6 @@ executable kaleidogen-android-clib
   other-modules: Layout
   build-depends: base >=4.11 && <5
   build-depends: MonadRandom ==0.5.*
-  build-depends: hashable
   build-depends: containers
   build-depends: text
   build-depends: hex-text

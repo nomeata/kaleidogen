@@ -106,7 +106,7 @@ let
     executableHaskellDepends = with staticHaskellPackages; [
        base
        MonadRandom colour exceptions
-       hashable hex-text random-shuffle
+       hex-text random-shuffle
        cryptonite memory
        temporary typed-process
        aeson aws-lambda-haskell-runtime
@@ -172,7 +172,7 @@ let
     executableHaskellDepends = with ghcjsHaskellPackages; [
       base
       MonadRandom colour exceptions
-      hashable hex-text random-shuffle
+      hex-text random-shuffle
       ghcjs-dom jsaddle jsaddle-dom
       file-embed
     ];
@@ -198,7 +198,7 @@ let
     executableHaskellDepends =  with haskellPackages; [
       base
       MonadRandom colour exceptions
-      hashable hex-text random-shuffle
+      hex-text random-shuffle
       ghcjs-dom jsaddle jsaddle-dom
       file-embed
       # The following only for local
