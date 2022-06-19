@@ -179,8 +179,9 @@ mainProgram seed0 t0 size0 = do
 -- TODO: Make it all pure? Or state monad?
 
 tutorialProgram :: MonadIO m => Int -> Time -> (Double,Double) -> m (Callbacks m Graphic)
-tutorialProgram seed0 t0 size0 = do
-    progRef <- mainProgram seed0 t0 size0 >>= liftIO . newIORef
+tutorialProgram _seed t0 size0 = do
+    let tutorialSeed = 1 -- fixed, chosen to look good.
+    progRef <- mainProgram tutorialSeed t0 size0 >>= liftIO . newIORef
     let withProg act = liftIO (readIORef progRef) >>= act
     let getPosOf t d = withProg $ \p -> resolveDest p t d
 
@@ -251,10 +252,8 @@ tutorialProgram seed0 t0 size0 = do
                   | otherwise   = 0
             (mx,my) <- liftIO $ readIORef currentMousePos
             (w,h) <- liftIO $ readIORef sizeRef
-            let s = min (w/30) (h/30)
-
-            -- TODO: mouse size
-            let mouseObject = (Mouse, (mouseExtraData, mx, my, s, 1))
+            let mouseSize = min (w/30) (h/30)
+            let mouseObject = (Mouse, (mouseExtraData, mx, my, mouseSize, 1))
 
             stillAnimating <- Presentation.Animating . not . null <$> liftIO (readIORef scriptRef)
 
@@ -277,7 +276,7 @@ tutorialProgram seed0 t0 size0 = do
             -- Possible solution: The tutorial animation mouse movement is just for show,
             -- and it generates abstract Logic events instead.
             -- So just replay the whole animation with the new screen size! (Using same seed)
-            mainProgram seed0 t0 size >>= liftIO . writeIORef progRef
+            mainProgram tutorialSeed t0 size >>= liftIO . writeIORef progRef
             liftIO $ writeIORef scriptRef Tut.tutorial
             liftIO $ writeIORef scriptStepStartRef t0
 
@@ -303,9 +302,14 @@ switchProgram seed0 t0 size0 = do
             Nothing -> liftIO (readIORef mainRef) >>= \p -> act p
     let withTutAndMain act = withTut act >> withMain act
 
+    -- Remember screen size
+    sizeRef <- liftIO $ newIORef size0
+
     let startTutorial t = do
-            tutorialProgram seed0 t size0  >>= liftIO . writeIORef tutRef . Just
+            size <- liftIO (readIORef sizeRef)
+            tutorialProgram seed0 t size >>= liftIO . writeIORef tutRef . Just
     let stopTutorial = liftIO $ writeIORef tutRef Nothing
+
 
     return $ Callbacks
         { onDraw      = \t      -> withTutOrMain  $ \p -> do
@@ -325,7 +329,9 @@ switchProgram seed0 t0 size0 = do
         , onDel       = \t      -> withTutOrMain  $ \p -> onDel p t
         , onAnim      = \t      -> withTutOrMain  $ \p -> onAnim p t
         , onSave      = \t      -> withTutOrMain  $ \p -> onSave p t
-        , onResize    = \t size -> withTutAndMain $ \p -> onResize p t size
+        , onResize    = \t size -> withTutAndMain $ \p -> do
+            liftIO $ writeIORef sizeRef size
+            onResize p t size
                 -- NB: We keep updating the screen size for both
         , resolveDest = \t d    -> withTutOrMain  $ \p -> resolveDest p t d
         , onTut = \t -> liftIO (readIORef tutRef) >>= \case
