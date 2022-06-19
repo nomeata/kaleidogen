@@ -83,13 +83,10 @@ scriptProgram mainP _seed t0 size0 = do
 
             -- Mouse pointer
             isMouseDown <- readRef mouseDownRef
-            let mouseExtraData
-                  | isMouseDown = 1
-                  | otherwise   = 0
             (mx,my) <- readRef currentMousePos
             (w,h) <- readRef sizeRef
-            let mouseSize = min (w/30) (h/30)
-            let mouseObject = (renderShape Mouse, (mouseExtraData, mx, my, mouseSize, 1))
+            let ms = min (w/30) (h/30)
+            let mouseObject = mouseGraphic isMouseDown ((mx,my), ms)
 
             stillAnimating <- Presentation.Animating . not . null <$> readRef scriptRef
 

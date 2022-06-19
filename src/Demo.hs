@@ -31,12 +31,12 @@ import qualified GHCJS.DOM.HTMLTextAreaElement as TextArea
 
 import ShaderCanvas
 import qualified CanvasSave
-import Program
 import RunWidget
 import GLSL
 import DNA
 import Expression
 import PrettyRna
+import Shapes
 
 main :: IO ()
 main = runWidget mainWidget
@@ -71,9 +71,9 @@ mainWidget = do
     sizeRef <- liftIO $ newIORef (100,100)
 
 
-    drawShaderCircles1 <- shaderCanvas renderGraphic canvas1
-    drawShaderCircles2 <- shaderCanvas renderGraphic canvas2
-    drawShaderCircles3 <- shaderCanvas renderGraphic canvas3
+    drawShaderCircles1 <- shaderCanvas canvas1
+    drawShaderCircles2 <- shaderCanvas canvas2
+    drawShaderCircles3 <- shaderCanvas canvas3
 
     let drawOne dna tree code drawShaderCircles = do
           canvassize <- liftIO $ readIORef sizeRef
@@ -83,7 +83,7 @@ mainWidget = do
           TextArea.setValue code (toFragmentShader (dna2rna dna))
           TextArea.setRows tree rows
           TextArea.setRows code rows
-          drawShaderCircles [showFullDNA dna canvassize]
+          drawShaderCircles [fullDNAGraphic dna canvassize]
 
     let draw = do
           dna1 <- liftIO $ readIORef dnaRef1

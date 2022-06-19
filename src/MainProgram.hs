@@ -72,14 +72,10 @@ mainProgram seed0 t0 size0 = do
             size <- readRef sizeRef
             -- A bit of a hack to access as here
             let borderRadius = gridBorderRadius (M.size (dnas as)) size
-            let extraData d
-                  -- | isSelected as d = 2
-                  | isInactive as d = 3
-                  | otherwise       = 0
             let objects =
-                    (renderShape Border, (0,0,0,borderRadius,1)) :
-                    [ (renderShape (DNA (entity2dna k)), (extraData k,x,y,s,f))
-                    | (k,(((x,y),s),f)) <- p ]
+                    (borderGraphic borderRadius) :
+                    [ dnaGraphic d (not (isInactive as d)) pas f
+                    | (k,(pas,f)) <- p , let d = entity2dna k ]
             let animInProgress = stillVideoPlaying == Presentation.VideoPlaying True
             let tutInProgress = False
             return (DrawResult {..})

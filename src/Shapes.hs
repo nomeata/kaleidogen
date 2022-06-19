@@ -3,13 +3,12 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE LambdaCase #-}
 module Shapes
-  ( Shape(..)
-  , renderShape
+  ( dnaGraphic
+  , borderGraphic
+  , mouseGraphic
   , fullDNAGraphic
   )
 where
-
-import Data.Text (Text)
 
 import Shaders
 import Expression
@@ -17,16 +16,29 @@ import GLSL
 import DNA
 import Layout
 
-data Shape = DNA DNA | Border | Mouse deriving (Eq, Ord)
+dnaShaders :: DNA -> Shaders
+dnaShaders d = (circularVertexShader, toFragmentShader (dna2rna d))
 
-renderShape :: Shape -> (Text, Text)
-renderShape (DNA d) = (circularVertexShader, toFragmentShader (dna2rna d))
-renderShape Border = borderShaders
-renderShape Mouse  = (circularVertexShader, mouseFragmentShader)
+dnaGraphic :: DNA -> Bool -> PosAndScale -> Double -> Graphic
+dnaGraphic d active ((x,y),s) f = (dnaShaders d, (extraData, x, y, s, f))
+  where
+    extraData | active    = 0
+              | otherwise = 3
+
+borderGraphic :: Double -> Graphic
+borderGraphic radius = (borderShaders, (0, 0, 0, radius, 1))
+
+mouseShaders :: Shaders
+mouseShaders = (circularVertexShader, mouseFragmentShader)
+
+mouseGraphic :: Bool -> PosAndScale -> Graphic
+mouseGraphic pressed ((x,y),s) = (mouseShaders, (extraData, x, y, s, 1))
+  where
+    extraData | pressed   = 1
+              | otherwise = 0
 
 fullDNAGraphic :: DNA -> (Double,Double) -> Graphic
-fullDNAGraphic dna (w,h) = (shaders, (0, x, y, s, 1))
+fullDNAGraphic dna (w,h) = (dnaShaders dna, (0, x, y, s, 1))
   where
-    shaders = renderShape (DNA dna)
     ((x,y),s) = layoutFullCirlce (w,h) ()
 
