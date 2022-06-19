@@ -307,10 +307,10 @@ switchProgram mainP otherP seed0 t0 size0 = do
     -- Remember screen size
     sizeRef <- newRef size0
 
-    let startOtherorial t = do
+    let startOther t = do
             size <- (readRef sizeRef)
             otherP seed0 t size >>= writeRef otherRef . Just
-    let stopOtherorial = writeRef otherRef Nothing
+    let stopOther = writeRef otherRef Nothing
 
 
     return $ Callbacks
@@ -321,10 +321,13 @@ switchProgram mainP otherP seed0 t0 size0 = do
                 Presentation.Animating True -> pure dr
                 -- Presentation stopped, switch to main program
                 Presentation.Animating False -> do
-                    stopOtherorial
+                    stopOther
                     withMain $ \p' -> onDraw p' t
 
-        , onMouseDown = \t pos  -> withOtherOrMain  $ \p -> onMouseDown p t pos
+        , onMouseDown = \t pos  -> readRef otherRef >>= \case
+            Nothing -> withMain $ \p -> onMouseDown p t pos
+            -- Clicking during other programs ends it
+            Just _  -> stopOther
         , onMove      = \t pos  -> withOtherOrMain  $ \p -> onMove p t pos
         , onMouseUp   = \t      -> withOtherOrMain  $ \p -> onMouseUp p t
         , onMouseOut  = \t      -> withOtherOrMain  $ \p -> onMouseOut p t
@@ -336,13 +339,13 @@ switchProgram mainP otherP seed0 t0 size0 = do
             onResize p t size
                 -- NB: We keep updating the screen size for both
         , resolveDest = \t d    -> withOtherOrMain  $ \p -> resolveDest p t d
-        , onTut = \t -> (readRef otherRef) >>= \case
-            -- Otherorial is not running, so
+        , onTut = \t -> readRef otherRef >>= \case
+            -- Other is not running, so
             Nothing -> do
                 -- Pretend the mouse went out on the real program
                 withMain $ \p -> onMouseOut p t
-                startOtherorial t
-            -- Otherorial is running, so stop it
-            Just _ -> stopOtherorial
+                startOther t
+            -- Other is running, so stop it
+            Just _ -> stopOther
         }
 
