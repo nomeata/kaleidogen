@@ -174,7 +174,7 @@ html = T.unlines
     , "  <div align='center'>"
     -- Avoid whitespace between the buttons. Stupid HTML.
     , "   <div class='toolbar'>" <>
-          "<a id='anim'>▶</a>" <>
+          "<a id='anim'>🎬</a>" <>
           "<a id='save'>💾</a>" <>
           "<a id='delete'>🗑</a>" <>
           "<a id='tut'>❓</a>"
