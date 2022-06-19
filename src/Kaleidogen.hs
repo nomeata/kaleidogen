@@ -46,7 +46,7 @@ main = runWidget mainWidget
 mainWidget :: JSM ()
 -- mainWidget = runInBrowser renderGraphic mainProgram
 -- mainWidget = runInBrowser renderGraphic tutorialProgram
-mainWidget = runInBrowser renderGraphic switchProgram
+mainWidget = runInBrowser renderGraphic (switchProgram mainProgram tutorialProgram)
 
 runInBrowser :: ProgramRunner JSM
 runInBrowser toShader go = do

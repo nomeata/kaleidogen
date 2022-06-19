@@ -3,7 +3,8 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE LambdaCase #-}
 module Program
-  ( ProgramRunner
+  ( Program
+  , ProgramRunner
   , Callbacks(..)
   , Time
   , DrawResult(..)
@@ -80,11 +81,8 @@ data Callbacks m a = Callbacks
     , resolveDest :: Time -> Tut.Destination -> m (Double,Double)
     }
 
-type ProgramRunner m = forall a.
-    Ord a =>
-    (a -> Shaders) ->
-    (Int -> Time -> (Double, Double) -> m (Callbacks m a)) ->
-    m ()
+type Program m a = (Int -> Time -> (Double, Double) -> m (Callbacks m a))
+type ProgramRunner m = forall a.  Ord a => (a -> Shaders) -> Program m a -> m ()
 
 data Graphic = DNA DNA | Border | Mouse deriving (Eq, Ord)
 
@@ -94,7 +92,7 @@ renderGraphic Border = borderShaders
 renderGraphic Mouse  = (circularVertexShader, mouseFragmentShader)
 
 
-mainProgram :: MonadIO m => Int -> Time -> (Double, Double) -> m (Callbacks m Graphic)
+mainProgram :: MonadIO m => Program m Graphic
 mainProgram seed0 t0 size0 = do
 
     let mealy = logicMealy seed0
@@ -178,7 +176,7 @@ mainProgram seed0 t0 size0 = do
 -- TODO: Find new abstractions to remove duplication with above
 -- TODO: Make it all pure? Or state monad?
 
-tutorialProgram :: MonadIO m => Int -> Time -> (Double,Double) -> m (Callbacks m Graphic)
+tutorialProgram :: MonadIO m => Program m Graphic
 tutorialProgram _seed t0 size0 = do
     let tutorialSeed = 1 -- fixed, chosen to look good.
     progRef <- mainProgram tutorialSeed t0 size0 >>= liftIO . newIORef
@@ -288,59 +286,59 @@ tutorialProgram _seed t0 size0 = do
         , resolveDest = \t d -> withProg $ \p -> resolveDest p t d
         }
 
-switchProgram :: MonadIO m => Int -> Time -> (Double,Double) -> m (Callbacks m Graphic)
-switchProgram seed0 t0 size0 = do
-    mainRef <- mainProgram seed0 t0 size0 >>= liftIO . newIORef
-    tutRef <- liftIO $ newIORef Nothing
+switchProgram :: MonadIO m => Program m a -> Program m a -> Program m a
+switchProgram mainP otherP seed0 t0 size0 = do
+    mainRef <- mainP seed0 t0 size0 >>= liftIO . newIORef
+    otherRef <- liftIO $ newIORef Nothing
 
-    let withTut act = liftIO (readIORef tutRef) >>= \case
+    let withOther act = liftIO (readIORef otherRef) >>= \case
             Just p -> act p
             Nothing -> pure ()
     let withMain act = liftIO (readIORef mainRef) >>= act
-    let withTutOrMain act = liftIO (readIORef tutRef) >>= \case
+    let withOtherOrMain act = liftIO (readIORef otherRef) >>= \case
             Just p -> act p
             Nothing -> liftIO (readIORef mainRef) >>= \p -> act p
-    let withTutAndMain act = withTut act >> withMain act
+    let withOtherAndMain act = withOther act >> withMain act
 
     -- Remember screen size
     sizeRef <- liftIO $ newIORef size0
 
-    let startTutorial t = do
+    let startOtherorial t = do
             size <- liftIO (readIORef sizeRef)
-            tutorialProgram seed0 t size >>= liftIO . writeIORef tutRef . Just
-    let stopTutorial = liftIO $ writeIORef tutRef Nothing
+            otherP seed0 t size >>= liftIO . writeIORef otherRef . Just
+    let stopOtherorial = liftIO $ writeIORef otherRef Nothing
 
 
     return $ Callbacks
-        { onDraw      = \t      -> withTutOrMain  $ \p -> do
+        { onDraw      = \t      -> withOtherOrMain  $ \p -> do
             dr <- onDraw p t
             case stillAnimating dr of
                 -- Still running
                 Presentation.Animating True -> pure dr
                 -- Presentation stopped, switch to main program
                 Presentation.Animating False -> do
-                    stopTutorial
+                    stopOtherorial
                     withMain $ \p' -> onDraw p' t
 
-        , onMouseDown = \t pos  -> withTutOrMain  $ \p -> onMouseDown p t pos
-        , onMove      = \t pos  -> withTutOrMain  $ \p -> onMove p t pos
-        , onMouseUp   = \t      -> withTutOrMain  $ \p -> onMouseUp p t
-        , onMouseOut  = \t      -> withTutOrMain  $ \p -> onMouseOut p t
-        , onDel       = \t      -> withTutOrMain  $ \p -> onDel p t
-        , onAnim      = \t      -> withTutOrMain  $ \p -> onAnim p t
-        , onSave      = \t      -> withTutOrMain  $ \p -> onSave p t
-        , onResize    = \t size -> withTutAndMain $ \p -> do
+        , onMouseDown = \t pos  -> withOtherOrMain  $ \p -> onMouseDown p t pos
+        , onMove      = \t pos  -> withOtherOrMain  $ \p -> onMove p t pos
+        , onMouseUp   = \t      -> withOtherOrMain  $ \p -> onMouseUp p t
+        , onMouseOut  = \t      -> withOtherOrMain  $ \p -> onMouseOut p t
+        , onDel       = \t      -> withOtherOrMain  $ \p -> onDel p t
+        , onAnim      = \t      -> withOtherOrMain  $ \p -> onAnim p t
+        , onSave      = \t      -> withOtherOrMain  $ \p -> onSave p t
+        , onResize    = \t size -> withOtherAndMain $ \p -> do
             liftIO $ writeIORef sizeRef size
             onResize p t size
                 -- NB: We keep updating the screen size for both
-        , resolveDest = \t d    -> withTutOrMain  $ \p -> resolveDest p t d
-        , onTut = \t -> liftIO (readIORef tutRef) >>= \case
-            -- Tutorial is not running, so
+        , resolveDest = \t d    -> withOtherOrMain  $ \p -> resolveDest p t d
+        , onTut = \t -> liftIO (readIORef otherRef) >>= \case
+            -- Otherorial is not running, so
             Nothing -> do
                 -- Pretend the mouse went out on the real program
                 withMain $ \p -> onMouseOut p t
-                startTutorial t
-            -- Tutorial is running, so stop it
-            Just _ -> stopTutorial
+                startOtherorial t
+            -- Otherorial is running, so stop it
+            Just _ -> stopOtherorial
         }
 
