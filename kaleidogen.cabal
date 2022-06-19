@@ -83,6 +83,7 @@ common logic
   other-modules: Layout
   other-modules: Tutorial
   build-depends: containers
+  build-depends: ref-tf
 
 common canvas-save
   hs-source-dirs: src

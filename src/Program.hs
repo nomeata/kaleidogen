@@ -21,8 +21,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Map as M
 import qualified Data.List as L
-import Data.IORef
-import Control.Monad.IO.Class
+import Control.Monad.Ref
 import Data.Maybe
 
 import Shaders
@@ -94,29 +93,29 @@ renderGraphic Border = borderShaders
 renderGraphic Mouse  = (circularVertexShader, mouseFragmentShader)
 
 
-mainProgram :: MonadIO m => Program m Graphic
+mainProgram :: MonadRef m => Program m Graphic
 mainProgram seed0 t0 size0 = do
 
     let mealy = logicMealy seed0
     let as0 = initial mealy
-    asRef <- liftIO $ newIORef as0
-    sizeRef <- liftIO $ newIORef size0
-    pRef <- liftIO Presentation.initRef
+    asRef <- newRef as0
+    sizeRef <- newRef size0
+    pRef <- Presentation.initPRef
     let handleCmds t cs = do
-          lf <- liftIO $ layoutFun <$> readIORef sizeRef
-          liftIO $ Presentation.handleCmdsRef t lf cs pRef
+          lf <- layoutFun <$> readRef sizeRef
+          Presentation.handleCmdsRef t lf cs pRef
     handleCmds t0 (reconstruct mealy as0)
 
     let handleEvent t e = do
-          as <- liftIO (readIORef asRef)
+          as <- readRef asRef
           let (as', cs) = handle mealy as e
-          liftIO $ writeIORef asRef as'
+          writeRef asRef as'
           handleCmds t cs
 
-    let getPresentation t = liftIO (Presentation.presentAtRef t pRef)
+    let getPresentation t = Presentation.presentAtRef t pRef
 
     let canDragM k = do
-          as <- liftIO (readIORef asRef)
+          as <- readRef asRef
           return (Logic.canDrag as k)
 
     (dragHandler, getModPres, _resetDrag) <- mkDragHandler canDragM getPresentation
@@ -126,13 +125,13 @@ mainProgram seed0 t0 size0 = do
 
     return $ Callbacks
         { onDraw = \t -> do
-            as <- liftIO $ readIORef asRef
+            as <- readRef asRef
             let canDelete = isJust (sel as)
             let canSave   = isJust (sel as)
             let canAnim   = isJust (sel as)
             (p, stillAnimating, stillVideoPlaying) <- getModPres t
             -- Calcualting the border radius
-            size <- liftIO $ readIORef sizeRef
+            size <- readRef sizeRef
             -- A bit of a hack to access as here
             let borderRadius = gridBorderRadius (M.size (dnas as)) size
             let extraData d
@@ -152,16 +151,16 @@ mainProgram seed0 t0 size0 = do
         , onDel = \t -> handleEvent t Delete
         , onAnim = \t -> handleEvent t Anim
         , onSave = \_ -> do
-            as <- liftIO (readIORef asRef)
+            as <- readRef asRef
             pure $ (\dna -> (toFilename dna, showFullDNA dna (1000,1000))) <$> selectedDNA as
         , onResize = \t size -> do
-            liftIO $ writeIORef sizeRef size
-            as <- liftIO $ readIORef asRef
+            writeRef sizeRef size
+            as <- readRef asRef
             handleCmds t (reconstruct mealy as)
         , onTut = \_ -> pure ()
         , resolveDest = \ t -> \case
             (Tut.DNA n v) -> do
-              as <- liftIO $ readIORef asRef
+              as <- readRef asRef
               case M.lookup (Key n) (dnas as) of
                 Just d ->  do
                   (p, _, _) <- getModPres t
@@ -173,41 +172,41 @@ mainProgram seed0 t0 size0 = do
                 -- but we also do not want to crash
                 Nothing ->  pure (0,0)
             Tut.Center -> do
-              (w,h) <- liftIO $ readIORef sizeRef
+              (w,h) <- readRef sizeRef
               pure (w/2, h/2)
         }
 
 -- TODO: Find new abstractions to remove duplication with above
 -- TODO: Make it all pure? Or state monad?
 
-tutorialProgram :: MonadIO m => Program m Graphic
+tutorialProgram :: MonadRef m => Program m Graphic
 tutorialProgram _seed t0 size0 = do
     let tutorialSeed = 1 -- fixed, chosen to look good.
-    progRef <- mainProgram tutorialSeed t0 size0 >>= liftIO . newIORef
-    let withProg act = liftIO (readIORef progRef) >>= act
+    progRef <- mainProgram tutorialSeed t0 size0 >>= newRef
+    let withProg act = readRef progRef >>= act
     let getPosOf t d = withProg $ \p -> resolveDest p t d
 
     -- Script playing state
-    scriptRef <- liftIO $ newIORef Tut.tutorial
-    scriptStepStartRef <- liftIO $ newIORef t0
-    lastMousePosition <- getPosOf t0 Tut.Center >>= liftIO . newIORef
-    currentMousePos <- liftIO $ readIORef lastMousePosition >>= newIORef
-    mouseDownRef <- liftIO $ newIORef False
+    scriptRef <- newRef Tut.tutorial
+    scriptStepStartRef <- newRef t0
+    lastMousePosition <- getPosOf t0 Tut.Center >>= newRef
+    currentMousePos <- readRef lastMousePosition >>= newRef
+    mouseDownRef <- newRef False
 
     -- Need screen size to size the mouse
-    sizeRef <- liftIO $ newIORef size0
+    sizeRef <- newRef size0
 
     let tickAnimation t = do
-            s <- liftIO $ readIORef scriptRef
-            (x1,y1) <- liftIO $ readIORef lastMousePosition
-            t1 <- liftIO $ readIORef scriptStepStartRef
+            s <- readRef scriptRef
+            (x1,y1) <- readRef lastMousePosition
+            t1 <- readRef scriptStepStartRef
             case s of
                 [] -> pure ()
                 (Tut.Wait n):s'
                   | t > t1 + n -> do
                     -- Wait is done
-                    liftIO $ writeIORef scriptStepStartRef (t1 + n)
-                    liftIO $ writeIORef scriptRef s'
+                    writeRef scriptStepStartRef (t1 + n)
+                    writeRef scriptRef s'
                     tickAnimation t
                   | otherwise -> pure () -- Wait is not done
                 (Tut.MoveMouseTo d n):s'
@@ -215,30 +214,30 @@ tutorialProgram _seed t0 size0 = do
                     -- Mouse move is done
                     (x,y) <- getPosOf (t1 + n) d
                     withProg $ \p -> onMove p (t1 + n) (x,y)
-                    liftIO $ writeIORef scriptStepStartRef (t1 + n)
-                    liftIO $ writeIORef lastMousePosition (x,y)
-                    liftIO $ writeIORef currentMousePos (x,y)
-                    liftIO $ writeIORef scriptRef s'
+                    writeRef scriptStepStartRef (t1 + n)
+                    writeRef lastMousePosition (x,y)
+                    writeRef currentMousePos (x,y)
+                    writeRef scriptRef s'
                     tickAnimation t
                   | otherwise -> do
                     -- Mouse move is happening
                     (x,y) <- getPosOf (t1 + n) d
                     let mousePos = tween ((t-t1)/n) (x1,y1) (x,y)
                     withProg $ \p -> onMove p (t1 + n) mousePos
-                    liftIO $ writeIORef currentMousePos mousePos
+                    writeRef currentMousePos mousePos
                 Tut.MouseDown:s' -> do
                     withProg $ \p -> onMouseDown p t1 (x1, y1)
-                    liftIO $ writeIORef scriptRef s'
-                    liftIO $ writeIORef mouseDownRef True
+                    writeRef scriptRef s'
+                    writeRef mouseDownRef True
                     tickAnimation t
                 Tut.MouseUp:s' -> do
                     withProg $ \p -> onMouseUp p t1
-                    liftIO $ writeIORef scriptRef s'
-                    liftIO $ writeIORef mouseDownRef False
+                    writeRef scriptRef s'
+                    writeRef mouseDownRef False
                     tickAnimation t
                 Tut.StartAnim:s' -> do
                     withProg $ \p -> onAnim p t1
-                    liftIO $ writeIORef scriptRef s'
+                    writeRef scriptRef s'
                     tickAnimation t
 
     return $ Callbacks
@@ -248,16 +247,16 @@ tutorialProgram _seed t0 size0 = do
             dr <- withProg $ \p -> onDraw p t
 
             -- Mouse pointer
-            isMouseDown <- liftIO $ readIORef mouseDownRef
+            isMouseDown <- readRef mouseDownRef
             let mouseExtraData
                   | isMouseDown = 1
                   | otherwise   = 0
-            (mx,my) <- liftIO $ readIORef currentMousePos
-            (w,h) <- liftIO $ readIORef sizeRef
+            (mx,my) <- readRef currentMousePos
+            (w,h) <- readRef sizeRef
             let mouseSize = min (w/30) (h/30)
             let mouseObject = (Mouse, (mouseExtraData, mx, my, mouseSize, 1))
 
-            stillAnimating <- Presentation.Animating . not . null <$> liftIO (readIORef scriptRef)
+            stillAnimating <- Presentation.Animating . not . null <$> readRef scriptRef
 
             pure $ dr
                 { objects = objects dr ++ [mouseObject]
@@ -274,44 +273,44 @@ tutorialProgram _seed t0 size0 = do
         , onSave      = \_ -> pure Nothing
         , onTut       = \_ -> pure ()
         , onResize = \t size -> do
-            liftIO $ writeIORef sizeRef size
+            writeRef sizeRef size
             -- This is a problem: resizing completely messes up with ongoing scripted interaction.
             -- Possible solution: The tutorial animation mouse movement is just for show,
             -- and it generates abstract Logic events instead.
             -- So just replay the whole animation with the new screen size! (Using same seed)
-            mainProgram tutorialSeed t0 size >>= liftIO . writeIORef progRef
-            liftIO $ writeIORef scriptRef Tut.tutorial
-            liftIO $ writeIORef scriptStepStartRef t0
+            mainProgram tutorialSeed t0 size >>= writeRef progRef
+            writeRef scriptRef Tut.tutorial
+            writeRef scriptStepStartRef t0
 
-            getPosOf t0 Tut.Center >>= liftIO . writeIORef lastMousePosition
-            liftIO $ readIORef lastMousePosition >>= writeIORef currentMousePos
-            liftIO $ writeIORef mouseDownRef False
+            getPosOf t0 Tut.Center >>= writeRef lastMousePosition
+            readRef lastMousePosition >>= writeRef currentMousePos
+            writeRef mouseDownRef False
             -- And now replay
             tickAnimation t
         , resolveDest = \t d -> withProg $ \p -> resolveDest p t d
         }
 
-switchProgram :: MonadIO m => Program m a -> Program m a -> Program m a
+switchProgram :: MonadRef m => Program m a -> Program m a -> Program m a
 switchProgram mainP otherP seed0 t0 size0 = do
-    mainRef <- mainP seed0 t0 size0 >>= liftIO . newIORef
-    otherRef <- liftIO $ newIORef Nothing
+    mainRef <- mainP seed0 t0 size0 >>= newRef
+    otherRef <- newRef Nothing
 
-    let withOther act = liftIO (readIORef otherRef) >>= \case
+    let withOther act = readRef otherRef >>= \case
             Just p -> act p
             Nothing -> pure ()
-    let withMain act = liftIO (readIORef mainRef) >>= act
-    let withOtherOrMain act = liftIO (readIORef otherRef) >>= \case
+    let withMain act = readRef mainRef >>= act
+    let withOtherOrMain act = readRef otherRef >>= \case
             Just p -> act p
-            Nothing -> liftIO (readIORef mainRef) >>= \p -> act p
+            Nothing -> readRef mainRef >>= \p -> act p
     let withOtherAndMain act = withOther act >> withMain act
 
     -- Remember screen size
-    sizeRef <- liftIO $ newIORef size0
+    sizeRef <- newRef size0
 
     let startOtherorial t = do
-            size <- liftIO (readIORef sizeRef)
-            otherP seed0 t size >>= liftIO . writeIORef otherRef . Just
-    let stopOtherorial = liftIO $ writeIORef otherRef Nothing
+            size <- (readRef sizeRef)
+            otherP seed0 t size >>= writeRef otherRef . Just
+    let stopOtherorial = writeRef otherRef Nothing
 
 
     return $ Callbacks
@@ -333,11 +332,11 @@ switchProgram mainP otherP seed0 t0 size0 = do
         , onAnim      = \t      -> withOtherOrMain  $ \p -> onAnim p t
         , onSave      = \t      -> withOtherOrMain  $ \p -> onSave p t
         , onResize    = \t size -> withOtherAndMain $ \p -> do
-            liftIO $ writeIORef sizeRef size
+            writeRef sizeRef size
             onResize p t size
                 -- NB: We keep updating the screen size for both
         , resolveDest = \t d    -> withOtherOrMain  $ \p -> resolveDest p t d
-        , onTut = \t -> liftIO (readIORef otherRef) >>= \case
+        , onTut = \t -> (readRef otherRef) >>= \case
             -- Otherorial is not running, so
             Nothing -> do
                 -- Pretend the mouse went out on the real program

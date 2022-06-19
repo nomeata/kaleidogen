@@ -16,9 +16,8 @@ module Drag
 
 
 import Control.Monad
-import Control.Monad.IO.Class
 import Control.Monad.Writer
-import Data.IORef
+import Control.Monad.Ref
 import Data.Foldable
 import Data.Maybe
 import Presentation (Presentation, Time, Animating, VideoPlaying)
@@ -65,7 +64,7 @@ dragging = isNothing . initialPhase
 mkDragHandler ::
     forall k m.
     Eq k =>
-    MonadIO m =>
+    MonadRef m =>
     (k -> m Bool) ->
     (Time -> m (Presentation k, Animating, VideoPlaying)) ->
     m ( Time -> RawEvent -> m [ClickEvent k]
@@ -73,13 +72,13 @@ mkDragHandler ::
       , m ()
       )
 mkDragHandler canDrag getPres = do
-    dragState <- liftIO $ newIORef (Nothing :: Maybe (DragState k))
-    dragAnimState <- liftIO $ newIORef DragAnim.empty
-    lastIntersection <- liftIO $ newIORef Nothing
+    dragState <- newRef (Nothing :: Maybe (DragState k))
+    dragAnimState <- newRef DragAnim.empty
+    lastIntersection <- newRef Nothing
 
     let getModifiedPres t = do
-          liftIO $ modifyIORef dragAnimState (DragAnim.cleanup t)
-          DragAnim.pres <$> liftIO (readIORef dragAnimState)
+          modifyRef dragAnimState (DragAnim.cleanup t)
+          DragAnim.pres <$> readRef dragAnimState
                         <*> pure t
                         <*> getPres t
 
@@ -92,10 +91,10 @@ mkDragHandler canDrag getPres = do
           return $ Presentation.locateIntersection p k
 
     let finishDrag t = do
-          ds <- liftIO $ readIORef dragState
-          liftIO $ writeIORef dragState Nothing
-          liftIO $ writeIORef lastIntersection Nothing
-          liftIO $ modifyIORef dragAnimState (DragAnim.stop t)
+          ds <- readRef dragState
+          writeRef dragState Nothing
+          writeRef lastIntersection Nothing
+          modifyRef dragAnimState (DragAnim.stop t)
           return ds
 
     let cancelDrag t = finishDrag t >>= \case
@@ -107,16 +106,16 @@ mkDragHandler canDrag getPres = do
                 cancelDrag t
                 lift (posToKey t pos) >>= \case
                     Just (k, objPos) -> lift (canDrag k) >>= \case
-                        True -> liftIO $ do
+                        True -> do
                             let offset = offsetWithin pos objPos
-                            writeIORef dragState $ Just $ DragState
+                            writeRef dragState $ Just $ DragState
                                 { initialPhase = Just (pos, t)
                                 , curPos = pos
                                 , key = k
                                 , objOffset = offset
                                 }
-                            writeIORef lastIntersection Nothing
-                            modifyIORef dragAnimState (DragAnim.start k pos offset)
+                            writeRef lastIntersection Nothing
+                            modifyRef dragAnimState (DragAnim.start k pos offset)
                                 -- NB: We always display moving the drag, even if the drag
                                 -- is still small enough that it might just be a click, and
                                 -- before we report it to the game logic.
@@ -125,21 +124,21 @@ mkDragHandler canDrag getPres = do
                         False -> tell [Click k]
                     Nothing -> tell [OtherClick]
             Move pos -> do
-                liftIO $ modifyIORef dragState $ fmap $ \ ds -> ds { curPos = pos }
-                liftIO $ modifyIORef dragAnimState (DragAnim.move pos)
+                modifyRef dragState $ fmap $ \ ds -> ds { curPos = pos }
+                modifyRef dragAnimState (DragAnim.move pos)
 
-                liftIO (readIORef dragState) >>= \case
+                readRef dragState >>= \case
                     Just ds | canStartDragging ds pos t -> do
                         tell [BeginDrag (key ds)]
-                        liftIO $ writeIORef dragState $ Just $ ds { initialPhase = Nothing }
+                        writeRef dragState $ Just $ ds { initialPhase = Nothing }
                     _ -> return ()
 
-                liftIO (readIORef dragState) >>= \case
+                readRef dragState >>= \case
                     Just ds | dragging ds -> do
-                        mi_old <- liftIO $ readIORef lastIntersection
+                        mi_old <- readRef lastIntersection
                         mi <- lift $ intersectToKey t (key ds)
                         when (mi /= mi_old) $ do
-                            liftIO $ writeIORef lastIntersection mi
+                            writeRef lastIntersection mi
                             for_ mi_old $ \k' -> tell [DragOff k']
                             for_ mi $ \k' -> tell [DragOn k']
                     _ -> return ()
@@ -150,10 +149,10 @@ mkDragHandler canDrag getPres = do
             MouseOut -> cancelDrag t
 
 
-    let reset = liftIO $ do
-            writeIORef dragState (Nothing :: Maybe (DragState k))
-            writeIORef dragAnimState DragAnim.empty
-            writeIORef lastIntersection Nothing
+    let reset = do
+            writeRef dragState (Nothing :: Maybe (DragState k))
+            writeRef dragAnimState DragAnim.empty
+            writeRef lastIntersection Nothing
 
     return (handleEvent, getModifiedPres, reset)
 

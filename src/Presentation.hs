@@ -9,8 +9,7 @@ module Presentation
     , videoSpeed
     , Presentation
     , LayoutFun
-    , initRef
-    , resetRef
+    , initPRef
     , handleCmdsRef
     , presentAtRef
     , locateClick
@@ -19,7 +18,7 @@ module Presentation
 where
 
 import qualified Data.Map as M
-import Data.IORef
+import Control.Monad.Ref
 import Data.List
 import Data.Bifunctor
 
@@ -147,18 +146,15 @@ locateIntersection p k =
   where Just (((x,y),_),_) = lookup k p
 
 -- The mutable layer
-type Ref k = IORef (State k)
+type PRef m k = Ref m (State k)
 
-initRef :: IO (Ref k)
-initRef = newIORef initialState
+initPRef :: MonadRef m => m (PRef m k)
+initPRef = newRef initialState
 
-resetRef :: Ref k -> IO ()
-resetRef r = writeIORef r  initialState
+handleCmdsRef :: (MonadRef m, Ord k) => Time -> LayoutFun a -> Cmds k a -> PRef m k -> m ()
+handleCmdsRef t l cs r = modifyRef r (\s -> foldl (handleCmd t l) s cs)
 
-handleCmdsRef :: Ord k => Time -> LayoutFun a -> Cmds k a -> Ref k -> IO ()
-handleCmdsRef t l cs r = modifyIORef r (\s -> foldl (handleCmd t l) s cs)
-
-presentAtRef :: Ord k => Time -> Ref k -> IO (Presentation k, Animating, VideoPlaying)
+presentAtRef :: (MonadRef m, Ord k) => Time -> PRef m k -> m (Presentation k, Animating, VideoPlaying)
 presentAtRef t r = do
-    s <- readIORef r
+    s <- readRef r
     pure (presentAt t s, anyMoving t s, anyVideo t s)
