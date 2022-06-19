@@ -15,6 +15,8 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Bifunctor
 import Data.Functor
+import Control.Monad.IO.Class
+import Control.Monad.Random.Strict (getRandom)
 
 import GHCJS.DOM.Types hiding (Text)
 import GHCJS.DOM
@@ -42,8 +44,8 @@ main :: IO ()
 main = runWidget mainWidget
 
 mainWidget :: JSM ()
-mainWidget = runInBrowser renderGraphic mainProgram
--- mainWidget = runInBrowser renderGraphic tutorialProgram
+-- mainWidget = runInBrowser renderGraphic mainProgram
+mainWidget = runInBrowser renderGraphic tutorialProgram
 
 runInBrowser :: ProgramRunner JSM
 runInBrowser toShader go = do
@@ -70,8 +72,9 @@ runInBrowser toShader go = do
         showIf e False = setClassName e ("hidden"::Text)
     size0 <- querySize canvas
     t0 <- now perf
+    seed0 <- liftIO getRandom
 
-    Callbacks{..} <- go t0 size0
+    Callbacks{..} <- go seed0 t0 size0
 
     render <- Animate.animate $ \_ -> do
         t <- now perf
