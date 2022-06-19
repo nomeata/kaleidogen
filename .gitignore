@@ -23,4 +23,4 @@ cabal.project.local~
 result*
 farm
 headless/kaleidogen-gl-runner
-./play-store-release.keystore
+play-store-release.keystore

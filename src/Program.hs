@@ -65,6 +65,8 @@ data DrawResult a = DrawResult
     , canDelete :: Bool
     , canSave :: Bool
     , canAnim :: Bool
+    , animInProgress :: Bool
+    , tutInProgress :: Bool
     }
 
 data Callbacks m a = Callbacks
@@ -140,6 +142,8 @@ mainProgram seed0 t0 size0 = do
             let objects =
                     (Border, (0,0,0,borderRadius,1)) :
                     [ (DNA (entity2dna k), (extraData k,x,y,s,f)) | (k,(((x,y),s),f)) <- p ]
+            let animInProgress = False -- TODO
+            let tutInProgress = False
             return (DrawResult {..})
         , onMouseDown = \t -> handleClickEvent t . MouseDown
         , onMove = \t -> handleClickEvent t . Move
@@ -258,6 +262,7 @@ tutorialProgram _seed t0 size0 = do
             pure $ dr
                 { objects = objects dr ++ [mouseObject]
                 , stillAnimating = stillAnimating
+                , tutInProgress = True
                 }
 
         , onMouseDown = \_ _ -> pure ()

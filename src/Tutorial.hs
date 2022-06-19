@@ -70,4 +70,4 @@ tutorial = execWriter $ do
     click (DNA 9 NE)
     wait 3000
     startAnim
-    wait 3000
+    wait $ 10000 + 2000  -- Long enough to run animation (see videoSpeed)

@@ -70,8 +70,9 @@ runInBrowser toShader go = do
     loc <- getLocation win
     isTelegram <- ("tgShareScoreUrl" `T.isInfixOf`) <$> getHash loc
 
-    let showIf e True  = setClassName e (""::Text)
-        showIf e False = setClassName e ("hidden"::Text)
+    let confButton e True  _     = setClassName e ("progress"::Text)
+        confButton e False True  = setClassName e (""::Text)
+        confButton e False False = setClassName e ("disabled"::Text)
     size0 <- querySize canvas
     t0 <- now perf
     seed0 <- liftIO getRandom
@@ -82,10 +83,10 @@ runInBrowser toShader go = do
         t <- now perf
         DrawResult {..} <- onDraw t
         drawShaderCircles objects
-        showIf del canDelete
-        showIf save (not isTelegram && canSave)
-        showIf anim canAnim
-        showIf tut True
+        confButton del  False canDelete
+        confButton save False (not isTelegram && canSave)
+        confButton anim animInProgress canAnim
+        confButton tut  tutInProgress  True
         return stillAnimating
 
     void $ on canvas mouseDown $ do
@@ -172,9 +173,9 @@ html = T.unlines
     , " <body>"
     , "  <div align='center'>"
     , "   <div class='toolbar'>"
-    , "    <a id='delete'>🗑</a>"
-    , "    <a id='save'>💾</a>"
     , "    <a id='anim'>▶</a>"
+    , "    <a id='save'>💾</a>"
+    , "    <a id='delete'>🗑</a>"
     , "    <a id='tut'>❓</a>"
     , "   </div>"
     , "   <canvas id='canvas'></canvas>"
@@ -204,9 +205,6 @@ css = T.unlines
     , "  margin:0;"
     , "  padding:0;"
     , "}"
-    , ".toolbar a.hidden {"
-    , "  display:none;"
-    , "}"
     , ".toolbar a {"
     , "  display:inline-block;"
     , "  margin:1vh 2vh;"
@@ -219,10 +217,20 @@ css = T.unlines
     , "  border-radius: 1vh;"
     , "  cursor:pointer;"
     , "}"
+    , ".toolbar a.hidden {"
+    , "  display:none;"
+    , "}"
     , ".toolbar a.disabled {"
-    , "  background-color:lightgrey;"
+    , "  background-color:grey;"
     , "  color:white;"
     , "  cursor:default;"
+    , "}"
+    , ".toolbar a.progress {"
+    , "  animation: pulse 2s infinite;"
+    , "}"
+    , "@keyframes pulse {"
+    , "  0% { background-color: lightblue; }"
+    , "  50% { background-color: grey; }"
     , "}"
     , "canvas {"
     , "  height:calc(100vh - 10vh - 2.5vw);"
