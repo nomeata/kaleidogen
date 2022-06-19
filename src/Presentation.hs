@@ -4,11 +4,13 @@
 module Presentation
     ( Time
     , Animating(..)
+    , VideoPlaying(..)
     , animationSpeed
     , videoSpeed
     , Presentation
     , LayoutFun
     , initRef
+    , resetRef
     , handleCmdsRef
     , presentAtRef
     , locateClick
@@ -27,7 +29,8 @@ import Tween
 
 type Time = Double
 
-newtype Animating = Animating Bool
+newtype Animating = Animating Bool deriving Eq
+newtype VideoPlaying = VideoPlaying Bool deriving Eq
 
 animationSpeed :: Time
 animationSpeed = 200
@@ -126,6 +129,12 @@ anyMoving t = Animating . any go . pos
     go (Dynamic _ t') = t - t' < videoSpeed
     go (MovingFromTo _ t' _ _) = t - t' < animationSpeed
 
+anyVideo :: Time -> State k -> VideoPlaying
+anyVideo t = VideoPlaying . any go . pos
+  where
+    go (Dynamic _ t') = t - t' < videoSpeed
+    go _ = False
+
 isIn :: (Double, Double) -> PosAndScale -> Bool
 (x,y) `isIn` ((x',y'),s) = (x - x')**2 + (y - y')**2 <= s**2
 
@@ -143,19 +152,13 @@ type Ref k = IORef (State k)
 initRef :: IO (Ref k)
 initRef = newIORef initialState
 
+resetRef :: Ref k -> IO ()
+resetRef r = writeIORef r  initialState
+
 handleCmdsRef :: Ord k => Time -> LayoutFun a -> Cmds k a -> Ref k -> IO ()
 handleCmdsRef t l cs r = modifyIORef r (\s -> foldl (handleCmd t l) s cs)
 
-presentAtRef :: Ord k => Time -> Ref k -> IO (Presentation k, Double, Animating)
+presentAtRef :: Ord k => Time -> Ref k -> IO (Presentation k, Animating, VideoPlaying)
 presentAtRef t r = do
     s <- readIORef r
-    let pres = presentAt t s
-        radius = safeMin 100 [ 2*scale | (_, (((x,y),scale),_)) <- pres, min x y < 2*scale]
-            -- This is a bit of a hack: Only look at spheres near the border.
-            -- The proper solution would require knowing the width and height here, so I am lazy
-        continue = anyMoving t s
-    return (pres, radius, continue)
-
-safeMin :: Ord p => p -> [p] -> p
-safeMin x [] = x
-safeMin _ xs = minimum xs
+    pure (presentAt t s, anyMoving t s, anyVideo t s)

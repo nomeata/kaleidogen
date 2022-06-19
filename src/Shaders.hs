@@ -65,3 +65,25 @@ borderFragmentShader = Text.unlines
   , "  gl_FragColor = vec4(0.0,0.0,0.0,1.0);"
   , "}"
   ]
+
+mouseFragmentShader :: Text
+mouseFragmentShader = Text.unlines
+  [ "varying vec2 vDrawCoord;"
+  , "uniform float u_extraData[5];"
+  , "void main() {"
+  , "  float extraData = u_extraData[0];"
+  , "  vec2 pos = vDrawCoord;"
+  , "  // pos is a scaled pixel position, (0,0) is in the center of the canvas"
+  , "  // If the position is outside the inscribed circle, make it transparent"
+  , "  if (length(pos) > 1.0) { gl_FragColor = vec4(0,0,0,0); return; }"
+  , "  if (length(pos) < 0.9) { "
+  , "    if (extraData > 0.5) { "
+  , "      // mouse is down, grey cricle"
+  , "      gl_FragColor = vec4(0.0,0.0,0.0,0.5); return;"
+  , "    } else {"
+  , "      gl_FragColor = vec4(0.0,0.0,0.0,0.0); return;"
+  , "    }"
+  , "  }"
+  , "  gl_FragColor = vec4(0.0,0.0,0.0,1.0);"
+  , "}"
+  ]

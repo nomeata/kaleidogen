@@ -3,7 +3,6 @@ module DNA
     ( DNA
     , dna2hex
     , crossover
-    , Control.Monad.Random.Strict.getRandom
     , blankDNA
     , initialDNAs
     , fakeDNAs

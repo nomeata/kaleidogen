@@ -8,12 +8,15 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE LambdaCase #-}
 module Kaleidogen (main) where
 
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Bifunctor
 import Data.Functor
+import Control.Monad.IO.Class
+import Control.Monad.Random.Strict (getRandom)
 
 import GHCJS.DOM.Types hiding (Text)
 import GHCJS.DOM
@@ -41,9 +44,11 @@ main :: IO ()
 main = runWidget mainWidget
 
 mainWidget :: JSM ()
-mainWidget = runInBrowser renderGraphic mainProgram
+-- mainWidget = runInBrowser renderGraphic mainProgram
+-- mainWidget = runInBrowser renderGraphic tutorialProgram
+mainWidget = runInBrowser renderGraphic (switchProgram mainProgram tutorialProgram)
 
-runInBrowser :: BackendRunner JSM
+runInBrowser :: ProgramRunner JSM
 runInBrowser toShader go = do
     doc <- currentDocumentUnchecked
     docEl <- getDocumentElementUnchecked doc
@@ -58,62 +63,89 @@ runInBrowser toShader go = do
     save <- getElementByIdUnsafe doc ("save" :: Text) >>= unsafeCastTo HTMLAnchorElement
     anim <- getElementByIdUnsafe doc ("anim" :: Text) >>= unsafeCastTo HTMLAnchorElement
     del <- getElementByIdUnsafe doc ("delete" :: Text) >>= unsafeCastTo HTMLAnchorElement
+    tut <- getElementByIdUnsafe doc ("tut" :: Text) >>= unsafeCastTo HTMLAnchorElement
 
     drawShaderCircles <- shaderCanvas toShader canvas
 
     loc <- getLocation win
     isTelegram <- ("tgShareScoreUrl" `T.isInfixOf`) <$> getHash loc
 
-    let showIf e True  = setClassName e (""::Text)
-        showIf e False = setClassName e ("hidden"::Text)
+    let confButton e True  _     = setClassName e ("progress"::Text)
+        confButton e False True  = setClassName e (""::Text)
+        confButton e False False = setClassName e ("disabled"::Text)
+    size0 <- querySize canvas
+    t0 <- now perf
+    seed0 <- liftIO getRandom
 
-        setCanDelete = showIf del
-        setCanSave = showIf save . (not isTelegram &&)
-        setCanAnim = showIf anim
-
-    let currentWindowSize = querySize canvas
-    let getCurrentTime = now perf
-    let doSave filename toDraw = saveToPNG toShader toDraw filename
-
-    Callbacks{..} <- go (Backend {..})
+    Callbacks{..} <- go seed0 t0 size0
 
     render <- Animate.animate $ \_ -> do
-        (toDraw, continue) <- onDraw
-        drawShaderCircles toDraw
-        return continue
+        t <- now perf
+        DrawResult {..} <- onDraw t
+        drawShaderCircles objects
+        confButton del  False canDelete
+        confButton save False (not isTelegram && canSave)
+        confButton anim animInProgress canAnim
+        confButton tut  tutInProgress  True
+        return stillAnimating
 
     void $ on canvas mouseDown $ do
+        t <- now perf
         pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
-        liftJSM (onMouseDown pos >> render)
+        liftJSM (onMouseDown t pos >> render)
 
     void $ on canvas mouseMove $ do
+        t <- now perf
         pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
-        liftJSM (onMove pos >> render)
+        liftJSM (onMove t pos >> render)
 
-    void $ on canvas mouseUp $ liftJSM (onMouseUp >> render)
-    void $ on canvas mouseLeave $ liftJSM (onMouseOut >> render)
+    void $ on canvas mouseUp $ do
+        t <- now perf
+        liftJSM (onMouseUp t >> render)
+    void $ on canvas mouseLeave $ do
+        t <- now perf
+        liftJSM (onMouseOut t >> render)
 
     void $ on canvas touchStart $ do
+        t <- now perf
         pos <- touchOffsetXY canvas
-        liftJSM (onMouseDown pos >> render)
+        liftJSM (onMouseDown t pos >> render)
         preventDefault
 
     void $ on canvas touchMove $ do
+        t <- now perf
         pos <- touchOffsetXY canvas
-        liftJSM (onMove pos >> render)
+        liftJSM (onMove t pos >> render)
 
-    void $ on canvas touchEnd $ liftJSM (onMouseUp >> render)
+    void $ on canvas touchEnd $ do
+        t <- now perf
+        liftJSM (onMouseUp t >> render)
 
+    void $ on del click $ do
+        t <- now perf
+        liftJSM (onDel t >> render)
 
-    void $ on del click $ liftJSM (onDel >> render)
-    void $ on save click $ liftJSM onSave
-    void $ on anim click $ liftJSM (onAnim >> render)
+    void $ on save click $ liftJSM $ do
+        t <- now perf
+        onSave t >>= \case
+            Nothing -> pure ()
+            Just (filename, toDraw) -> saveToPNG toShader toDraw filename
 
-    checkResize <- autoResizeCanvas canvas (\ pos -> onResize pos >> render)
+    void $ on anim click $ do
+        t <- now perf
+        liftJSM (onAnim t >> render)
+
+    void $ on tut click $ do
+        t <- now perf
+        liftJSM (onTut t >> render)
+
+    checkResize <- autoResizeCanvas canvas $ \ pos -> do
+        t <- now perf
+        onResize t pos >> render
     -- Wish I could use onResize on body, but that does not work somehow
     let regularlyCheckSize = do
           checkResize
-          () <$ inAnimationFrame' (const regularlyCheckSize)
+          void $ inAnimationFrame' (const regularlyCheckSize)
     regularlyCheckSize -- should trigger the initial render as well
 
 
@@ -140,10 +172,12 @@ html = T.unlines
     , " </head>"
     , " <body>"
     , "  <div align='center'>"
-    , "   <div class='toolbar'>"
-    , "    <a id='delete'>🗑</a>"
-    , "    <a id='save'>💾</a>"
-    , "    <a id='anim'>▶</a>"
+    -- Avoid whitespace between the buttons. Stupid HTML.
+    , "   <div class='toolbar'>" <>
+          "<a id='anim'>▶</a>" <>
+          "<a id='save'>💾</a>" <>
+          "<a id='delete'>🗑</a>" <>
+          "<a id='tut'>❓</a>"
     , "   </div>"
     , "   <canvas id='canvas'></canvas>"
     , "  </div>"
@@ -172,9 +206,6 @@ css = T.unlines
     , "  margin:0;"
     , "  padding:0;"
     , "}"
-    , ".toolbar a.hidden {"
-    , "  display:none;"
-    , "}"
     , ".toolbar a {"
     , "  display:inline-block;"
     , "  margin:1vh 2vh;"
@@ -187,10 +218,20 @@ css = T.unlines
     , "  border-radius: 1vh;"
     , "  cursor:pointer;"
     , "}"
+    , ".toolbar a.hidden {"
+    , "  display:none;"
+    , "}"
     , ".toolbar a.disabled {"
-    , "  background-color:lightgrey;"
+    , "  background-color:grey;"
     , "  color:white;"
     , "  cursor:default;"
+    , "}"
+    , ".toolbar a.progress {"
+    , "  animation: pulse 2s infinite;"
+    , "}"
+    , "@keyframes pulse {"
+    , "  0% { background-color: lightblue; }"
+    , "  50% { background-color: grey; }"
     , "}"
     , "canvas {"
     , "  height:calc(100vh - 10vh - 2.5vw);"

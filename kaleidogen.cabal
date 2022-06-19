@@ -81,6 +81,7 @@ common logic
   other-modules: Presentation
   other-modules: PresentationCmds
   other-modules: Layout
+  other-modules: Tutorial
   build-depends: containers
 
 common canvas-save
