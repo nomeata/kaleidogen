@@ -4,62 +4,26 @@
 {-# LANGUAGE LambdaCase #-}
 module Program
   ( Program
+  , Time
   , ProgramRunner
   , Callbacks(..)
-  , Time
   , DrawResult(..)
-  , renderGraphic
-  , mainProgram
-  , tutorialProgram
   , switchProgram
-  , Graphic
-  , showFullDNA
   )
 where
 
 import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Map as M
-import qualified Data.List as L
 import Control.Monad.Ref
-import Data.Maybe
 
 import Shaders
-import Expression
-import GLSL
-import DNA
-import Layout
-import Mealy
-import Logic
 import Presentation (Animating)
 import qualified Presentation
-import Drag
 import qualified Tutorial as Tut
-import Tween
-
-reorderExtraData :: ((x, a), (((b,c),d),e)) -> (x, (a, b, c, d, e))
-reorderExtraData ((d,b),(((x,y),s),e)) = (d, (b, x, y, s, e))
-
-toFilename :: DNA -> T.Text
-toFilename dna = "kaleidogen-" <> dna2hex dna <> ".png"
-
-layoutFun :: (Double, Double) -> AbstractPos -> PosAndScale
-layoutFun size MainPos
-    = topHalf (padding layoutFullCirlce) size ()
-layoutFun size (SmallPos c n)
-    = bottomHalf (padding (layoutGrid c)) size n
-layoutFun size DeletedPos
-    = topHalf (padding layoutCenterDot) size ()
-
-
-showFullDNA :: DNA -> (Double,Double) -> (Graphic, ExtraData)
-showFullDNA dna (w,h) =
-    reorderExtraData ((DNA dna,0), (layoutFullCirlce (w,h) (), 1))
 
 type Time = Double
 
-data DrawResult a = DrawResult
-    { objects :: [(a, ExtraData)]
+data DrawResult = DrawResult
+    { objects :: [Graphic]
     , stillAnimating :: Animating
     , canDelete :: Bool
     , canSave :: Bool
@@ -68,229 +32,26 @@ data DrawResult a = DrawResult
     , tutInProgress :: Bool
     }
 
-data Callbacks m a = Callbacks
-    { onDraw      :: Time -> m (DrawResult a)
+data Callbacks m = Callbacks
+    { onDraw      :: Time -> m DrawResult
     , onMouseDown :: Time -> (Double,Double) -> m ()
     , onMove      :: Time -> (Double,Double) -> m ()
     , onMouseUp   :: Time -> m ()
     , onMouseOut  :: Time -> m ()
     , onDel       :: Time -> m ()
-    , onSave      :: Time -> m (Maybe (Text, (a, ExtraData)))
+    , onSave      :: Time -> m (Maybe (Text, Graphic))
     , onAnim      :: Time -> m ()
     , onResize    :: Time -> (Double,Double) -> m ()
     , onTut       :: Time -> m ()
     , resolveDest :: Time -> Tut.Destination -> m (Double,Double)
     }
 
-type Program m a = (Int -> Time -> (Double, Double) -> m (Callbacks m a))
-type ProgramRunner m = forall a.  Ord a => (a -> Shaders) -> Program m a -> m ()
-
-data Graphic = DNA DNA | Border | Mouse deriving (Eq, Ord)
-
-renderGraphic :: Graphic -> (Text, Text)
-renderGraphic (DNA d) = (circularVertexShader, toFragmentShader (dna2rna d))
-renderGraphic Border = borderShaders
-renderGraphic Mouse  = (circularVertexShader, mouseFragmentShader)
+type Program m = (Int -> Time -> (Double, Double) -> m (Callbacks m))
+type ProgramRunner m = Program m -> m ()
 
 
-mainProgram :: MonadRef m => Program m Graphic
-mainProgram seed0 t0 size0 = do
-
-    let mealy = logicMealy seed0
-    let as0 = initial mealy
-    asRef <- newRef as0
-    sizeRef <- newRef size0
-    pRef <- Presentation.initPRef
-    let handleCmds t cs = do
-          lf <- layoutFun <$> readRef sizeRef
-          Presentation.handleCmdsRef t lf cs pRef
-    handleCmds t0 (reconstruct mealy as0)
-
-    let handleEvent t e = do
-          as <- readRef asRef
-          let (as', cs) = handle mealy as e
-          writeRef asRef as'
-          handleCmds t cs
-
-    let getPresentation t = Presentation.presentAtRef t pRef
-
-    let canDragM k = do
-          as <- readRef asRef
-          return (Logic.canDrag as k)
-
-    (dragHandler, getModPres, _resetDrag) <- mkDragHandler canDragM getPresentation
-
-    let handleClickEvent t re = do
-          dragHandler t re >>= mapM_ (handleEvent t . ClickEvent)
-
-    return $ Callbacks
-        { onDraw = \t -> do
-            as <- readRef asRef
-            let canDelete = isJust (sel as)
-            let canSave   = isJust (sel as)
-            let canAnim   = isJust (sel as)
-            (p, stillAnimating, stillVideoPlaying) <- getModPres t
-            -- Calcualting the border radius
-            size <- readRef sizeRef
-            -- A bit of a hack to access as here
-            let borderRadius = gridBorderRadius (M.size (dnas as)) size
-            let extraData d
-                  -- | isSelected as d = 2
-                  | isInactive as d = 3
-                  | otherwise       = 0
-            let objects =
-                    (Border, (0,0,0,borderRadius,1)) :
-                    [ (DNA (entity2dna k), (extraData k,x,y,s,f)) | (k,(((x,y),s),f)) <- p ]
-            let animInProgress = stillVideoPlaying == Presentation.VideoPlaying True
-            let tutInProgress = False
-            return (DrawResult {..})
-        , onMouseDown = \t -> handleClickEvent t . MouseDown
-        , onMove = \t -> handleClickEvent t . Move
-        , onMouseUp = \t -> handleClickEvent t MouseUp
-        , onMouseOut = \t -> handleClickEvent t MouseOut
-        , onDel = \t -> handleEvent t Delete
-        , onAnim = \t -> handleEvent t Anim
-        , onSave = \_ -> do
-            as <- readRef asRef
-            pure $ (\dna -> (toFilename dna, showFullDNA dna (1000,1000))) <$> selectedDNA as
-        , onResize = \t size -> do
-            writeRef sizeRef size
-            as <- readRef asRef
-            handleCmds t (reconstruct mealy as)
-        , onTut = \_ -> pure ()
-        , resolveDest = \ t -> \case
-            (Tut.DNA n v) -> do
-              as <- readRef asRef
-              case M.lookup (Key n) (dnas as) of
-                Just d ->  do
-                  (p, _, _) <- getModPres t
-                  let Just (((x,y),s),_f) = L.lookup d p
-                  case v of
-                    Tut.NE -> pure (x + s/5,y - s/5)
-                    Tut.W  -> pure (x - s/4,y)
-                -- This should not happen if the tutorial script runs through nicely
-                -- but we also do not want to crash
-                Nothing ->  pure (0,0)
-            Tut.Center -> do
-              (w,h) <- readRef sizeRef
-              pure (w/2, h/2)
-        }
-
--- TODO: Find new abstractions to remove duplication with above
--- TODO: Make it all pure? Or state monad?
-
-tutorialProgram :: MonadRef m => Program m Graphic
-tutorialProgram _seed t0 size0 = do
-    let tutorialSeed = 1 -- fixed, chosen to look good.
-    progRef <- mainProgram tutorialSeed t0 size0 >>= newRef
-    let withProg act = readRef progRef >>= act
-    let getPosOf t d = withProg $ \p -> resolveDest p t d
-
-    -- Script playing state
-    scriptRef <- newRef Tut.tutorial
-    scriptStepStartRef <- newRef t0
-    lastMousePosition <- getPosOf t0 Tut.Center >>= newRef
-    currentMousePos <- readRef lastMousePosition >>= newRef
-    mouseDownRef <- newRef False
-
-    -- Need screen size to size the mouse
-    sizeRef <- newRef size0
-
-    let tickAnimation t = do
-            s <- readRef scriptRef
-            (x1,y1) <- readRef lastMousePosition
-            t1 <- readRef scriptStepStartRef
-            case s of
-                [] -> pure ()
-                (Tut.Wait n):s'
-                  | t > t1 + n -> do
-                    -- Wait is done
-                    writeRef scriptStepStartRef (t1 + n)
-                    writeRef scriptRef s'
-                    tickAnimation t
-                  | otherwise -> pure () -- Wait is not done
-                (Tut.MoveMouseTo d n):s'
-                  | t > t1 + n -> do
-                    -- Mouse move is done
-                    (x,y) <- getPosOf (t1 + n) d
-                    withProg $ \p -> onMove p (t1 + n) (x,y)
-                    writeRef scriptStepStartRef (t1 + n)
-                    writeRef lastMousePosition (x,y)
-                    writeRef currentMousePos (x,y)
-                    writeRef scriptRef s'
-                    tickAnimation t
-                  | otherwise -> do
-                    -- Mouse move is happening
-                    (x,y) <- getPosOf (t1 + n) d
-                    let mousePos = tween ((t-t1)/n) (x1,y1) (x,y)
-                    withProg $ \p -> onMove p (t1 + n) mousePos
-                    writeRef currentMousePos mousePos
-                Tut.MouseDown:s' -> do
-                    withProg $ \p -> onMouseDown p t1 (x1, y1)
-                    writeRef scriptRef s'
-                    writeRef mouseDownRef True
-                    tickAnimation t
-                Tut.MouseUp:s' -> do
-                    withProg $ \p -> onMouseUp p t1
-                    writeRef scriptRef s'
-                    writeRef mouseDownRef False
-                    tickAnimation t
-                Tut.StartAnim:s' -> do
-                    withProg $ \p -> onAnim p t1
-                    writeRef scriptRef s'
-                    tickAnimation t
-
-    return $ Callbacks
-        { onDraw = \t -> do
-            tickAnimation t
-
-            dr <- withProg $ \p -> onDraw p t
-
-            -- Mouse pointer
-            isMouseDown <- readRef mouseDownRef
-            let mouseExtraData
-                  | isMouseDown = 1
-                  | otherwise   = 0
-            (mx,my) <- readRef currentMousePos
-            (w,h) <- readRef sizeRef
-            let mouseSize = min (w/30) (h/30)
-            let mouseObject = (Mouse, (mouseExtraData, mx, my, mouseSize, 1))
-
-            stillAnimating <- Presentation.Animating . not . null <$> readRef scriptRef
-
-            pure $ dr
-                { objects = objects dr ++ [mouseObject]
-                , stillAnimating = stillAnimating
-                , tutInProgress = True
-                }
-
-        , onMouseDown = \_ _ -> pure ()
-        , onMove      = \_ _ -> pure ()
-        , onMouseUp   = \_ -> pure ()
-        , onMouseOut  = \_ -> pure ()
-        , onDel       = \_ -> pure ()
-        , onAnim      = \_ -> pure ()
-        , onSave      = \_ -> pure Nothing
-        , onTut       = \_ -> pure ()
-        , onResize = \t size -> do
-            writeRef sizeRef size
-            -- This is a problem: resizing completely messes up with ongoing scripted interaction.
-            -- Possible solution: The tutorial animation mouse movement is just for show,
-            -- and it generates abstract Logic events instead.
-            -- So just replay the whole animation with the new screen size! (Using same seed)
-            mainProgram tutorialSeed t0 size >>= writeRef progRef
-            writeRef scriptRef Tut.tutorial
-            writeRef scriptStepStartRef t0
-
-            getPosOf t0 Tut.Center >>= writeRef lastMousePosition
-            readRef lastMousePosition >>= writeRef currentMousePos
-            writeRef mouseDownRef False
-            -- And now replay
-            tickAnimation t
-        , resolveDest = \t d -> withProg $ \p -> resolveDest p t d
-        }
-
-switchProgram :: MonadRef m => Program m a -> Program m a -> Program m a
+-- A combinator to switch to another program upon onTut
+switchProgram :: MonadRef m => Program m -> Program m -> Program m
 switchProgram mainP otherP seed0 t0 size0 = do
     mainRef <- mainP seed0 t0 size0 >>= newRef
     otherRef <- newRef Nothing

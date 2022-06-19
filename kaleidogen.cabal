@@ -78,6 +78,9 @@ common logic
   other-modules: DragAnim
   other-modules: Tween
   other-modules: Program
+  other-modules: ProgramScript
+  other-modules: MainProgram
+  other-modules: Shapes
   other-modules: Presentation
   other-modules: PresentationCmds
   other-modules: Layout

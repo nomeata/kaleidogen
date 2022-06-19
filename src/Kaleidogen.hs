@@ -37,6 +37,8 @@ import qualified GHCJS.DOM.DOMRect as DOMRect
 import ShaderCanvas
 import qualified CanvasSave
 import qualified Animate
+import MainProgram
+import ProgramScript
 import Program
 import RunWidget
 
@@ -46,10 +48,11 @@ main = runWidget mainWidget
 mainWidget :: JSM ()
 -- mainWidget = runInBrowser renderGraphic mainProgram
 -- mainWidget = runInBrowser renderGraphic tutorialProgram
-mainWidget = runInBrowser renderGraphic (switchProgram mainProgram tutorialProgram)
+mainWidget = runInBrowser $
+    switchProgram mainProgram (scriptProgram mainProgram)
 
 runInBrowser :: ProgramRunner JSM
-runInBrowser toShader go = do
+runInBrowser go = do
     doc <- currentDocumentUnchecked
     docEl <- getDocumentElementUnchecked doc
     setInnerHTML docEl html
@@ -65,7 +68,7 @@ runInBrowser toShader go = do
     del <- getElementByIdUnsafe doc ("delete" :: Text) >>= unsafeCastTo HTMLAnchorElement
     tut <- getElementByIdUnsafe doc ("tut" :: Text) >>= unsafeCastTo HTMLAnchorElement
 
-    drawShaderCircles <- shaderCanvas toShader canvas
+    drawShaderCircles <- shaderCanvas canvas
 
     loc <- getLocation win
     isTelegram <- ("tgShareScoreUrl" `T.isInfixOf`) <$> getHash loc
@@ -129,7 +132,7 @@ runInBrowser toShader go = do
         t <- now perf
         onSave t >>= \case
             Nothing -> pure ()
-            Just (filename, toDraw) -> saveToPNG toShader toDraw filename
+            Just (filename, toDraw) -> saveToPNG toDraw filename
 
     void $ on anim click $ do
         t <- now perf

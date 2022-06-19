@@ -8,6 +8,8 @@ type Shaders = (Text, Text)
 -- 5 parameters
 type ExtraData = (Double, Double, Double, Double, Double)
 
+type Graphic = (Shaders, ExtraData)
+
 
 circularVertexShader :: Text
 circularVertexShader = Text.unlines

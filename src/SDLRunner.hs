@@ -22,9 +22,10 @@ import Foreign.Storable
 
 import Shaders
 import Program hiding (Program)
+import MainProgram
 
 runInSDL :: ProgramRunner IO
-runInSDL toShader go = do
+runInSDL go = do
     initializeAll
     window <- createWindow "My SDL Application" $
         defaultWindow
@@ -64,7 +65,7 @@ runInSDL toShader go = do
         clear [GL.ColorBuffer]
 
         forM_ toDraw $ \(x,(a,b,c,d,e)) -> do
-            let (vertexShaderSource, fragmentShaderSource) = toShader x
+            let (vertexShaderSource, fragmentShaderSource) = x
             program <- createProgram
             vertexShader <- createShader VertexShader
             shaderSourceBS vertexShader $= encodeUtf8 vertexShaderSource
@@ -160,7 +161,7 @@ runInSDL toShader go = do
         loop
 
 main :: IO ()
-main = runInSDL renderGraphic mainProgram
+main = runInSDL mainProgram
 
 
 bufferOffset :: Integral a => a -> Ptr b
