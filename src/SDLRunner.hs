@@ -14,13 +14,14 @@ import Data.Text.Encoding
 import Data.Functor
 import Data.Function
 import System.Exit
+import Control.Monad.Random.Strict (getRandom)
 
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
 
 import Shaders
-import Program
+import Program hiding (Program)
 
 runInSDL :: ProgramRunner IO
 runInSDL toShader go = do
@@ -113,8 +114,9 @@ runInSDL toShader go = do
 
     let getCurrentTime = (1000*) <$> time
     t0 <- getCurrentTime
+    seed0 <- getRandom
 
-    Callbacks {..} <- go t0 size0
+    Callbacks {..} <- go seed0 t0 size0
 
     let render = do
         t <- getCurrentTime
