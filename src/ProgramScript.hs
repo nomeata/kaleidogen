@@ -16,7 +16,7 @@ import Shapes
 
 scriptProgram :: MonadRef m => Program m -> Program m
 scriptProgram mainP _seed t0 size0 = do
-    let tutorialSeed = 1 -- fixed, chosen to look good.
+    let tutorialSeed = 4 -- fixed, chosen to look good.
     progRef <- mainP tutorialSeed t0 size0 >>= newRef
     let withProg act = readRef progRef >>= act
     let getPosOf t d = withProg $ \p -> resolveDest p t d
