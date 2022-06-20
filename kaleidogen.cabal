@@ -59,6 +59,7 @@ common static
   build-depends: random-shuffle
   build-depends: colour
   build-depends: mtl
+  build-depends: splitmix
 
 common png
   other-modules: GenPNG
