@@ -15,9 +15,10 @@ import Expression
 import GLSL
 import DNA
 import Layout
+import CacheKey
 
 dnaShaders :: DNA -> Shaders
-dnaShaders d = (circularVertexShader, toFragmentShader (dna2rna d))
+dnaShaders d = (CacheKey d, (circularVertexShader, toFragmentShader (dna2rna d)))
 
 dnaGraphic :: DNA -> Bool -> PosAndScale -> Double -> Graphic
 dnaGraphic d active ((x,y),s) f = (dnaShaders d, (extraData, x, y, s, f))
@@ -28,8 +29,9 @@ dnaGraphic d active ((x,y),s) f = (dnaShaders d, (extraData, x, y, s, f))
 borderGraphic :: Double -> Graphic
 borderGraphic radius = (borderShaders, (0, 0, 0, radius, 1))
 
+data Mouse = Mouse deriving (Eq, Ord)
 mouseShaders :: Shaders
-mouseShaders = (circularVertexShader, mouseFragmentShader)
+mouseShaders = (CacheKey Mouse, (circularVertexShader, mouseFragmentShader))
 
 mouseGraphic :: Bool -> PosAndScale -> Graphic
 mouseGraphic pressed ((x,y),s) = (mouseShaders, (extraData, x, y, s, 1))

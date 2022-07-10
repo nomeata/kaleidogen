@@ -50,6 +50,7 @@ common static
   other-modules: RNA
   other-modules: GLSL
   other-modules: Shaders
+  other-modules: CacheKey
   other-modules: Expression
   build-depends: text
   build-depends: hex-text

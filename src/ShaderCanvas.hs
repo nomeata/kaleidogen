@@ -38,6 +38,7 @@ import GHCJS.DOM.Element
 import Language.Javascript.JSaddle.Object hiding (array)
 -- import Control.Lens ((^.))
 
+import CacheKey
 import CanvasSave
 import Shaders
 
@@ -68,7 +69,7 @@ data CompiledProgram = CompiledProgram
     , extraDataLocation  :: WebGLUniformLocation
     }
 
-compileFragmentShader :: MonadJSM m => WebGLRenderingContext -> Shaders -> m CompiledProgram
+compileFragmentShader :: MonadJSM m => WebGLRenderingContext -> (Text, Text) -> m CompiledProgram
 compileFragmentShader gl (vertexShaderSource, fragmentShaderSource) = do
     vertexShader <- createShader gl VERTEX_SHADER
     shaderSource gl (Just vertexShader) $
@@ -98,7 +99,7 @@ compileFragmentShader gl (vertexShaderSource, fragmentShaderSource) = do
     return CompiledProgram {..}
 
 paintGLCached :: MonadDOM m =>
-    Cache m Shaders CompiledProgram ->
+    Cache m (Text, Text) CompiledProgram ->
     WebGLRenderingContext -> (Double, Double) -> [Graphic] -> m ()
 paintGLCached pgmCache gl pos toDraw = do
     pgms <- compileCached pgmCache toDraw
@@ -160,7 +161,7 @@ shaderCanvas domEl =
             paintGLCached pgmCache gl size toDraw
 
 saveToPNG :: MonadJSM m => Graphic -> Text -> m ()
-saveToPNG (a,x) name = do
+saveToPNG ((_,a),x) name = do
     doc <- currentDocumentUnchecked
     domEl <- uncheckedCastTo HTMLCanvasElement <$> createElement doc ("canvas" :: Text)
     setWidth domEl 1000
@@ -177,19 +178,19 @@ saveToPNG (a,x) name = do
 -- A compiled program cache
 
 type Compiler m a b = a -> m b
-type Cache m a b = IORef (Compiler m a b, M.Map a b)
+type Cache m a b = IORef (Compiler m a b, M.Map CacheKey b)
 
 newCache :: MonadIO m => (a -> m2 b) -> m (Cache m2 a b)
 newCache f = liftIO $ newIORef (f, M.empty)
 
-compileCached :: (Ord a, MonadIO m) => Cache m a b -> [(a,c)] -> m [(b,c)]
+compileCached :: (Ord a, MonadIO m) => Cache m a b -> [((CacheKey, a),c)] -> m [(b,c)]
 compileCached c xs = do
     (f, oldC) <- liftIO $ readIORef c
-    let newMap = M.fromList $ map (()<$) xs
+    let newMap = M.fromList $ map fst xs
     newC <- M.mergeA
         M.dropMissing
-        (M.traverseMissing (\k () -> f k))
+        (M.traverseMissing (\_ x -> f x))
         (M.zipWithMatched (\_ p _ -> p))
         oldC newMap
     liftIO $ writeIORef c (f, newC)
-    return [(newC M.! k,d) | (k,d) <- xs]
+    return [(newC M.! k,d) | ((k,_),d) <- xs]

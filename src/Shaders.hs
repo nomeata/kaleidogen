@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Shaders where
 
+import CacheKey
 import Data.Text as Text
 
-type Shaders = (Text, Text)
+type Shaders = (CacheKey, (Text, Text))
 
 -- 5 parameters
 type ExtraData = (Double, Double, Double, Double, Double)
@@ -40,8 +41,10 @@ circularTrivialFragmentShader = Text.unlines
   , "}"
   ]
 
+
+data Border = Border deriving (Eq, Ord)
 borderShaders :: Shaders
-borderShaders = (borderVertexShader, borderFragmentShader)
+borderShaders = (CacheKey Border, (borderVertexShader, borderFragmentShader))
 
 borderVertexShader :: Text
 borderVertexShader = Text.unlines
