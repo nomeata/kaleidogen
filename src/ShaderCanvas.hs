@@ -178,19 +178,21 @@ saveToPNG ((_,a),x) name = do
 -- A compiled program cache
 
 type Compiler m a b = a -> m b
-type Cache m a b = IORef (Compiler m a b, M.Map CacheKey b)
+type Cache m a b = (Compiler m a b, IORef (M.Map CacheKey b))
 
 newCache :: MonadIO m => (a -> m2 b) -> m (Cache m2 a b)
-newCache f = liftIO $ newIORef (f, M.empty)
+newCache f = do
+    m <- liftIO $ newIORef M.empty
+    return (f,m)
 
 compileCached :: (Ord a, MonadIO m) => Cache m a b -> [((CacheKey, a),c)] -> m [(b,c)]
-compileCached c xs = do
-    (f, oldC) <- liftIO $ readIORef c
+compileCached (f,c) xs = do
+    oldC <- liftIO $ readIORef c
     let newMap = M.fromList $ map fst xs
     newC <- M.mergeA
         M.dropMissing
         (M.traverseMissing (\_ x -> f x))
         (M.zipWithMatched (\_ p _ -> p))
         oldC newMap
-    liftIO $ writeIORef c (f, newC)
+    liftIO $ writeIORef c newC
     return [(newC M.! k,d) | ((k,_),d) <- xs]
