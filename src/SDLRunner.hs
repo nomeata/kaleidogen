@@ -64,8 +64,7 @@ runInSDL go = do
 
         clear [GL.ColorBuffer]
 
-        forM_ toDraw $ \(x,(a,b,c,d,e)) -> do
-            let (vertexShaderSource, fragmentShaderSource) = x
+        forM_ toDraw $ \((_,(vertexShaderSource, fragmentShaderSource)),(a,b,c,d,e)) -> do
             program <- createProgram
             vertexShader <- createShader VertexShader
             shaderSourceBS vertexShader $= encodeUtf8 vertexShaderSource
