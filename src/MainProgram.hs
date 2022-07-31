@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE LambdaCase #-}
-module MainProgram ( mainProgram) where
+module MainProgram (mainProgram) where
 
 import qualified Data.Text as T
 import qualified Data.Map as M
@@ -31,9 +31,11 @@ layoutFun size DeletedPos
     = topHalf (padding layoutCenterDot) size ()
 
 mainProgram :: MonadRef m => Program m
-mainProgram seed0 t0 size0 = do
+mainProgram mbst seed0 t0 size0 = do
 
-    let as0 = initialLogicState seed0
+    let as0 = case mbst of
+            Just s | Just as <- deserialize s -> as
+            _ -> initialLogicState seed0
     asRef <- newRef as0
     sizeRef <- newRef size0
     pRef <- Presentation.initPRef
@@ -77,6 +79,7 @@ mainProgram seed0 t0 size0 = do
             let animInProgress = stillVideoPlaying == Presentation.VideoPlaying True
             let tutInProgress = False
             return (DrawResult {..})
+        , onSerialize = serialize <$> readRef asRef
         , onMouseDown = \t -> handleClickEvent t . MouseDown
         , onMove = \t -> handleClickEvent t . Move
         , onMouseUp = \t -> handleClickEvent t MouseUp

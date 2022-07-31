@@ -15,9 +15,9 @@ import Program
 import Shapes
 
 scriptProgram :: MonadRef m => Program m -> Program m
-scriptProgram mainP _seed t0 size0 = do
+scriptProgram mainP _st _seed t0 size0 = do
     let tutorialSeed = 4 -- fixed, chosen to look good.
-    progRef <- mainP tutorialSeed t0 size0 >>= newRef
+    progRef <- mainP Nothing tutorialSeed t0 size0 >>= newRef
     let withProg act = readRef progRef >>= act
     let getPosOf t d = withProg $ \p -> resolveDest p t d
 
@@ -96,6 +96,7 @@ scriptProgram mainP _seed t0 size0 = do
                 , tutInProgress = True
                 }
 
+        , onSerialize = withProg onSerialize -- should be dead code
         , onMouseDown = \_ _ -> pure ()
         , onMove      = \_ _ -> pure ()
         , onMouseUp   = \_ -> pure ()
@@ -111,7 +112,7 @@ scriptProgram mainP _seed t0 size0 = do
             -- Possible solution: The tutorial animation mouse movement is just for show,
             -- and it generates abstract Logic events instead.
             -- So just replay the whole animation with the new screen size! (Using same seed)
-            mainP tutorialSeed t0 size >>= writeRef progRef
+            mainP Nothing tutorialSeed t0 size >>= writeRef progRef
             writeRef scriptRef Tut.tutorial
             writeRef scriptStepStartRef t0
 

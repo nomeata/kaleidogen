@@ -9,20 +9,21 @@ module Logic (
     Key(..), -- A bit fishy
     Event(..),
     initialLogicState, handleLogic, reconstruct,
-    isSelected, isInactive, entity2dna, selectedDNA,
-    canDrag,
+    isSelected, isInactive, entity2dna, selectedDNA, canDrag,
+    serialize, deserialize,
     ) where
 
 import qualified Data.Map as M
 import Data.List
 import Data.Int
+import Text.Read
 
 import DNA
 import PresentationCmds (Cmds, Cmd, Cmd'(..))
 import Drag (ClickEvent(..))
 
 -- Lets keep the keys separate from the sequential indices
-newtype Key = Key Int deriving (Num, Eq, Ord, Enum, Show)
+newtype Key = Key Int deriving (Num, Eq, Ord, Enum, Show, Read)
 
 type Seed = Int64
 
@@ -33,7 +34,7 @@ data LogicState = LogicState
     , dragOn :: Maybe DNA
     , sel :: Maybe Key
     }
-  deriving Show
+  deriving (Read, Show)
 
 -- Events passed on to the presentation layer
 data AbstractPos
@@ -203,4 +204,10 @@ handleLogic as@LogicState{..} e = case e of
              reconstruct as' )
 
     _ -> (as, [])
+
+serialize :: LogicState -> String
+serialize as = show $ as { sel = Nothing, drag = Nothing, dragOn = Nothing }
+
+deserialize :: String -> Maybe LogicState
+deserialize = readMaybe
 

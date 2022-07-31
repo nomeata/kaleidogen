@@ -22,6 +22,7 @@ import qualified Presentation
 import qualified Tutorial as Tut
 
 type Time = Double
+type StoredState = String
 
 data DrawResult = DrawResult
     { objects :: [Graphic]
@@ -35,6 +36,7 @@ data DrawResult = DrawResult
 
 data Callbacks m = Callbacks
     { onDraw      :: Time -> m DrawResult
+    , onSerialize :: m StoredState
     , onMouseDown :: Time -> (Double,Double) -> m ()
     , onMove      :: Time -> (Double,Double) -> m ()
     , onMouseUp   :: Time -> m ()
@@ -48,14 +50,14 @@ data Callbacks m = Callbacks
     , resolveDest :: Time -> Tut.Destination -> m (Double,Double)
     }
 
-type Program m = (Int64 -> Time -> (Double, Double) -> m (Callbacks m))
+type Program m = Maybe StoredState -> Int64 -> Time -> (Double, Double) -> m (Callbacks m)
 type ProgramRunner m = Program m -> m ()
 
 
 -- A combinator to switch to another program upon onTut
 switchProgram :: MonadRef m => Program m -> Program m -> Program m
-switchProgram mainP otherP seed0 t0 size0 = do
-    mainRef <- mainP seed0 t0 size0 >>= newRef
+switchProgram mainP otherP st0 seed0 t0 size0 = do
+    mainRef <- mainP st0 seed0 t0 size0 >>= newRef
     otherRef <- newRef Nothing
 
     let withOther act = readRef otherRef >>= \case
@@ -72,7 +74,7 @@ switchProgram mainP otherP seed0 t0 size0 = do
 
     let startOther t = do
             size <- readRef sizeRef
-            otherP seed0 t size >>= writeRef otherRef . Just
+            otherP Nothing seed0 t size >>= writeRef otherRef . Just
     let stopOther = writeRef otherRef Nothing
 
 
@@ -86,6 +88,9 @@ switchProgram mainP otherP seed0 t0 size0 = do
                 Presentation.Animating False -> do
                     stopOther
                     withMain $ \p' -> onDraw p' t
+
+        -- Serialization always based on main program
+        , onSerialize = withMain onSerialize
 
         , onMouseDown = \t pos  -> readRef otherRef >>= \case
             Nothing -> withMain $ \p -> onMouseDown p t pos

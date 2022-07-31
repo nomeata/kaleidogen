@@ -22,10 +22,11 @@ import GHCJS.DOM.Types hiding (Text)
 import GHCJS.DOM
 import GHCJS.DOM.Element
 import GHCJS.DOM.Document hiding (getLocation)
-import GHCJS.DOM.Window (getLocation)
+import GHCJS.DOM.Window (getLocation, getLocalStorage)
 import GHCJS.DOM.Performance
 import GHCJS.DOM.Location (getHash)
 import GHCJS.DOM.GlobalPerformance
+import GHCJS.DOM.Storage (getItem, setItem)
 import GHCJS.DOM.NonElementParentNode
 import GHCJS.DOM.EventM
 import GHCJS.DOM.GlobalEventHandlers (click, mouseDown, mouseMove, mouseUp, mouseLeave, touchStart, touchMove, touchEnd)
@@ -77,11 +78,16 @@ runInBrowser go = do
     let confButton e True  _     = setClassName e ("progress"::Text)
         confButton e False True  = setClassName e (""::Text)
         confButton e False False = setClassName e ("disabled"::Text)
+
+    -- Get previous state
+    storage <- currentWindowUnchecked >>= getLocalStorage
+    old_state <- getItem storage ("logic_state"::String)
+
     size0 <- querySize canvas
     t0 <- now perf
     seed0 <- liftIO getRandom
 
-    Callbacks{..} <- go seed0 t0 size0
+    Callbacks{..} <- go old_state seed0 t0 size0
 
     render <- Animate.animate $ \_ -> do
         t <- now perf
@@ -94,41 +100,46 @@ runInBrowser go = do
         confButton tut  tutInProgress  True
         return stillAnimating
 
+    let store_and_render = do
+          onSerialize >>= setItem storage ("logic_state"::String)
+          render
+
     void $ on canvas mouseDown $ do
         t <- now perf
         pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
-        liftJSM (onMouseDown t pos >> render)
+        liftJSM (onMouseDown t pos >> store_and_render)
 
     void $ on canvas mouseMove $ do
         t <- now perf
         pos <- bimap fromIntegral fromIntegral <$> mouseOffsetXY
-        liftJSM (onMove t pos >> render)
+        liftJSM (onMove t pos >> store_and_render)
 
     void $ on canvas mouseUp $ do
         t <- now perf
-        liftJSM (onMouseUp t >> render)
+        liftJSM (onMouseUp t >> store_and_render)
+
     void $ on canvas mouseLeave $ do
         t <- now perf
-        liftJSM (onMouseOut t >> render)
+        liftJSM (onMouseOut t >> store_and_render)
 
     void $ on canvas touchStart $ do
         t <- now perf
         pos <- touchOffsetXY canvas
-        liftJSM (onMouseDown t pos >> render)
+        liftJSM (onMouseDown t pos >> store_and_render)
         preventDefault
 
     void $ on canvas touchMove $ do
         t <- now perf
         pos <- touchOffsetXY canvas
-        liftJSM (onMove t pos >> render)
+        liftJSM (onMove t pos >> store_and_render)
 
     void $ on canvas touchEnd $ do
         t <- now perf
-        liftJSM (onMouseUp t >> render)
+        liftJSM (onMouseUp t >> store_and_render)
 
     void $ on del click $ do
         t <- now perf
-        liftJSM (onDel t >> render)
+        liftJSM (onDel t >> store_and_render)
 
     void $ on save click $ liftJSM $ do
         t <- now perf
@@ -143,7 +154,7 @@ runInBrowser go = do
     void $ on reset click $ do
         t <- now perf
         seed <- liftIO getRandom
-        liftJSM (onReset t seed >> render)
+        liftJSM (onReset t seed >> store_and_render)
 
     void $ on tut click $ do
         t <- now perf
