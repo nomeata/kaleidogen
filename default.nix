@@ -55,7 +55,7 @@ let
           src = ./android-icon.png;
         };
         version = {
-          code = "2";
+          code = "3";
           # Must be a monotonically increasing number; defines what it means to "upgrade" the app
           name = "1.0";
           # The version that is displayed to the end user
