@@ -11,7 +11,7 @@ Local development with GHC
 If you want to hack on this, its easiest to use the nix setup (although you can
 also use plain `cabal` probably):
 
-1. Install `nix`
+1. [Install `nix`](https://nixos.org/download.html)
 2. Add the Kaleidogen nix cache at <https://kaleidogen.cachix.org/>
 3. Enter the nix shell with `nix-shell`
 4. Run `cabal run kaleidogen` to build and run Kaleidogen locally
