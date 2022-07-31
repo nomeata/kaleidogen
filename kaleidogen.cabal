@@ -33,6 +33,12 @@ flag fake-android
 flag clib
   default: False
 
+flag headless
+  default: False
+
+flag telegram
+  default: False
+
 flag lambda
   default: False
 
@@ -47,8 +53,8 @@ common static
   other-modules: RNA
   other-modules: GLSL
   other-modules: Shaders
+  other-modules: CacheKey
   other-modules: Expression
-  build-depends: hashable==1.2.*
   build-depends: text
   build-depends: hex-text
   build-depends: bytestring
@@ -57,6 +63,7 @@ common static
   build-depends: random-shuffle
   build-depends: colour
   build-depends: mtl
+  build-depends: splitmix
 
 common png
   other-modules: GenPNG
@@ -70,16 +77,20 @@ common logic
   import: static
   hs-source-dirs: src
   other-modules: Logic
-  other-modules: Mealy
   other-modules: Drag
   other-modules: DragAnim
   other-modules: Tween
-  other-modules: SelectTwo
   other-modules: Program
+  other-modules: ProgramScript
+  other-modules: MainProgram
+  other-modules: Shapes
   other-modules: Presentation
   other-modules: PresentationCmds
   other-modules: Layout
+  other-modules: Tutorial
   build-depends: containers
+  build-depends: ref-tf
+  build-depends: splitmix
 
 common canvas-save
   hs-source-dirs: src
@@ -104,14 +115,15 @@ common shader-canvas
 common SDL
   hs-source-dirs: src
   other-modules: SDLRunner
-  build-depends: linear ==1.20.*
-  build-depends: sdl2 ==2.4.*
-  build-depends: OpenGL ==3.0.*
+  build-depends: linear
+  build-depends: sdl2
+  build-depends: OpenGL
   build-depends: StateVar
 
 executable kaleidogen
   import: logic, canvas-save, shader-canvas
   main-is: Kaleidogen.hs
+  default-language: Haskell2010
   other-modules: Animate
   other-modules: RunWidget
   build-depends: base >=4.11 && <5
@@ -127,15 +139,13 @@ executable kaleidogen
   if !flag(jsaddle)
     buildable: False
 
-  if flag(lambda)
-    buildable: False
-
   ghc-options: -main-is Kaleidogen
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
 
 executable kaleidogen-demo
   import: logic, canvas-save, shader-canvas
   main-is: Demo.hs
+  default-language: Haskell2010
   other-modules: RunWidget
   other-modules: PrettyRna
   build-depends: base >=4.11 && <5
@@ -151,9 +161,6 @@ executable kaleidogen-demo
   if !flag(jsaddle)
     buildable: False
 
-  if flag(lambda)
-    buildable: False
-
   ghc-options: -main-is Demo
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
 
@@ -161,14 +168,9 @@ executable kaleidogen-demo
 executable kaleidogen-sdl
   import: logic,SDL
   main-is: KaleidogenSDL.hs
+  default-language: Haskell2010
 
-  if impl(ghcjs)
-    buildable: False
-
-  if flag(android) || !flag(sdl)
-    buildable: False
-
-  if flag(lambda)
+  if !flag(sdl)
     buildable: False
 
   ghc-options: -main-is KaleidogenSDL
@@ -177,14 +179,9 @@ executable kaleidogen-android-sdl
   import: logic,SDL
   main-is: Kaleidogen.hs
   build-depends: android-activity
-
-  if impl(ghcjs)
-    buildable: False
+  default-language: Haskell2010
 
   if !flag(android) || !flag(sdl)
-    buildable: False
-
-  if flag(lambda)
     buildable: False
 
   ghc-options: -main-is Kaleidogen
@@ -193,11 +190,9 @@ executable kaleidogen-headless
   import: static, png
   main-is: Headless.hs
   build-depends: optparse-applicative
+  default-language: Haskell2010
 
-  if impl(ghcjs)
-    buildable: False
-
-  if flag(lambda)
+  if !flag(headless)
     buildable: False
 
   if flag(android)
@@ -218,10 +213,7 @@ executable kaleidogen-telegram
   build-depends: memory
   default-language:    Haskell2010
 
-  if impl(ghcjs)
-    buildable: False
-
-  if flag(lambda)
+  if !flag(telegram)
     buildable: False
 
   if flag(android)
@@ -245,9 +237,6 @@ executable kaleidogen-amazon-lambda
 
   ghc-options: -Wall
 
-  if impl(ghcjs)
-    buildable: False
-
   if !flag(lambda)
     buildable: False
 
@@ -259,13 +248,11 @@ executable kaleidogen-android-clib
   hs-source-dirs: src
   other-modules: DNA
   other-modules: Logic
-  other-modules: Mealy
   other-modules: Drag
   other-modules: DragAnim
   other-modules: RNA
   other-modules: GLSL
   other-modules: Expression
-  other-modules: SelectTwo
   other-modules: Program
   other-modules: Shaders
   other-modules: Presentation
@@ -276,10 +263,14 @@ executable kaleidogen-android-clib
   other-modules: RunWidget
   other-modules: ShaderCanvas
   other-modules: Tween
+  other-modules: CacheKey
+  other-modules: MainProgram
+  other-modules: ProgramScript
+  other-modules: Shapes
+  other-modules: Tutorial
 
   build-depends: base >=4.11 && <5
   build-depends: MonadRandom ==0.5.*
-  build-depends: hashable ==1.2.*
   build-depends: containers
   build-depends: text
   build-depends: hex-text
@@ -296,14 +287,17 @@ executable kaleidogen-android-clib
   build-depends: ghcjs-dom >=0.9.2 && <0.10
   build-depends: text
   build-depends: random-shuffle
+  build-depends: ref-tf
+  build-depends: splitmix
+  build-depends: directory
+  build-depends: process
+  build-depends: filepath
 
   main-is: Kaleidogen.hs
   build-depends: jsaddle
   build-depends: reflex-dom
+  default-language: Haskell2010
 
-  build-depends: directory
-  build-depends: process
-  build-depends: filepath
 
   --if flag(android)
   --   build-depends: jsaddle-clib
@@ -319,3 +313,14 @@ executable kaleidogen-android-clib
 
   cpp-options: -DNoSave
   ghc-options: -main-is Kaleidogen
+
+test-suite tests
+  import: logic
+  hs-source-dirs: src
+  other-modules: TestLogic
+  build-depends: tasty
+  build-depends: tasty-quickcheck
+  build-depends: QuickCheck
+  main-is: tests.hs
+  type: exitcode-stdio-1.0
+  default-language: Haskell2010

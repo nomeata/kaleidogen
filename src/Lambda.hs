@@ -1,5 +1,6 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -22,6 +23,7 @@ import Web.Telegram.API.Bot.API
 import Network.HTTP.Client      (newManager, Manager)
 import Network.HTTP.Client.TLS  (tlsManagerSettings)
 
+
 import GenPNG
 import Telegram
 
@@ -40,14 +42,10 @@ getTelegramSettings = do
 main :: IO ()
 main = do
     tc <- getTelegramSettings
-    runLambda (run tc)
-  where
-   run :: TC -> LambdaOptions -> IO (Either String LambdaResult)
-   run tc opts = do
-    result <- handler tc (decodeObj (eventObject opts)) (decodeObj (contextObject opts))
-    either (pure . Left . encodeObj) (pure . Right . LambdaResult . encodeObj) result
+    runLambdaHaskellRuntime defaultDispatcherOptions (pure ()) id $ do
+       addStandaloneLambdaHandler "Provided" (handler tc)
 
-deriving instance Show LambdaOptions
+-- deriving instance Show LambdaOptions
 
 data Event = Event
   { path :: T.Text
@@ -64,7 +62,7 @@ data Response = Response
 isImgPath :: T.Text -> Maybe T.Text
 isImgPath  = T.stripPrefix "/img/" >=> T.stripSuffix ".png"
 
-handler :: TC -> Event -> Context -> IO (Either String Response)
+handler :: TC -> Event -> Context () -> IO (Either String Response)
 handler tc Event{body, path} _context
     | Just bytes <- isImgPath path >>= T.decodeHex = do
         let pngData = genPurePNG bytes

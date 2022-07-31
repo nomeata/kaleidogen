@@ -14,20 +14,22 @@ import Data.Text.Encoding
 import Data.Functor
 import Data.Function
 import System.Exit
+import Control.Monad.Random.Strict (getRandom)
 
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
 
 import Shaders
-import Program
+import Program hiding (Program)
+import MainProgram
 
-runInSDL :: BackendRunner IO
-runInSDL toShader go = do
+runInSDL :: ProgramRunner IO
+runInSDL go = do
     initializeAll
     window <- createWindow "My SDL Application" $
         defaultWindow
-            { windowOpenGL = Just defaultOpenGL --  { glProfile = ES Normal 3 0 }
+            { windowGraphicsContext = OpenGLContext defaultOpenGL --  { glProfile = ES Normal 3 0 }
             , windowHighDPI = True
             , windowResizable = True
             }
@@ -62,8 +64,7 @@ runInSDL toShader go = do
 
         clear [GL.ColorBuffer]
 
-        forM_ toDraw $ \(x,(a,b,c,d,e)) -> do
-            let (vertexShaderSource, fragmentShaderSource) = toShader x
+        forM_ toDraw $ \((_,(vertexShaderSource, fragmentShaderSource)),(a,b,c,d,e)) -> do
             program <- createProgram
             vertexShader <- createShader VertexShader
             shaderSourceBS vertexShader $= encodeUtf8 vertexShaderSource
@@ -109,25 +110,25 @@ runInSDL toShader go = do
     let currentWindowSize = do
         V2 w h <- get (windowSize window)
         return (fromIntegral w,fromIntegral h)
+    size0 <- currentWindowSize
 
     let getCurrentTime = (1000*) <$> time
+    t0 <- getCurrentTime
+    seed0 <- getRandom
 
-    let setCanDelete _ = return ()
-    let setCanSave _ = return ()
-    let setCanAnim _ = return ()
-
-    Callbacks {..} <- go (Backend {..})
-
-    currentWindowSize >>= onResize
+    Callbacks {..} <- go seed0 t0 size0
 
     let render = do
-        (toDraw, continue) <- onDraw
-        drawShaderCircles toDraw
+        t <- getCurrentTime
+        DrawResult{..} <- onDraw t
+        drawShaderCircles objects
         return ()
 
-    let handleEvent e = case eventPayload e of
+    let handleEvent e = do
+          t <- getCurrentTime
+          case eventPayload e of
             WindowResizedEvent _
-                -> currentWindowSize >>= onResize
+                -> currentWindowSize >>= onResize t
 
             KeyboardEvent keyboardEvent
                 | keyboardEventKeyMotion keyboardEvent == Pressed
@@ -138,16 +139,16 @@ runInSDL toShader go = do
                 | mouseButtonEventButton me == ButtonLeft
                 , mouseButtonEventMotion me == Pressed
                 , let P (V2 x y) = mouseButtonEventPos me
-                -> onMouseDown (fromIntegral x, fromIntegral y)
+                -> onMouseDown t (fromIntegral x, fromIntegral y)
 
             MouseButtonEvent me
                 | mouseButtonEventButton me == ButtonLeft
                 , mouseButtonEventMotion me == Released
-                -> onMouseUp
+                -> onMouseUp t
 
             MouseMotionEvent me
                 | let P (V2 x y) = mouseMotionEventPos me
-                -> onMove (fromIntegral x, fromIntegral y)
+                -> onMove t (fromIntegral x, fromIntegral y)
 
             _ -> return ()
 
@@ -159,7 +160,7 @@ runInSDL toShader go = do
         loop
 
 main :: IO ()
-main = runInSDL renderGraphic mainProgram
+main = runInSDL mainProgram
 
 
 bufferOffset :: Integral a => a -> Ptr b

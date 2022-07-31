@@ -31,12 +31,12 @@ import qualified GHCJS.DOM.HTMLTextAreaElement as TextArea
 
 import ShaderCanvas
 import qualified CanvasSave
-import Program
 import RunWidget
 import GLSL
 import DNA
 import Expression
 import PrettyRna
+import Shapes
 
 main :: IO ()
 main = runWidget mainWidget
@@ -71,47 +71,47 @@ mainWidget = do
     sizeRef <- liftIO $ newIORef (100,100)
 
 
-    drawShaderCircles1 <- shaderCanvas renderGraphic canvas1
-    drawShaderCircles2 <- shaderCanvas renderGraphic canvas2
-    drawShaderCircles3 <- shaderCanvas renderGraphic canvas3
+    drawShaderCircles1 <- shaderCanvas canvas1
+    drawShaderCircles2 <- shaderCanvas canvas2
+    drawShaderCircles3 <- shaderCanvas canvas3
 
     let drawOne dna tree code drawShaderCircles = do
-        canvassize <- liftIO $ readIORef sizeRef
-        let pretty = prettyRNA (dna2rna dna)
-        let rows = fromIntegral (length (lines pretty))
-        TextArea.setValue tree pretty
-        TextArea.setValue code (toFragmentShader (dna2rna dna))
-        TextArea.setRows tree rows
-        TextArea.setRows code rows
-        drawShaderCircles [showFullDNA dna canvassize]
+          canvassize <- liftIO $ readIORef sizeRef
+          let pretty = prettyRNA (dna2rna dna)
+          let rows = fromIntegral (length (lines pretty))
+          TextArea.setValue tree pretty
+          TextArea.setValue code (toFragmentShader (dna2rna dna))
+          TextArea.setRows tree rows
+          TextArea.setRows code rows
+          drawShaderCircles [fullDNAGraphic dna canvassize]
 
     let draw = do
-        dna1 <- liftIO $ readIORef dnaRef1
-        dna3 <- liftIO $ readIORef dnaRef3
-        let dna2 = crossover 0 dna1 dna3
-        Input.setValue input2 (T.toUpper (Hex.encodeHex (BS.pack dna2)))
-        drawOne dna1 tree1 code1 drawShaderCircles1
-        drawOne dna2 tree2 code2 drawShaderCircles2
-        drawOne dna3 tree3 code3 drawShaderCircles3
+          dna1 <- liftIO $ readIORef dnaRef1
+          dna3 <- liftIO $ readIORef dnaRef3
+          let dna2 = crossover 0 dna1 dna3
+          Input.setValue input2 (T.toUpper (Hex.encodeHex (BS.pack dna2)))
+          drawOne dna1 tree1 code1 drawShaderCircles1
+          drawOne dna2 tree2 code2 drawShaderCircles2
+          drawOne dna3 tree3 code3 drawShaderCircles3
 
     let enterDna inputElem ref = void $ on inputElem input $ do
-            str <- Input.getValue inputElem
-            case Hex.decodeHex str of
-              Just x | not (BS.null x) -> do
-                liftIO $ writeIORef ref (BS.unpack x)
-                lift draw
-              _ -> return ()
+          str <- Input.getValue inputElem
+          case Hex.decodeHex str of
+            Just x | not (BS.null x) -> do
+              liftIO $ writeIORef ref (BS.unpack x)
+              lift draw
+            _ -> return ()
     enterDna input1 dnaRef1
     enterDna input3 dnaRef3
 
     let whenChecked element_id f = do
-        el <- getElementByIdUnsafe doc (element_id :: Text) >>= unsafeCastTo HTMLInputElement
-        let check = do
-            checked <- Input.getChecked el
-            f checked
-            draw
-        void $ on el change (lift check)
-        check
+          el <- getElementByIdUnsafe doc (element_id :: Text) >>= unsafeCastTo HTMLInputElement
+          let check = do
+                checked <- Input.getChecked el
+                f checked
+                draw
+          void $ on el change (lift check)
+          check
 
 
     whenChecked "showcross" $ \checked -> do
@@ -129,8 +129,8 @@ mainWidget = do
     checkResize <- autoResizeCanvas canvas1 (\pos -> liftIO (writeIORef sizeRef pos) >> draw)
     -- Wish I could use onResize on body, but that does not work somehow
     let regularlyCheckSize = do
-        checkResize
-        () <$ inAnimationFrame' (const regularlyCheckSize)
+          checkResize
+          () <$ inAnimationFrame' (const regularlyCheckSize)
     regularlyCheckSize -- should trigger the initial render as well
 
 
@@ -144,9 +144,9 @@ html = T.unlines
     , " </head>"
     , " <body>"
     , "  <div align='center'>"
-    , "   <input type='checkbox' id='showrna'>RNA</input>"
-    , "   <input type='checkbox' id='showcode'>Code</input>"
-    , "   <input type='checkbox' id='showcross'>Breeding</input>"
+    , "   <label><input type='checkbox' id='showrna'>RNA</input></label>"
+    , "   <label><input type='checkbox' id='showcode'>Code</input></label>"
+    , "   <label><input type='checkbox' id='showcross'>Breeding</input></label>"
     , "  </div>"
     , "  <div class='threecols'>"
     , "   <div id='col1' class='col'>"

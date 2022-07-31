@@ -6,10 +6,10 @@ import Data.Colour.RGBSpace.HSV
 import Data.Colour.SRGB
 import Data.Word
 import Data.List
+import System.Random.SplitMix
 
 import System.Random.Shuffle
 import Control.Monad.Random.Strict hiding (interleave)
-import Data.Hashable
 
 import DNA
 import RNA
@@ -19,7 +19,7 @@ dna2rna [] = dna2rna [0]
 dna2rna [x] = dna2rna [x,x]
 dna2rna dna@(col1:col2:ops) = fst $ go ops colors
   where
-    seed = hash dna
+    seed = sum $ map fromIntegral dna
     colors = cycle $ foldl1 interleave $ map (derivedColors seed) $ map baseColor $ nub [col1, col2]
 
     go _ [] = error "finite list in fromSDNA"
@@ -75,7 +75,7 @@ splitInHalf xs = splitAt n xs
   where n = length xs `div` 2
 
 shufDet :: Int -> [b] -> [b]
-shufDet seed xs = evalRand (shuffleM xs) $ mkStdGen seed
+shufDet seed xs = evalRand (shuffleM xs) $ mkSMGen $ fromIntegral seed
 
 derivedColors :: Int -> RGB Double -> [RGB Double]
 derivedColors seed (hsvView -> (h,s,v)) =

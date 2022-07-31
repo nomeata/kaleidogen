@@ -28,6 +28,7 @@ in mkDerivation {
       else [ "-f-jsaddle -ffake-android -f-sdl -fclib" ];
   isLibrary = false;
   isExecutable = true;
+  doCheck = false;
   executableHaskellDepends = [
     base bytestring colour containers
     hashable hex-text MonadRandom mtl StateVar text

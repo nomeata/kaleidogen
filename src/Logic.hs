@@ -3,223 +3,211 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Logic (
-    Entity(..),
+    Entity,
     AbstractPos(..),
-    AppState(..),
+    LogicState(..),
+    Key(..), -- A bit fishy
     Event(..),
-    logicMealy,
-    isSelected, entity2dna, selectedDNA,
-    canDrag,
+    initialLogicState, handleLogic, reconstruct,
+    isSelected, isInactive, entity2dna, selectedDNA, canDrag,
+    serialize, deserialize,
     ) where
 
-import Control.Applicative
 import qualified Data.Map as M
 import Data.List
+import Data.Int
+import Text.Read
 
 import DNA
-import qualified SelectTwo as S2
 import PresentationCmds (Cmds, Cmd, Cmd'(..))
 import Drag (ClickEvent(..))
-import Mealy
 
 -- Lets keep the keys separate from the sequential indices
-newtype Key = Key Int deriving (Num, Eq, Ord, Enum)
+newtype Key = Key Int deriving (Num, Eq, Ord, Enum, Show, Read)
 
-type Seed = Int
+type Seed = Int64
 
-data AppState = AppState
+data LogicState = LogicState
     { seed :: Seed
     , dnas :: M.Map Key DNA
     , drag :: Maybe DNA
     , dragOn :: Maybe DNA
-    , sel :: S2.SelectTwo Key
+    , sel :: Maybe Key
     }
+  deriving (Read, Show)
 
 -- Events passed on to the presentation layer
-data AbstractPos = MainPos | SmallPos Int Int | DeletedPos Int Int
+data AbstractPos
+    = MainPos            -- ^ The big one on top
+    | SmallPos Int Int   -- ^ A little position. Parameters are count and index
+    | DeletedPos         -- ^ The big one, for the shrinking of deleted ones
+  deriving (Show, Eq)
 
--- The main instance can be selected, the preview instance not
-data Entity = PreviewInstance DNA | MainInstance DNA
-    deriving (Eq, Ord, Show)
+type Entity = DNA
 
 entity2dna :: Entity -> DNA
-entity2dna (MainInstance d) = d
-entity2dna (PreviewInstance d) = d
+entity2dna = id
 
-dnaAtKey :: AppState -> Key -> DNA
-dnaAtKey AppState{..} k = dnas M.! k
+dnaAtKey :: LogicState -> Key -> DNA
+dnaAtKey LogicState{..} k = dnas M.! k
 
-newDNA :: AppState -> Maybe DNA
-newDNA as@AppState{..}
-    | S2.TwoSelected x y <- sel
-    = Just $ crossover seed (as `dnaAtKey` x) (as `dnaAtKey` y)
-    | Just x <- drag, Just y <- dragOn
-    = Just $ crossover seed x y
+newDNA :: LogicState -> Maybe DNA
+newDNA LogicState{..}
+    | Just x <- drag, Just y <- dragOn = Just $ crossover seed x y
     | otherwise = Nothing
 
-selectedDNA :: AppState -> Maybe DNA
-selectedDNA as@AppState{..}
-    | S2.OneSelected x <- sel = Just $ as `dnaAtKey` x
+selectedDNA :: LogicState -> Maybe DNA
+selectedDNA as@LogicState{..}
+    | Just x <- sel = Just $ as `dnaAtKey` x
     | otherwise = Nothing
 
-preview :: AppState -> Maybe DNA
-preview as = newDNA as <|> selectedDNA as
+isInactive :: LogicState -> DNA -> Bool
+isInactive as@LogicState{..} = if
+    | Just d <- drag  -> alreadyCombinedWith as d
+    | otherwise       -> const False
 
-isSelected :: AppState -> DNA -> Bool
-isSelected as@AppState{..} = if
-    | S2.TwoSelected x y <- sel -> \d -> d `elem` [as `dnaAtKey` x, as `dnaAtKey` y]
-    | S2.OneSelected x <- sel -> \d -> d == (as `dnaAtKey` x)
+isSelected :: LogicState -> DNA -> Bool
+isSelected as@LogicState{..} = if
+    | Just x <- sel                    -> \d -> d == (as `dnaAtKey` x)
     | Just x <- drag, Just y <- dragOn -> \d -> d `elem` [x,y]
-    | otherwise -> const False
+    | otherwise                        -> const False
 
-moveAllSmall :: AppState -> Cmds Entity AbstractPos
-moveAllSmall as =
-    [ (MainInstance d, MoveTo (SmallPos c n))
+alreadyCombinedWith :: LogicState -> DNA -> DNA -> Bool
+alreadyCombinedWith as d1 d2 =
+    -- Is this too slow, recombining them all the time?
+    crossover (seed  as) d1 d2 `elem` M.elems (dnas as)
+
+reconstruct :: LogicState -> Cmds Entity AbstractPos
+reconstruct as =
+    [ if Just d == selectedDNA as
+      then (d, MoveTo MainPos)
+      else (d, MoveTo (SmallPos c n))
     | (n, d) <- zip [0..] (M.elems (dnas as))
-    ]
+    ] ++
+    [ (d, MoveTo MainPos) | Just d <- [newDNA as] ]
   where
     c = length (dnas as)
 
-moveOneSmall :: AppState -> DNA -> Cmd Entity AbstractPos
-moveOneSmall as d = (MainInstance d, MoveTo (SmallPos c n))
+moveOneSmall :: LogicState -> DNA -> Cmd Entity AbstractPos
+moveOneSmall as d = (d, MoveTo (SmallPos c n))
   where
     c = length (dnas as)
     Just n = elemIndex d (M.elems (dnas as))
-
-moveMain :: AppState -> Cmds Entity AbstractPos
-moveMain as =
-    [ (PreviewInstance d, MoveTo MainPos)
-    | Just d <- return $ newDNA as ]
 
 data Event
     = ClickEvent (ClickEvent Entity)
     | Delete
     | Anim
+    | Reset Seed
+  deriving Show
 
-logicMealy :: Seed -> Mealy AppState Event (Cmds Entity AbstractPos)
-logicMealy seed = Mealy
-    { initial = as0
-    , reconstruct = \as -> moveAllSmall as ++ moveMain as
-    , handle = handleLogic
-    }
+initialLogicState :: Seed -> LogicState
+initialLogicState seed = LogicState {..}
   where
-    as0 = AppState {..}
-      where
-        dnas = M.fromList $ zipWith (\n d -> (n,d)) [0..] initialDNAs
-        sel = S2.duolton 0 1
-        drag = Nothing
-        dragOn = Nothing
+    dnas = M.fromList $ zip [0..] initialDNAs
+    sel = Nothing
+    drag = Nothing
+    dragOn = Nothing
 
 
-canDrag :: AppState -> Entity -> Bool
-canDrag _ (MainInstance _) = True
-canDrag _ _ = False
+canDrag :: LogicState -> Entity -> Bool
+canDrag _ _ = True
 
-handleLogic :: AppState -> Event -> (AppState, Cmds Entity AbstractPos)
-handleLogic as@AppState{..} e = case e of
-    -- Adding a new pattern
-    ClickEvent (Click (PreviewInstance d))
-        | Just new <- newDNA as, d == new
-        , new `notElem` M.elems dnas
-        , let newKey = succ (fst (M.findMax dnas))
-        , let dnas' = M.insert newKey new dnas
-        , let as' = as { sel = S2.empty, dnas = dnas' }
-        -> ( as'
-           , [ (PreviewInstance new, Remove)
-             , (MainInstance new, SummonAt MainPos)
-             ] ++
-             moveAllSmall as'
-           )
-    -- Clicking an already added pattern
-    ClickEvent (Click (PreviewInstance d))
-        | Just new <- newDNA as
-        , d == new
-        , Just i <- elemIndex d (M.elems dnas)
-        -> -- send preview move event
-           ( as { sel = S2.empty, dnas = dnas }
-           , [ (PreviewInstance new, FadeOut (SmallPos (length dnas) i)) ] )
-
+handleLogic :: LogicState -> Event -> (LogicState, Cmds Entity AbstractPos)
+handleLogic as@LogicState{..} e = case e of
     -- Changing selection
-    ClickEvent (Click (MainInstance d))
-        | (k:_) <- [ k | (k,d') <- M.toList dnas, d == d' ]
-        -> let as' = as { sel = S2.flip sel k , drag = Nothing }
-           in
-           ( as'
-           , [ (PreviewInstance d', Remove)
-             | Just d' <- pure $ preview as
-             ] ++
-             [ (PreviewInstance d', SummonAt MainPos)
-             | Just d' <- pure $ preview as'
-             ]
+    ClickEvent (Click d)
+        | not (isInactive as d)
+        , Just d /= ((as `dnaAtKey`) <$> sel)
+        , Nothing <- drag
+        , (k:_) <- [ k | (k,d') <- M.toList dnas, d == d' ]
+        , let as' = as { sel = Just k, drag = Nothing }
+        -> ( as'
+           , [ moveOneSmall as' (as `dnaAtKey` k_old) | Just k_old <- [sel] ] ++
+             [ (d, MoveTo MainPos) ]
            )
 
     -- Beginning a drag-and-drop action
-    ClickEvent (BeginDrag (MainInstance d))
-        -> ( as { drag = Just d, sel = S2.empty }
-           , case sel of
-               S2.OneSelected k_old -> [ (PreviewInstance (as `dnaAtKey` k_old), Remove ) ]
-               S2.TwoSelected {} | Just old <- newDNA as -> [ (PreviewInstance old, Remove) ]
-               _ -> []
+    ClickEvent (BeginDrag d)
+        | Nothing <- drag
+        , let as' = as { drag = Just d, sel = Nothing }
+        -> ( as'
+           , [ moveOneSmall as' (as `dnaAtKey` k_old) | Just k_old <- [sel] ]
            )
 
-    ClickEvent (DragOn (MainInstance d'))
-        | Just _ <- drag
+    ClickEvent (DragOn d')
+        | Just d <- drag
+        , Nothing <- dragOn
+        , d' /= d                -- Should not happen
+        , not (isInactive as d') -- Should not happen
         , let as' = as { dragOn = Just d' }
-        -> ( as', [ (PreviewInstance new, SummonAt MainPos) | Just new <- pure $ newDNA as' ] )
+        -> ( as', [ (new, SummonAt MainPos) | Just new <- [newDNA as']] )
 
-    ClickEvent (DragOff (MainInstance _'))
+    ClickEvent (DragOff _)
         | Just _ <- drag
         , let as' = as { dragOn = Nothing }
-        -> ( as', [ (PreviewInstance new, Remove) | Just new <- pure $ newDNA as ] )
+        -> ( as', [ (new, Remove) | Just new <- [newDNA as]] )
 
     ClickEvent EndDrag
+        -- Adding a new pattern
         | Just _ <- drag
         , Just new <- newDNA as
-        , new `notElem` M.elems dnas
+        , new `notElem` M.elems dnas -- should always be true, due to isInactive
         , let newKey = succ (fst (M.findMax dnas))
         , let dnas' = M.insert newKey new dnas
         , let as' = as { drag = Nothing, dragOn = Nothing, dnas = dnas' }
         -> ( as'
-           , [ (PreviewInstance new, Remove)
-             , (MainInstance new, SummonAt MainPos)
-             ] ++
-             moveAllSmall as'
+           , reconstruct as'
            )
 
         | Just d <- drag
-        , Just new <- newDNA as
-        , Just i <- elemIndex new (M.elems dnas)
-        -> ( as { drag = Nothing }
-           , [ (PreviewInstance new, FadeOut (SmallPos (length dnas) i))
-             , moveOneSmall as d ] )
-
-        | Just d <- drag
-        -> ( as { drag = Nothing }, [ moveOneSmall as d ] )
+        -> ( as { drag = Nothing, dragOn = Nothing }, [ moveOneSmall as d ] )
 
     ClickEvent CancelDrag
         | Just d <- drag
-        -> ( as { drag = Nothing }
-           , [ (PreviewInstance new, Remove) | Just new <- pure $ newDNA as ] ++
+        -> ( as { drag = Nothing, dragOn = Nothing }
+           , [ (new, Remove) | Just new <- [newDNA as]] ++
              [ moveOneSmall as d ] )
 
+    -- Fall-through: Unselect if necessary
+    ClickEvent (Click _)
+        | Just k <- sel
+        , let as' = as { sel = Nothing }
+        -> (as', [moveOneSmall as' (as `dnaAtKey` k)])
+    ClickEvent OtherClick
+        | Just k <- sel
+        , let as' = as { sel = Nothing }
+        -> (as', [moveOneSmall as' (as `dnaAtKey` k)])
+
+
     Delete
-        | S2.OneSelected k <- sel
-        , Just i <- M.lookupIndex k dnas
+        | Just k <- sel
         , let d = as `dnaAtKey` k
-        , let as' = as { sel = S2.empty, dnas = M.delete k dnas }
+        , let as' = as { sel = Nothing, dnas = M.delete k dnas }
         -> ( as'
-           , [ (PreviewInstance d, Remove)
-             , (MainInstance d, FadeOut (DeletedPos (length dnas) i))
-             ] ++
-             moveAllSmall as'
+           , [ (d, FadeOut DeletedPos) ] ++
+             reconstruct as'
            )
 
     Anim
-        | S2.OneSelected k <- sel
+        | Just k <- sel
         , let d = as `dnaAtKey` k
         -> ( as
-           , [ (PreviewInstance d, Animate) ]
+           , [ (d, Animate) ]
            )
 
+    Reset seed'
+        | let as' = initialLogicState seed'
+        -> (as'
+           , [ (new, Remove) | Just new <- [newDNA as]] ++
+             [ (d, Remove) | d <- M.elems dnas, d `notElem` initialDNAs ] ++ -- TODO: Animate
+             reconstruct as' )
+
     _ -> (as, [])
+
+serialize :: LogicState -> String
+serialize as = show $ as { sel = Nothing, drag = Nothing, dragOn = Nothing }
+
+deserialize :: String -> Maybe LogicState
+deserialize = readMaybe
 

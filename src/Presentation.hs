@@ -4,11 +4,12 @@
 module Presentation
     ( Time
     , Animating(..)
+    , VideoPlaying(..)
     , animationSpeed
     , videoSpeed
     , Presentation
     , LayoutFun
-    , initRef
+    , initPRef
     , handleCmdsRef
     , presentAtRef
     , locateClick
@@ -17,17 +18,18 @@ module Presentation
 where
 
 import qualified Data.Map as M
-import Data.IORef
+import Control.Monad.Ref
 import Data.List
 import Data.Bifunctor
 
-import Layout (Pos, PosAndScale)
+import Layout (PosAndScale)
 import PresentationCmds (Cmds, Cmd, Cmd'(..))
 import Tween
 
 type Time = Double
 
-newtype Animating = Animating Bool
+newtype Animating = Animating Bool deriving Eq
+newtype VideoPlaying = VideoPlaying Bool deriving Eq
 
 animationSpeed :: Time
 animationSpeed = 200
@@ -126,11 +128,17 @@ anyMoving t = Animating . any go . pos
     go (Dynamic _ t') = t - t' < videoSpeed
     go (MovingFromTo _ t' _ _) = t - t' < animationSpeed
 
+anyVideo :: Time -> State k -> VideoPlaying
+anyVideo t = VideoPlaying . any go . pos
+  where
+    go (Dynamic _ t') = t - t' < videoSpeed
+    go _ = False
+
 isIn :: (Double, Double) -> PosAndScale -> Bool
 (x,y) `isIn` ((x',y'),s) = (x - x')**2 + (y - y')**2 <= s**2
 
-locateClick :: Presentation k -> (Double, Double) -> Maybe (k, Pos)
-locateClick p (x,y) = second (fst . fst) <$> find (((x,y) `isIn`) . fst . snd) p
+locateClick :: Presentation k -> (Double, Double) -> Maybe (k, PosAndScale)
+locateClick p (x,y) = second fst <$> find (((x,y) `isIn`) . fst . snd) p
 
 locateIntersection :: Eq k => Presentation k -> k -> Maybe k
 locateIntersection p k =
@@ -138,19 +146,15 @@ locateIntersection p k =
   where Just (((x,y),_),_) = lookup k p
 
 -- The mutable layer
-type Ref k = IORef (State k)
+type PRef m k = Ref m (State k)
 
-initRef :: IO (Ref k)
-initRef = newIORef initialState
+initPRef :: MonadRef m => m (PRef m k)
+initPRef = newRef initialState
 
-handleCmdsRef :: Ord k => Time -> LayoutFun a -> Cmds k a -> Ref k -> IO ()
-handleCmdsRef t l cs r = modifyIORef r (\s -> foldl (handleCmd t l) s cs)
+handleCmdsRef :: (MonadRef m, Ord k) => Time -> LayoutFun a -> Cmds k a -> PRef m k -> m ()
+handleCmdsRef t l cs r = modifyRef r (\s -> foldl (handleCmd t l) s cs)
 
-presentAtRef :: Ord k => Time -> Ref k -> IO (Presentation k, Double, Animating)
+presentAtRef :: (MonadRef m, Ord k) => Time -> PRef m k -> m (Presentation k, Animating, VideoPlaying)
 presentAtRef t r = do
-    s <- readIORef r
-    let pres = presentAt t s
-        radius | null pres = 100
-               | otherwise = minimum [2 * scale | (_, (_,scale)) <- pres]
-        continue = anyMoving t s
-    return (pres, radius, continue)
+    s <- readRef r
+    pure (presentAt t s, anyMoving t s, anyVideo t s)

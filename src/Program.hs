@@ -1,149 +1,120 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE LambdaCase #-}
 module Program
-  ( BackendRunner
+  ( Program
+  , Time
+  , ProgramRunner
   , Callbacks(..)
-  , Backend(..)
-  , renderGraphic
-  , mainProgram
-  , Graphic
-  , showFullDNA
+  , DrawResult(..)
+  , switchProgram
   )
 where
 
 import Data.Text (Text)
-import qualified Data.Text as T
-import Data.IORef
-import Control.Monad.IO.Class
-import Data.Foldable
+import Control.Monad.Ref
+import Data.Int
 
 import Shaders
-import Expression
-import GLSL
-import DNA
-import qualified SelectTwo as S2
-import Layout
-import Mealy
-import Logic
 import Presentation (Animating)
 import qualified Presentation
-import Drag
+import qualified Tutorial as Tut
 
-reorderExtraData :: ((x, a), (((b,c),d),e)) -> (x, (a, b, c, d, e))
-reorderExtraData ((d,b),(((x,y),s),e)) = (d, (b, x, y, s, e))
+type Time = Double
+type StoredState = String
 
-toFilename :: DNA -> T.Text
-toFilename dna = "kaleidogen-" <> dna2hex dna <> ".png"
-
-layoutFun :: (Double, Double) -> AbstractPos -> PosAndScale
-layoutFun size MainPos
-    = topHalf (padding layoutFullCirlce) size ()
-layoutFun size (SmallPos c n)
-    = bottomHalf (padding (layoutGrid False c)) size n
-layoutFun size (DeletedPos c n)
-    = bottomHalf (padding (layoutGrid True c)) size n
-
-
-showFullDNA :: DNA -> (Double,Double) -> (Graphic, ExtraData)
-showFullDNA dna (w,h) =
-    reorderExtraData ((DNA dna,0), (layoutFullCirlce (w,h) (), 1))
-
-data Backend m a = Backend
-    { setCanDelete :: Bool -> m ()
-    , setCanSave :: Bool -> m ()
-    , setCanAnim :: Bool -> m ()
-    , currentWindowSize :: m (Double,Double)
-    , getCurrentTime :: m Double
-    , doSave :: Text -> (a,ExtraData) -> m ()
+data DrawResult = DrawResult
+    { objects :: [Graphic]
+    , stillAnimating :: Animating
+    , canDelete :: Bool
+    , canSave :: Bool
+    , canAnim :: Bool
+    , animInProgress :: Bool
+    , tutInProgress :: Bool
     }
 
-data Callbacks m a = Callbacks
-    { onDraw :: m ([(a,ExtraData)], Animating)
-    , onMouseDown :: (Double,Double) -> m ()
-    , onMove :: (Double,Double) -> m ()
-    , onMouseUp :: m ()
-    , onMouseOut :: m ()
-    , onDel :: m ()
-    , onSave :: m ()
-    , onAnim :: m ()
-    , onResize :: (Double,Double) -> m ()
+data Callbacks m = Callbacks
+    { onDraw      :: Time -> m DrawResult
+    , onSerialize :: m StoredState
+    , onMouseDown :: Time -> (Double,Double) -> m ()
+    , onMove      :: Time -> (Double,Double) -> m ()
+    , onMouseUp   :: Time -> m ()
+    , onMouseOut  :: Time -> m ()
+    , onDel       :: Time -> m ()
+    , onSave      :: Time -> m (Maybe (Text, Graphic))
+    , onAnim      :: Time -> m ()
+    , onResize    :: Time -> (Double,Double) -> m ()
+    , onReset     :: Time -> Int64 -> m ()
+    , onTut       :: Time -> m ()
+    , resolveDest :: Time -> Tut.Destination -> m (Double,Double)
     }
 
-type BackendRunner m = forall a.
-    Ord a =>
-    (a -> Shaders) ->
-    (Backend m a -> m (Callbacks m a)) ->
-    m ()
-
-data Graphic = DNA DNA | Border deriving (Eq, Ord)
-
-renderGraphic :: Graphic -> (Text, Text)
-renderGraphic (DNA d) = (circularVertexShader, toFragmentShader (dna2rna d))
-renderGraphic Border = borderShaders
+type Program m = Maybe StoredState -> Int64 -> Time -> (Double, Double) -> m (Callbacks m)
+type ProgramRunner m = Program m -> m ()
 
 
-mainProgram :: MonadIO m => Backend m Graphic -> m (Callbacks m Graphic)
-mainProgram Backend {..} = do
-    -- Set up global state
-    seed0 <- liftIO getRandom
+-- A combinator to switch to another program upon onTut
+switchProgram :: MonadRef m => Program m -> Program m -> Program m
+switchProgram mainP otherP st0 seed0 t0 size0 = do
+    mainRef <- mainP st0 seed0 t0 size0 >>= newRef
+    otherRef <- newRef Nothing
 
-    let mealy = logicMealy seed0
-    let as0 = initial mealy
-    asRef <- liftIO $ newIORef as0
-    size0 <- currentWindowSize
-    sizeRef <- liftIO $ newIORef size0
-    pRef <- liftIO Presentation.initRef
-    let handleCmds cs = do
-        t <- getCurrentTime
-        lf <- liftIO $ layoutFun <$> readIORef sizeRef
-        liftIO $ Presentation.handleCmdsRef t lf cs pRef
-    handleCmds (reconstruct mealy as0)
+    let withOther act = readRef otherRef >>= \case
+            Just p -> act p
+            Nothing -> pure ()
+    let withMain act = readRef mainRef >>= act
+    let withOtherOrMain act = readRef otherRef >>= \case
+            Just p -> act p
+            Nothing -> readRef mainRef >>= \p -> act p
+    let withOtherAndMain act = withOther act >> withMain act
 
-    let handleEvent e = do
-        as <- liftIO (readIORef asRef)
-        let (as', cs) = handle mealy as e
-        liftIO $ writeIORef asRef as'
-        handleCmds cs
+    -- Remember screen size
+    sizeRef <- newRef size0
 
-    let getPresentation t = liftIO (Presentation.presentAtRef t pRef)
+    let startOther t = do
+            size <- readRef sizeRef
+            otherP Nothing seed0 t size >>= writeRef otherRef . Just
+    let stopOther = writeRef otherRef Nothing
 
-    let canDragM k = do
-        as <- liftIO (readIORef asRef)
-        return (Logic.canDrag as k)
-
-    (dragHandler, getModPres) <- mkDragHandler canDragM getPresentation
-
-    let handleClickEvents re = do
-        t <- getCurrentTime
-        dragHandler t re >>= mapM_ (handleEvent . ClickEvent)
 
     return $ Callbacks
-        { onDraw = do
-            t <- getCurrentTime
-            as <- liftIO $ readIORef asRef
-            setCanDelete (S2.isOneSelected (sel as))
-            setCanSave (S2.isOneSelected (sel as))
-            setCanAnim (S2.isOneSelected (sel as))
-            (p, borderRadius, continue) <- getModPres t
-            let extraData (MainInstance d) = if isSelected as d then 2 else 1
-                extraData (PreviewInstance _) = 0
-            let toDraw =
-                    (Border, (0,0,0,borderRadius,1)) :
-                    [ (DNA (entity2dna k), (extraData k,x,y,s,f)) | (k,(((x,y),s),f)) <- p ]
-            return (toDraw, continue)
-        , onMouseDown = handleClickEvents . MouseDown
-        , onMove = handleClickEvents . Move
-        , onMouseUp = handleClickEvents MouseUp
-        , onMouseOut = handleClickEvents MouseOut
-        , onDel = handleEvent Delete
-        , onAnim = handleEvent Anim
-        , onSave = do
-            as <- liftIO (readIORef asRef)
-            for_ (selectedDNA as) $ \dna ->
-                doSave (toFilename dna) (showFullDNA dna (1000,1000))
-        , onResize = \size -> do
-            liftIO $ writeIORef sizeRef size
-            as <- liftIO $ readIORef asRef
-            handleCmds (reconstruct mealy as)
+        { onDraw      = \t      -> withOtherOrMain  $ \p -> do
+            dr <- onDraw p t
+            case stillAnimating dr of
+                -- Still running
+                Presentation.Animating True -> pure dr
+                -- Presentation stopped, switch to main program
+                Presentation.Animating False -> do
+                    stopOther
+                    withMain $ \p' -> onDraw p' t
+
+        -- Serialization always based on main program
+        , onSerialize = withMain onSerialize
+
+        , onMouseDown = \t pos  -> readRef otherRef >>= \case
+            Nothing -> withMain $ \p -> onMouseDown p t pos
+            -- Clicking during other programs ends it
+            Just _  -> stopOther
+        , onMove      = \t pos  -> withOtherOrMain  $ \p -> onMove p t pos
+        , onMouseUp   = \t      -> withOtherOrMain  $ \p -> onMouseUp p t
+        , onMouseOut  = \t      -> withOtherOrMain  $ \p -> onMouseOut p t
+        , onDel       = \t      -> withOtherOrMain  $ \p -> onDel p t
+        , onAnim      = \t      -> withOtherOrMain  $ \p -> onAnim p t
+        , onSave      = \t      -> withOtherOrMain  $ \p -> onSave p t
+        , onResize    = \t size -> withOtherAndMain $ \p -> do
+            writeRef sizeRef size
+            onResize p t size
+                -- NB: We keep updating the screen size for both
+        , resolveDest = \t d    -> withOtherOrMain  $ \p -> resolveDest p t d
+        , onReset = \t s -> withMain $ \p -> onReset p t s
+        , onTut = \t -> readRef otherRef >>= \case
+            -- Other is not running, so
+            Nothing -> do
+                -- Pretend the mouse went out on the real program
+                withMain $ \p -> onMouseOut p t
+                startOther t
+            -- Other is running, so stop it
+            Just _ -> stopOther
         }
+

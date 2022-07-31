@@ -38,6 +38,7 @@ import GHCJS.DOM.Element
 import Language.Javascript.JSaddle.Object hiding (array)
 -- import Control.Lens ((^.))
 
+import CacheKey
 import CanvasSave
 import Shaders
 
@@ -68,7 +69,7 @@ data CompiledProgram = CompiledProgram
     , extraDataLocation  :: WebGLUniformLocation
     }
 
-compileFragmentShader :: MonadJSM m => WebGLRenderingContext -> Shaders -> m CompiledProgram
+compileFragmentShader :: MonadJSM m => WebGLRenderingContext -> (Text, Text) -> m CompiledProgram
 compileFragmentShader gl (vertexShaderSource, fragmentShaderSource) = do
     vertexShader <- createShader gl VERTEX_SHADER
     shaderSource gl (Just vertexShader) $
@@ -97,9 +98,9 @@ compileFragmentShader gl (vertexShaderSource, fragmentShaderSource) = do
     let compiledProgram = program
     return CompiledProgram {..}
 
-paintGLCached :: (Ord a, MonadDOM m) =>
-    Cache m a CompiledProgram ->
-    WebGLRenderingContext -> (Double, Double) -> [(a, ExtraData)] -> m ()
+paintGLCached :: MonadDOM m =>
+    Cache m (Text, Text) CompiledProgram ->
+    WebGLRenderingContext -> (Double, Double) -> [Graphic] -> m ()
 paintGLCached pgmCache gl pos toDraw = do
     pgms <- compileCached pgmCache toDraw
     paintGL gl pos pgms
@@ -144,13 +145,8 @@ autoResizeCanvas domEl onResize =  do
         liftIO $ writeIORef sizeRef currentSize
         onResize currentSize
 
-shaderCanvas ::
-    Ord a =>
-    MonadJSM m =>
-    (a -> Shaders) ->
-    HTMLCanvasElement ->
-    m ([(a,ExtraData)] -> m ())
-shaderCanvas toGLSL domEl =
+shaderCanvas :: MonadJSM m => HTMLCanvasElement -> m ([Graphic] -> m ())
+shaderCanvas domEl =
     getContext domEl ("experimental-webgl"::Text) ([]::[()]) >>= \case
       Nothing ->
         -- jsg "console" ^. js1 "log" (gl ^. js1 "getShaderInfoLog" vertexShader)
@@ -158,14 +154,14 @@ shaderCanvas toGLSL domEl =
       Just gl' -> do
         gl <- unsafeCastTo WebGLRenderingContext gl'
         commonSetup gl
-        pgmCache <- newCache (compileFragmentShader gl . toGLSL)
+        pgmCache <- newCache (compileFragmentShader gl)
         -- performEvent_ $ paintGLCached pgmCache gl <$> current dCanvasSize <@> eDraw
         return $ \toDraw -> do
             size <- querySize domEl
             paintGLCached pgmCache gl size toDraw
 
-saveToPNG :: MonadJSM m => (a -> Shaders) -> (a, ExtraData) -> Text -> m ()
-saveToPNG toGLSL (a,x) name = do
+saveToPNG :: MonadJSM m => Graphic -> Text -> m ()
+saveToPNG ((_,a),x) name = do
     doc <- currentDocumentUnchecked
     domEl <- uncheckedCastTo HTMLCanvasElement <$> createElement doc ("canvas" :: Text)
     setWidth domEl 1000
@@ -175,26 +171,28 @@ saveToPNG toGLSL (a,x) name = do
       Just gl' -> do
         gl <- unsafeCastTo WebGLRenderingContext gl'
         commonSetup gl
-        prog <- compileFragmentShader gl (toGLSL a)
+        prog <- compileFragmentShader gl a
         paintGL gl (1000, 1000) [(prog,x)]
     CanvasSave.save name domEl
 
 -- A compiled program cache
 
 type Compiler m a b = a -> m b
-type Cache m a b = IORef (Compiler m a b, M.Map a b)
+type Cache m a b = (Compiler m a b, IORef (M.Map CacheKey b))
 
 newCache :: MonadIO m => (a -> m2 b) -> m (Cache m2 a b)
-newCache f = liftIO $ newIORef (f, M.empty)
+newCache f = do
+    m <- liftIO $ newIORef M.empty
+    return (f,m)
 
-compileCached :: (Ord a, MonadIO m) => Cache m a b -> [(a,c)] -> m [(b,c)]
-compileCached c xs = do
-    (f, oldC) <- liftIO $ readIORef c
-    let newMap = M.fromList $ map (()<$) xs
+compileCached :: (Ord a, MonadIO m) => Cache m a b -> [((CacheKey, a),c)] -> m [(b,c)]
+compileCached (f,c) xs = do
+    oldC <- liftIO $ readIORef c
+    let newMap = M.fromList $ map fst xs
     newC <- M.mergeA
         M.dropMissing
-        (M.traverseMissing (\k () -> f k))
+        (M.traverseMissing (\_ x -> f x))
         (M.zipWithMatched (\_ p _ -> p))
         oldC newMap
-    liftIO $ writeIORef c (f, newC)
-    return [(newC M.! k,d) | (k,d) <- xs]
+    liftIO $ writeIORef c newC
+    return [(newC M.! k,d) | ((k,_),d) <- xs]
