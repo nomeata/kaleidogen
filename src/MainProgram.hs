@@ -92,6 +92,7 @@ mainProgram seed0 t0 size0 = do
             writeRef sizeRef size
             as <- readRef asRef
             handleCmds t (reconstruct mealy as)
+        , onReset = \t seed -> handleEvent t (Reset seed)
         , onTut = \_ -> pure ()
         , resolveDest = \ t -> \case
             (Tut.DNA n v) -> do

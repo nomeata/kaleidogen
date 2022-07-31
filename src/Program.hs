@@ -43,6 +43,7 @@ data Callbacks m = Callbacks
     , onSave      :: Time -> m (Maybe (Text, Graphic))
     , onAnim      :: Time -> m ()
     , onResize    :: Time -> (Double,Double) -> m ()
+    , onReset     :: Time -> Int64 -> m ()
     , onTut       :: Time -> m ()
     , resolveDest :: Time -> Tut.Destination -> m (Double,Double)
     }
@@ -70,7 +71,7 @@ switchProgram mainP otherP seed0 t0 size0 = do
     sizeRef <- newRef size0
 
     let startOther t = do
-            size <- (readRef sizeRef)
+            size <- readRef sizeRef
             otherP seed0 t size >>= writeRef otherRef . Just
     let stopOther = writeRef otherRef Nothing
 
@@ -101,6 +102,7 @@ switchProgram mainP otherP seed0 t0 size0 = do
             onResize p t size
                 -- NB: We keep updating the screen size for both
         , resolveDest = \t d    -> withOtherOrMain  $ \p -> resolveDest p t d
+        , onReset = \t s -> withMain $ \p -> onReset p t s
         , onTut = \t -> readRef otherRef >>= \case
             -- Other is not running, so
             Nothing -> do

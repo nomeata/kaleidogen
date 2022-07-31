@@ -103,6 +103,7 @@ scriptProgram mainP _seed t0 size0 = do
         , onDel       = \_ -> pure ()
         , onAnim      = \_ -> pure ()
         , onSave      = \_ -> pure Nothing
+        , onReset     = \_ _ -> pure ()
         , onTut       = \_ -> pure ()
         , onResize = \t size -> do
             writeRef sizeRef size

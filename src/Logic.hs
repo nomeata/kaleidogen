@@ -98,21 +98,23 @@ data Event
     = ClickEvent (ClickEvent Entity)
     | Delete
     | Anim
+    | Reset Seed
   deriving Show
 
 logicMealy :: Seed -> Mealy AppState Event (Cmds Entity AbstractPos)
 logicMealy seed = Mealy
-    { initial = as0
+    { initial = initialState seed
     , reconstruct = \as -> moveAll as
     , handle = handleLogic
     }
+
+initialState :: Seed -> AppState
+initialState seed = AppState {..}
   where
-    as0 = AppState {..}
-      where
-        dnas = M.fromList $ zip [0..] initialDNAs
-        sel = Nothing
-        drag = Nothing
-        dragOn = Nothing
+    dnas = M.fromList $ zip [0..] initialDNAs
+    sel = Nothing
+    drag = Nothing
+    dragOn = Nothing
 
 
 canDrag :: AppState -> Entity -> Bool
@@ -200,6 +202,13 @@ handleLogic as@AppState{..} e = case e of
         -> ( as
            , [ (d, Animate) ]
            )
+
+    Reset seed'
+        | let as' = initialState seed'
+        -> (as'
+           , [ (new, Remove) | Just new <- [newDNA as]] ++
+             [ (d, Remove) | d <- M.elems dnas, d `notElem` initialDNAs ] ++ -- TODO: Animate
+             moveAll as' )
 
     _ -> (as, [])
 

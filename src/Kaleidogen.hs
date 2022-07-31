@@ -66,6 +66,7 @@ runInBrowser go = do
     save <- getElementByIdUnsafe doc ("save" :: Text) >>= unsafeCastTo HTMLAnchorElement
     anim <- getElementByIdUnsafe doc ("anim" :: Text) >>= unsafeCastTo HTMLAnchorElement
     del <- getElementByIdUnsafe doc ("delete" :: Text) >>= unsafeCastTo HTMLAnchorElement
+    reset <- getElementByIdUnsafe doc ("reset" :: Text) >>= unsafeCastTo HTMLAnchorElement
     tut <- getElementByIdUnsafe doc ("tut" :: Text) >>= unsafeCastTo HTMLAnchorElement
 
     drawShaderCircles <- shaderCanvas canvas
@@ -89,6 +90,7 @@ runInBrowser go = do
         confButton del  False canDelete
         confButton save False (not isTelegram && canSave)
         confButton anim animInProgress canAnim
+        confButton reset False  True
         confButton tut  tutInProgress  True
         return stillAnimating
 
@@ -138,6 +140,11 @@ runInBrowser go = do
         t <- now perf
         liftJSM (onAnim t >> render)
 
+    void $ on reset click $ do
+        t <- now perf
+        seed <- liftIO getRandom
+        liftJSM (onReset t seed >> render)
+
     void $ on tut click $ do
         t <- now perf
         liftJSM (onTut t >> render)
@@ -179,6 +186,7 @@ html = T.unlines
           "<a id='anim'>🎬</a>" <>
           "<a id='save'>💾</a>" <>
           "<a id='delete'>🗑</a>" <>
+          "<a id='reset'>🧽</a>" <>
           "<a id='tut'>❓</a>"
     , "   </div>"
     , "   <canvas id='canvas'></canvas>"
