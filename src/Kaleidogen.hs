@@ -73,6 +73,7 @@ runInBrowser go = do
     drawShaderCircles <- shaderCanvas canvas
 
     loc <- getLocation win
+    -- This does not work inside the Telegram app, it seems
     isTelegram <- ("tgShareScoreUrl" `T.isInfixOf`) <$> getHash loc
 #ifdef NoSave
     let saveSupported = False
@@ -101,7 +102,7 @@ runInBrowser go = do
         confButton del  False canDelete
         confButton save False (saveSupported && not isTelegram && canSave)
         confButton anim animInProgress canAnim
-        confButton reset False  True
+        confButton reset False  canReset
         confButton tut  tutInProgress  True
         return stillAnimating
 
@@ -204,7 +205,7 @@ html = T.unlines
           "<a id='delete'>🗑</a>" <>
           "<a id='reset'>\129533</a>" <>
           "<a id='tut'>❓</a>"
-    , "   </div>"
+    ,     "</div>"
     , "   <canvas id='canvas'></canvas>"
     , " </body>"
     , "</html>"
@@ -230,7 +231,7 @@ css = T.unlines
     , "  background-color:black;"
     , "}"
     , ".toolbar {"
-    , "  height:20vmin;"
+    , "  height:18vmin;"
     , "  width:95vw;"
     , "  margin:0;"
     , "  padding:0;"
@@ -241,9 +242,9 @@ css = T.unlines
     , "  margin: 2vmin 2vmin;"
     , "  border:none;"
     , "  padding:1vmin;"
-    , "  font-size:12vmin;"
-    , "  width:14vmin;"
-    , "  height:14vmin;"
+    , "  font-size:10vmin;"
+    , "  width:12vmin;"
+    , "  height:12vmin;"
     , "  background-color:lightblue;"
     , "  border-radius: 2vmin;"
     , "  cursor:pointer;"

@@ -30,6 +30,7 @@ data DrawResult = DrawResult
     , canDelete :: Bool
     , canSave :: Bool
     , canAnim :: Bool
+    , canReset :: Bool
     , animInProgress :: Bool
     , tutInProgress :: Bool
     }
@@ -107,7 +108,7 @@ switchProgram mainP otherP st0 seed0 t0 size0 = do
             onResize p t size
                 -- NB: We keep updating the screen size for both
         , resolveDest = \t d    -> withOtherOrMain  $ \p -> resolveDest p t d
-        , onReset = \t s -> withMain $ \p -> onReset p t s
+        , onReset = \t s -> withOtherOrMain $ \p -> onReset p t s
         , onTut = \t -> readRef otherRef >>= \case
             -- Other is not running, so
             Nothing -> do
