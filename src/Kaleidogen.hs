@@ -73,6 +73,7 @@ runInBrowser go = do
     drawShaderCircles <- shaderCanvas canvas
 
     loc <- getLocation win
+    -- This does not work inside the Telegram app, it seems
     isTelegram <- ("tgShareScoreUrl" `T.isInfixOf`) <$> getHash loc
 
     let confButton e True  _     = setClassName e ("progress"::Text)
@@ -96,7 +97,7 @@ runInBrowser go = do
         confButton del  False canDelete
         confButton save False (not isTelegram && canSave)
         confButton anim animInProgress canAnim
-        confButton reset False  True
+        confButton reset False  canReset
         confButton tut  tutInProgress  True
         return stillAnimating
 

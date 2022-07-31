@@ -30,6 +30,7 @@ data DrawResult = DrawResult
     , canDelete :: Bool
     , canSave :: Bool
     , canAnim :: Bool
+    , canReset :: Bool
     , animInProgress :: Bool
     , tutInProgress :: Bool
     }

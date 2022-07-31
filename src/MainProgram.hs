@@ -67,6 +67,7 @@ mainProgram mbst seed0 t0 size0 = do
             let canDelete = isJust (sel as)
             let canSave   = isJust (sel as)
             let canAnim   = isJust (sel as)
+            let canReset  = dnas as /= dnas (initialLogicState (seed as))
             (p, stillAnimating, stillVideoPlaying) <- getModPres t
             -- Calcualting the border radius
             size <- readRef sizeRef
