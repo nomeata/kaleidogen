@@ -6,10 +6,9 @@ import Test.QuickCheck
 
 import Logic
 import Drag (ClickEvent(..))
-import Mealy
 import PresentationCmds
 
-nextActions :: AppState -> [Event]
+nextActions :: LogicState -> [Event]
 nextActions as =
     [ ClickEvent (Click d)     | d <- ds ] ++
     [ ClickEvent (BeginDrag d) | d <- ds ] ++
@@ -24,26 +23,25 @@ nextActions as =
   where
     ds = M.elems (dnas as)
 
-instance Arbitrary AppState where
+instance Arbitrary LogicState where
   arbitrary = sized $ go
     where
-      m = logicMealy 1
-      go :: Int -> Gen AppState
-      go 0 = pure $ initial m
+      go :: Int -> Gen LogicState
+      go 0 = pure $ initialLogicState 1
       go n = do
           s <- go (n-1)
           e <- elements (nextActions s)
-          pure $ fst $ handle m s e
+          pure $ fst $ handleLogic s e
 
-canReconstruct :: AppState -> Property
+canReconstruct :: LogicState -> Property
 canReconstruct as = forAll (elements (nextActions as)) $ \e ->
-    let (as', es) = handle m as e in
-    let m1 = finalPos $ reconstruct m as ++ es in
-    let m2 = finalPos $ reconstruct m as' in
+    let (as', es) = handleLogic as e in
+    let m1 = finalPos $ reconstruct as ++ es in
+    let m2 = finalPos $ reconstruct as' in
     let expl = unlines [p m1, "vs.", p m2] in
     counterexample expl (m1 == m2)
   where
-    m = logicMealy 1
+    m = initialLogicState 1
     p aps = unlines [ show x ++ ": " ++ show y | (x,y) <- M.toList aps ]
 
 

@@ -14,7 +14,6 @@ import Program
 import Shapes
 import DNA
 import Layout
-import Mealy
 import Logic
 import qualified Presentation
 import Drag
@@ -34,19 +33,18 @@ layoutFun size DeletedPos
 mainProgram :: MonadRef m => Program m
 mainProgram seed0 t0 size0 = do
 
-    let mealy = logicMealy seed0
-    let as0 = initial mealy
+    let as0 = initialLogicState seed0
     asRef <- newRef as0
     sizeRef <- newRef size0
     pRef <- Presentation.initPRef
     let handleCmds t cs = do
           lf <- layoutFun <$> readRef sizeRef
           Presentation.handleCmdsRef t lf cs pRef
-    handleCmds t0 (reconstruct mealy as0)
+    handleCmds t0 (reconstruct as0)
 
     let handleEvent t e = do
           as <- readRef asRef
-          let (as', cs) = handle mealy as e
+          let (as', cs) = handleLogic as e
           writeRef asRef as'
           handleCmds t cs
 
@@ -91,7 +89,7 @@ mainProgram seed0 t0 size0 = do
         , onResize = \t size -> do
             writeRef sizeRef size
             as <- readRef asRef
-            handleCmds t (reconstruct mealy as)
+            handleCmds t (reconstruct as)
         , onReset = \t seed -> handleEvent t (Reset seed)
         , onTut = \_ -> pure ()
         , resolveDest = \ t -> \case

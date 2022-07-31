@@ -5,10 +5,10 @@
 module Logic (
     Entity,
     AbstractPos(..),
-    AppState(..),
+    LogicState(..),
     Key(..), -- A bit fishy
     Event(..),
-    logicMealy,
+    initialLogicState, handleLogic, reconstruct,
     isSelected, isInactive, entity2dna, selectedDNA,
     canDrag,
     ) where
@@ -20,14 +20,13 @@ import Data.Int
 import DNA
 import PresentationCmds (Cmds, Cmd, Cmd'(..))
 import Drag (ClickEvent(..))
-import Mealy
 
 -- Lets keep the keys separate from the sequential indices
 newtype Key = Key Int deriving (Num, Eq, Ord, Enum, Show)
 
 type Seed = Int64
 
-data AppState = AppState
+data LogicState = LogicState
     { seed :: Seed
     , dnas :: M.Map Key DNA
     , drag :: Maybe DNA
@@ -48,37 +47,37 @@ type Entity = DNA
 entity2dna :: Entity -> DNA
 entity2dna = id
 
-dnaAtKey :: AppState -> Key -> DNA
-dnaAtKey AppState{..} k = dnas M.! k
+dnaAtKey :: LogicState -> Key -> DNA
+dnaAtKey LogicState{..} k = dnas M.! k
 
-newDNA :: AppState -> Maybe DNA
-newDNA AppState{..}
+newDNA :: LogicState -> Maybe DNA
+newDNA LogicState{..}
     | Just x <- drag, Just y <- dragOn = Just $ crossover seed x y
     | otherwise = Nothing
 
-selectedDNA :: AppState -> Maybe DNA
-selectedDNA as@AppState{..}
+selectedDNA :: LogicState -> Maybe DNA
+selectedDNA as@LogicState{..}
     | Just x <- sel = Just $ as `dnaAtKey` x
     | otherwise = Nothing
 
-isInactive :: AppState -> DNA -> Bool
-isInactive as@AppState{..} = if
+isInactive :: LogicState -> DNA -> Bool
+isInactive as@LogicState{..} = if
     | Just d <- drag  -> alreadyCombinedWith as d
     | otherwise       -> const False
 
-isSelected :: AppState -> DNA -> Bool
-isSelected as@AppState{..} = if
+isSelected :: LogicState -> DNA -> Bool
+isSelected as@LogicState{..} = if
     | Just x <- sel                    -> \d -> d == (as `dnaAtKey` x)
     | Just x <- drag, Just y <- dragOn -> \d -> d `elem` [x,y]
     | otherwise                        -> const False
 
-alreadyCombinedWith :: AppState -> DNA -> DNA -> Bool
+alreadyCombinedWith :: LogicState -> DNA -> DNA -> Bool
 alreadyCombinedWith as d1 d2 =
     -- Is this too slow, recombining them all the time?
     crossover (seed  as) d1 d2 `elem` M.elems (dnas as)
 
-moveAll :: AppState -> Cmds Entity AbstractPos
-moveAll as =
+reconstruct :: LogicState -> Cmds Entity AbstractPos
+reconstruct as =
     [ if Just d == selectedDNA as
       then (d, MoveTo MainPos)
       else (d, MoveTo (SmallPos c n))
@@ -88,7 +87,7 @@ moveAll as =
   where
     c = length (dnas as)
 
-moveOneSmall :: AppState -> DNA -> Cmd Entity AbstractPos
+moveOneSmall :: LogicState -> DNA -> Cmd Entity AbstractPos
 moveOneSmall as d = (d, MoveTo (SmallPos c n))
   where
     c = length (dnas as)
@@ -101,15 +100,8 @@ data Event
     | Reset Seed
   deriving Show
 
-logicMealy :: Seed -> Mealy AppState Event (Cmds Entity AbstractPos)
-logicMealy seed = Mealy
-    { initial = initialState seed
-    , reconstruct = \as -> moveAll as
-    , handle = handleLogic
-    }
-
-initialState :: Seed -> AppState
-initialState seed = AppState {..}
+initialLogicState :: Seed -> LogicState
+initialLogicState seed = LogicState {..}
   where
     dnas = M.fromList $ zip [0..] initialDNAs
     sel = Nothing
@@ -117,11 +109,11 @@ initialState seed = AppState {..}
     dragOn = Nothing
 
 
-canDrag :: AppState -> Entity -> Bool
+canDrag :: LogicState -> Entity -> Bool
 canDrag _ _ = True
 
-handleLogic :: AppState -> Event -> (AppState, Cmds Entity AbstractPos)
-handleLogic as@AppState{..} e = case e of
+handleLogic :: LogicState -> Event -> (LogicState, Cmds Entity AbstractPos)
+handleLogic as@LogicState{..} e = case e of
     -- Changing selection
     ClickEvent (Click d)
         | not (isInactive as d)
@@ -164,7 +156,7 @@ handleLogic as@AppState{..} e = case e of
         , let dnas' = M.insert newKey new dnas
         , let as' = as { drag = Nothing, dragOn = Nothing, dnas = dnas' }
         -> ( as'
-           , moveAll as'
+           , reconstruct as'
            )
 
         | Just d <- drag
@@ -193,7 +185,7 @@ handleLogic as@AppState{..} e = case e of
         , let as' = as { sel = Nothing, dnas = M.delete k dnas }
         -> ( as'
            , [ (d, FadeOut DeletedPos) ] ++
-             moveAll as'
+             reconstruct as'
            )
 
     Anim
@@ -204,11 +196,11 @@ handleLogic as@AppState{..} e = case e of
            )
 
     Reset seed'
-        | let as' = initialState seed'
+        | let as' = initialLogicState seed'
         -> (as'
            , [ (new, Remove) | Just new <- [newDNA as]] ++
              [ (d, Remove) | d <- M.elems dnas, d `notElem` initialDNAs ] ++ -- TODO: Animate
-             moveAll as' )
+             reconstruct as' )
 
     _ -> (as, [])
 
