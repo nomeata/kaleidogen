@@ -2,7 +2,7 @@
 , containers, formatting, hashable, hex-text, linear, MonadRandom
 , mtl, OpenGL, sdl2, android-activity, StateVar, stdenv, text
 , jsaddle, ghcjs-dom, jsaddle-dom, reflex-dom, random-shuffle
-, file-embed
+, file-embed, splitmix
 , lib
 , use-sdl ? false
 }:
@@ -20,8 +20,8 @@ in mkDerivation {
   ) ./.;
   configureFlags = if isAndroid then
       if use-sdl
-      then [ "-f-jsaddle -fandroid -fsdl -f-clib" ]
-      else [ "-f-jsaddle -fandroid -f-sdl -fclib" ]
+      then [ "-f-jsaddle -fandroid -fsdl -f-clib -f-lambda" ]
+      else [ "-f-jsaddle -fandroid -f-sdl -fclib -f-lambda" ]
     else
       if use-sdl
       then [ "-f-jsaddle -f-android -fsdl" ]
@@ -32,7 +32,7 @@ in mkDerivation {
   executableHaskellDepends = [
     base bytestring colour containers
     hashable hex-text MonadRandom mtl StateVar text
-    random-shuffle file-embed
+    random-shuffle file-embed splitmix
   ] ++ (
     if isAndroid then
       if use-sdl
@@ -45,5 +45,5 @@ in mkDerivation {
   );
   homepage = "https://github.com/nomeata/kaleidogen";
   description = "Grow kaleidoscopes";
-  license = stdenv.lib.licenses.mit;
+  license = lib.licenses.mit;
 }

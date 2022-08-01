@@ -12,8 +12,8 @@ let
         config = {
           packageOverrides = pkgs: rec {
             haskellPackages = pkgs.haskellPackages.override {
-              overrides = haskellPackagesNew: haskellPackagesOld: rec {
-                kaleidogen = haskellPackagesNew.callPackage ./project0.nix { };
+              overrides = self: super: rec {
+                kaleidogen = self.callPackage ./project0.nix { };
                 # haskell-activity = import /home/jojo/build/haskell/reflex/android-activity {};
               };
             };
@@ -35,6 +35,9 @@ let
         kaleidogen-sdl = self.callPackage ./project0.nix { use-sdl = true; };
         #kaleidogen = self.callCabal2nixWithOptions "kaleidogen" ./. "-f-sdl -fandroid" { };
         sdl2 = pkgs.haskell.lib.dontCheck super.sdl2;
+        # splitmix = pkgs.haskell.lib.dontCheck super.splitmix;
+        # splitmix = pkgs.haskell.lib.dontCheck (self.callPackage ./splitmix.nix {});
+        # vector = pkgs.haskell.lib.dontCheck super.vector;
       };
 
       platform = import sources.reflex-platform {
@@ -55,7 +58,7 @@ let
           src = ./android-icon.png;
         };
         version = {
-          code = "3";
+          code = "4";
           # Must be a monotonically increasing number; defines what it means to "upgrade" the app
           name = "1.0";
           # The version that is displayed to the end user

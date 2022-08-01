@@ -36,7 +36,9 @@ import qualified GHCJS.DOM.Touch as Touch
 import qualified GHCJS.DOM.DOMRect as DOMRect
 
 import ShaderCanvas
+#ifndef NoSave
 import qualified CanvasSave
+#endif
 import qualified Animate
 import MainProgram
 import ProgramScript
@@ -57,14 +59,19 @@ runInBrowser go = do
     doc <- currentDocumentUnchecked
     docEl <- getDocumentElementUnchecked doc
     setInnerHTML docEl html
+
+#ifndef NoSave
     CanvasSave.register
+#endif
 
     Just win <- currentWindow
     perf <- getPerformance win
 
     -- Get Dom elements
     canvas <- getElementByIdUnsafe doc ("canvas" :: Text) >>= unsafeCastTo HTMLCanvasElement
+#ifndef NoSave
     save <- getElementByIdUnsafe doc ("save" :: Text) >>= unsafeCastTo HTMLAnchorElement
+#endif
     anim <- getElementByIdUnsafe doc ("anim" :: Text) >>= unsafeCastTo HTMLAnchorElement
     del <- getElementByIdUnsafe doc ("delete" :: Text) >>= unsafeCastTo HTMLAnchorElement
     reset <- getElementByIdUnsafe doc ("reset" :: Text) >>= unsafeCastTo HTMLAnchorElement
@@ -75,11 +82,6 @@ runInBrowser go = do
     loc <- getLocation win
     -- This does not work inside the Telegram app, it seems
     isTelegram <- ("tgShareScoreUrl" `T.isInfixOf`) <$> getHash loc
-#ifdef NoSave
-    let saveSupported = False
-#else
-    let saveSupported = True
-#endif
 
     let confButton e True  _     = setClassName e ("progress"::Text)
         confButton e False True  = setClassName e (""::Text)
@@ -100,7 +102,9 @@ runInBrowser go = do
         DrawResult {..} <- onDraw t
         drawShaderCircles objects
         confButton del  False canDelete
+#ifndef NoSave
         confButton save False (saveSupported && not isTelegram && canSave)
+#endif
         confButton anim animInProgress canAnim
         confButton reset False  canReset
         confButton tut  tutInProgress  True
@@ -147,11 +151,13 @@ runInBrowser go = do
         t <- now perf
         liftJSM (onDel t >> store_and_render)
 
+#ifndef NoSave
     void $ on save click $ liftJSM $ do
         t <- now perf
         onSave t >>= \case
             Nothing -> pure ()
             Just (filename, toDraw) -> saveToPNG toDraw filename
+#endif
 
     void $ on anim click $ do
         t <- now perf
@@ -187,9 +193,6 @@ touchOffsetXY e = do
     ry <- DOMRect.getY rect
     return (fromIntegral x - rx,fromIntegral y - ry)
 
-
-
-
 html :: T.Text
 html = T.unlines
     [ "<html>"
@@ -201,7 +204,9 @@ html = T.unlines
     -- Avoid whitespace between the buttons. Stupid HTML.
     , "   <div class='toolbar'>" <>
           "<a id='anim'>🎬</a>" <>
+#ifndef NoSave
           "<a id='save'>💾</a>" <>
+#endif
           "<a id='delete'>🗑</a>" <>
           "<a id='reset'>\129533</a>" <>
           "<a id='tut'>❓</a>"
