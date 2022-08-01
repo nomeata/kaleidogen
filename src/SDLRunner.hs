@@ -116,7 +116,7 @@ runInSDL go = do
     t0 <- getCurrentTime
     seed0 <- getRandom
 
-    Callbacks {..} <- go seed0 t0 size0
+    Callbacks {..} <- go Nothing seed0 t0 size0
 
     let render = do
         t <- getCurrentTime
