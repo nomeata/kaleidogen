@@ -76,9 +76,23 @@ Android notes
 
 Android experiments are happening on and off.
 
-Current state (2020-08-30):
+ * Play store entry: <https://play.google.com/store/apps/details?id=de.nomeata.kaleidogen>
 
- * Build with nix-build -A android.android
- * Deploy with adb uninstall de.nomeata.kaleidogen && adb install result/android-app-debug.apk
- * Saving files is tricky, see https://github.com/reflex-frp/reflex-platform/issues/524
- * It seems to sometimes crash when animating.
+ * Build with
+   ```
+   nix-build -A android.android
+   ```
+ * Sign with
+   ```
+   apksigner sign --ks play-store-release.keystore --out signed.apk --ks-pass pass:XXX --key-pass pass:XXX result/android-app-release-unsigned.apk
+   ```
+   (of course this requires the file `play-store-release.keystore` that only I have)
+ * Deploy to a local phone using adb:
+   ```
+   adb install signed.apk
+   ```
+
+Status:
+
+ * Saving files is tricky, see https://github.com/reflex-frp/reflex-platform/issues/524, and thus currently disabled.
+ * In earlier versions, sometimes crashes while animating were observed
