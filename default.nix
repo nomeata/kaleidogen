@@ -215,10 +215,36 @@ let
     ] ;
   };
 
-  gh-page = pkgs.runCommandNoCC "gh-page" {} ''
+  index-html = pkgs.writeText "index.html" ''
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <script language="javascript" src="all.min.js"></script>
+      </head>
+      <body>
+      </body>
+    </html>
+  '';
+
+  gh-page = pkgs.runCommandNoCC "gh-page" {
+    buildInputs = [pkgs.closurecompiler];
+  } ''
     mkdir -p $out
-    cp -rv ${kaleidogen-web}/bin/kaleidogen.jsexe/* $out
-    cp -rv ${kaleidogen-web}/bin/kaleidogen-demo.jsexe $out/demo
+    mkdir -p $out/demo
+
+    cp ${kaleidogen-web}/bin/kaleidogen.jsexe/runmain.js $out
+    echo "Running closure-compiler"
+    closure-compiler --compilation_level=ADVANCED_OPTIMIZATIONS --jscomp_off=checkVars \
+      --warning_level QUIET \
+      --externs=${kaleidogen-web}/bin/kaleidogen.jsexe/all.js.externs ${kaleidogen-web}/bin/kaleidogen.jsexe/all.js > $out/all.min.js
+    cp ${kaleidogen-web}/bin/kaleidogen-demo.jsexe/runmain.js $out/demo
+    cp ${index-html} $out/index.html
+
+    echo "Running closure-compiler (demo)"
+    closure-compiler --compilation_level=ADVANCED_OPTIMIZATIONS --jscomp_off=checkVars \
+      --warning_level QUIET \
+      --externs=${kaleidogen-web}/bin/kaleidogen-demo.jsexe/all.js.externs ${kaleidogen-web}/bin/kaleidogen-demo.jsexe/all.js > $out/demo/all.min.js
+    cp ${index-html} $out/demo/index.html
   '';
 
   shell = haskellPackages.shellFor {
