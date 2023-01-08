@@ -1,12 +1,12 @@
 {-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {- # OPTIONS_GHC -ddump-simpl # -}
-module Img (Img, toImg, img2Png)  where
+module Img (Img, toImg, img2Juicy)  where
 
 import Data.Complex
 import Data.Colour.SRGB
-import qualified Data.ByteString.Lazy as BS
 
 import Codec.Picture
 
@@ -14,6 +14,12 @@ import RNA
 
 -- Functional evaluator
 
+#ifdef __GHCJS__
+import qualified Data.Fixed
+
+fmod :: Double -> Double -> Double
+fmod = Data.Fixed.mod'
+#else
 -- more efficient than Data.Fixed.fmod (I believe)
 foreign import ccall unsafe "math.h fmod" c_fmod :: Double -> Double -> Double
 
@@ -21,6 +27,7 @@ fmod :: Double -> Double -> Double
 x `fmod` y =
   let z = c_fmod x y in
   if z < 0 then z + y else z
+#endif
 
 data C = C {-# UNPACK #-} !Double {-# UNPACK #-} !Double {-# UNPACK #-} !Double
 
@@ -114,13 +121,11 @@ go (Ontop x r1 r2) pos = do
     i1 = go r1
     i2 = go r2
 
-
-
-img2Png :: Img -> BS.ByteString
-img2Png i = encodePng $ generateImage colorAt w h
+img2Juicy :: Int -> Img -> Image PixelRGBA8
+img2Juicy dim i = generateImage colorAt w h
   where
-    w = 1000
-    h = 1000
+    w = dim
+    h = dim
     colorAt :: Int -> Int -> PixelRGBA8
     colorAt x y = do
       let x' = 2 * fromIntegral x / fromIntegral w - 1

@@ -79,7 +79,10 @@ mainProgram mbst seed0 t0 size0 = do
                     | (k,(pas,f)) <- p , let d = entity2dna k ]
             let animInProgress = stillVideoPlaying == Presentation.VideoPlaying True
             let tutInProgress = False
-            let mainDNA = last (M.elems (dnas as))
+            let mainDNA = head $
+                    maybeToList (selectedDNA as) <>
+                    maybeToList (snd <$> M.lookupMax (dnas as)) <>
+                    pure []
             return (DrawResult {..})
         , onSerialize = serialize <$> readRef asRef
         , onMouseDown = \t -> handleClickEvent t . MouseDown

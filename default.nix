@@ -140,6 +140,7 @@ let
       # gets stuck running the tests in node, it seems
       scientific = dontCheck super.scientific;
       tasty-quickcheck = dontCheck super.tasty-quickcheck;
+      zlib = dontCheck super.zlib;
 
       # test suite fails
       time-compat = dontCheck super.time-compat;
@@ -174,7 +175,7 @@ let
       MonadRandom colour exceptions
       hex-text random-shuffle
       ghcjs-dom jsaddle jsaddle-dom
-      file-embed
+      file-embed JuicyPixels
     ];
     license = pkgs.lib.licenses.bsd3;
     configureFlags = [

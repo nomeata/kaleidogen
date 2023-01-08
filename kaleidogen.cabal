@@ -63,12 +63,14 @@ common static
   build-depends: splitmix
 
 common png
-  other-modules: GenPNG
   other-modules: Img
+  build-depends: JuicyPixels
+
+common headless
+  other-modules: GenPNG
   build-depends: temporary
   build-depends: typed-process
   build-depends: exceptions
-  build-depends: JuicyPixels
 
 common logic
   import: static
@@ -188,7 +190,7 @@ executable kaleidogen-android-sdl
   ghc-options: -main-is Kaleidogen
 
 executable kaleidogen-headless
-  import: static, png
+  import: static, headless, png
   main-is: Headless.hs
   build-depends: optparse-applicative
   default-language: Haskell2010
