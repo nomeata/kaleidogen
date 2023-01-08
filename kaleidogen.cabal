@@ -200,7 +200,7 @@ executable kaleidogen-headless
 
 
 executable kaleidogen-telegram
-  import: static, png
+  import: static, headless, png
   main-is: TelegramMain.hs
   other-modules: Telegram
   build-depends: optparse-applicative
@@ -217,7 +217,7 @@ executable kaleidogen-telegram
     buildable: False
 
 executable kaleidogen-amazon-lambda
-  import: static, png
+  import: static, headless, png
   main-is: Lambda.hs
   other-modules: Telegram
   build-depends: aeson

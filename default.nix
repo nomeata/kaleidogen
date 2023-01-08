@@ -201,7 +201,7 @@ let
       MonadRandom colour exceptions
       hex-text random-shuffle
       ghcjs-dom jsaddle jsaddle-dom
-      file-embed
+      file-embed JuicyPixels
       # The following only for local
       jsaddle-warp warp
       # For SDL
