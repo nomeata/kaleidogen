@@ -38,7 +38,7 @@ genPNG helper bytes = case helper of
             (pngData, _err) <- readProcess_ (proc h ["512","512",vertexFile,fragFile])
 
             return pngData
-    Nothing -> pure $ img2Png 1024 (toImg rna)
+    Nothing -> pure $ encodePng $ img2Juicy 1024 $ toImg rna
   where
     dna = BS.unpack bytes
     rna = dna2rna dna
