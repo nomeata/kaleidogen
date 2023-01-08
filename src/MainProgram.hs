@@ -5,6 +5,8 @@
 module MainProgram (mainProgram) where
 
 import qualified Data.Text as T
+import qualified Text.Hex as T (decodeHex)
+import qualified Data.ByteString as BS
 import qualified Data.Map as M
 import qualified Data.List as L
 import Control.Monad.Ref
@@ -80,9 +82,10 @@ mainProgram mbst seed0 t0 size0 = do
             let animInProgress = stillVideoPlaying == Presentation.VideoPlaying True
             let tutInProgress = False
             let mainDNA = head $
-                    maybeToList (selectedDNA as) <>
-                    maybeToList (snd <$> M.lookupMax (dnas as)) <>
-                    pure []
+                    [ d | Just d <- [selectedDNA as] ] <>
+                    [ d | Just (k, d) <- [M.lookupMax (dnas as)],
+                          k `M.notMember` dnas (initialLogicState (seed as)) ] <>
+                    [ BS.unpack bytes | Just bytes <- [T.decodeHex "ABCDEF01234567890ABCDEF01234"] ]
             return (DrawResult {..})
         , onSerialize = serialize <$> readRef asRef
         , onMouseDown = \t -> handleClickEvent t . MouseDown
