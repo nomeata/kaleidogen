@@ -13,14 +13,21 @@ module Kaleidogen (main) where
 
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Data.Bifunctor
 import Data.Functor
+import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Random.Strict (getRandom)
+import qualified Data.ByteString.Base64.Lazy as Base64
+import qualified Data.ByteString.Lazy as BS
+import Codec.Picture (encodeBitmap)
+import Data.IORef
 
 import GHCJS.DOM.Types hiding (Text)
 import GHCJS.DOM
 import GHCJS.DOM.Element
+import GHCJS.DOM.HTMLLinkElement
 import GHCJS.DOM.Document hiding (getLocation)
 import GHCJS.DOM.Window (getLocation, getLocalStorage)
 import GHCJS.DOM.Performance
@@ -42,6 +49,9 @@ import MainProgram
 import ProgramScript
 import Program
 import RunWidget
+import Expression
+import Img
+import DNA
 
 main :: IO ()
 main = runWidget mainWidget
@@ -51,6 +61,27 @@ mainWidget :: JSM ()
 -- mainWidget = runInBrowser renderGraphic tutorialProgram
 mainWidget = runInBrowser $
     switchProgram mainProgram (scriptProgram mainProgram)
+
+
+-- Caches the rendered Favicons
+faviconUpdater :: JSM (DNA -> JSM ())
+faviconUpdater = do
+    current <- liftIO $ newIORef []
+    doc <- currentDocumentUnchecked
+    favicon <- getElementByIdUnsafe doc ("favicon" :: Text) >>= unsafeCastTo HTMLLinkElement
+
+    pure $ \dna -> do
+        old <- liftIO $ readIORef current
+        unless (dna == old) $ do
+            let url = dna2Url dna
+            setHref favicon url
+            liftIO $ writeIORef current dna
+
+  where
+    dna2Url :: DNA -> T.Text
+    dna2Url dna = ("data:image/bmp;base64," <>) $ T.decodeUtf8 $ BS.toStrict $
+        Base64.encode $ encodeBitmap $ img2Juicy 32 $ toImg $ dna2rna dna
+
 
 runInBrowser :: ProgramRunner JSM
 runInBrowser go = do
@@ -69,6 +100,8 @@ runInBrowser go = do
     del <- getElementByIdUnsafe doc ("delete" :: Text) >>= unsafeCastTo HTMLAnchorElement
     reset <- getElementByIdUnsafe doc ("reset" :: Text) >>= unsafeCastTo HTMLAnchorElement
     tut <- getElementByIdUnsafe doc ("tut" :: Text) >>= unsafeCastTo HTMLAnchorElement
+
+    setFavicon <- faviconUpdater
 
     drawShaderCircles <- shaderCanvas canvas
 
@@ -99,6 +132,10 @@ runInBrowser go = do
         confButton anim animInProgress canAnim
         confButton reset False  canReset
         confButton tut  tutInProgress  True
+
+        -- favicon
+        setFavicon mainDNA
+
         return stillAnimating
 
     let store_and_render = do
@@ -191,6 +228,7 @@ html = T.unlines
     , " <head>"
     , "  <style>" <> css <> "</style>"
     , "  <title>Kaleidogen</title>"
+    , "  <link id='favicon' rel='icon' href='' />"
     , " </head>"
     , " <body>"
     -- Avoid whitespace between the buttons. Stupid HTML.

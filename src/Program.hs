@@ -15,6 +15,7 @@ where
 import Data.Text (Text)
 import Control.Monad.Ref
 import Data.Int
+import DNA
 
 import Shaders
 import Presentation (Animating)
@@ -26,6 +27,7 @@ type StoredState = String
 
 data DrawResult = DrawResult
     { objects :: [Graphic]
+    , mainDNA :: DNA
     , stillAnimating :: Animating
     , canDelete :: Bool
     , canSave :: Bool

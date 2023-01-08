@@ -8,6 +8,7 @@ import qualified Data.Text.IO as T
 import System.IO.Temp
 import System.IO
 import System.Process.Typed
+import Codec.Picture (encodePng)
 
 import Expression
 import GLSL
@@ -15,7 +16,7 @@ import Shaders
 import Img
 
 genPurePNG :: BS.ByteString -> LBS.ByteString
-genPurePNG bytes = img2Png $ toImg rna
+genPurePNG bytes = encodePng $ img2Juicy 1024 $ toImg rna
   where
     dna = BS.unpack bytes
     rna = dna2rna dna
@@ -37,7 +38,7 @@ genPNG helper bytes = case helper of
             (pngData, _err) <- readProcess_ (proc h ["512","512",vertexFile,fragFile])
 
             return pngData
-    Nothing -> pure $ img2Png (toImg rna)
+    Nothing -> pure $ encodePng $ img2Juicy 1024 $ toImg rna
   where
     dna = BS.unpack bytes
     rna = dna2rna dna
