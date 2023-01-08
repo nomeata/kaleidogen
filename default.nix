@@ -252,6 +252,7 @@ let
     buildInputs = [
       pkgs.cabal-install
       pkgs.ghcid
+      pkgs.closurecompiler
       haskellPackages.haskell-language-server
     ];
   };

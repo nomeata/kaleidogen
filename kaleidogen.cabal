@@ -118,7 +118,7 @@ common SDL
   build-depends: StateVar
 
 executable kaleidogen
-  import: logic, canvas-save, shader-canvas
+  import: logic, canvas-save, shader-canvas, png
   main-is: Kaleidogen.hs
   default-language: Haskell2010
   other-modules: Animate
@@ -126,6 +126,7 @@ executable kaleidogen
   build-depends: base >=4.11 && <5
   build-depends: MonadRandom ==0.5.*
   build-depends: text
+  build-depends: base64-bytestring
   -- just for ghci. How to avoid?
   -- build-depends: QuickCheck
 

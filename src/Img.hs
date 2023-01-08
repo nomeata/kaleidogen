@@ -2,7 +2,7 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE BangPatterns #-}
 {- # OPTIONS_GHC -ddump-simpl # -}
-module Img where
+module Img (Img, toImg, img2Png)  where
 
 import Data.Complex
 import Data.Colour.SRGB
@@ -42,7 +42,7 @@ tween x (C a1 b1 c1) (C a2 b2 c2) = C
   ((1 - x) * c1 + x * c2)
 
 go :: RNA -> Pattern
-go _ (!_pos) | False = undefined
+go _ (!_pos) | id False = undefined
 
 go (Solid color) _pos = C r g b
   where

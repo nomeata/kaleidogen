@@ -17,10 +17,13 @@ import Data.Bifunctor
 import Data.Functor
 import Control.Monad.IO.Class
 import Control.Monad.Random.Strict (getRandom)
+import qualified Data.ByteString.Base64.URL.Lazy as Base64
+import qualified Data.ByteString.Lazy.Char8 as BS
 
 import GHCJS.DOM.Types hiding (Text)
 import GHCJS.DOM
 import GHCJS.DOM.Element
+import GHCJS.DOM.HTMLLinkElement
 import GHCJS.DOM.Document hiding (getLocation)
 import GHCJS.DOM.Window (getLocation, getLocalStorage)
 import GHCJS.DOM.Performance
@@ -42,6 +45,8 @@ import MainProgram
 import ProgramScript
 import Program
 import RunWidget
+import Expression
+import Img
 
 main :: IO ()
 main = runWidget mainWidget
@@ -69,6 +74,7 @@ runInBrowser go = do
     del <- getElementByIdUnsafe doc ("delete" :: Text) >>= unsafeCastTo HTMLAnchorElement
     reset <- getElementByIdUnsafe doc ("reset" :: Text) >>= unsafeCastTo HTMLAnchorElement
     tut <- getElementByIdUnsafe doc ("tut" :: Text) >>= unsafeCastTo HTMLAnchorElement
+    favicon <- getElementByIdUnsafe doc ("favicon" :: Text) >>= unsafeCastTo HTMLLinkElement
 
     drawShaderCircles <- shaderCanvas canvas
 
@@ -99,6 +105,11 @@ runInBrowser go = do
         confButton anim animInProgress canAnim
         confButton reset False  canReset
         confButton tut  tutInProgress  True
+
+        -- favicon
+        let png = Base64.encode (img2Png (toImg (dna2rna mainDNA)))
+        setHref favicon $ "data:image/png;base64," <> BS.unpack png
+
         return stillAnimating
 
     let store_and_render = do
@@ -191,6 +202,7 @@ html = T.unlines
     , " <head>"
     , "  <style>" <> css <> "</style>"
     , "  <title>Kaleidogen</title>"
+    , "  <link id='favicon' rel='icon' type='image/png' href='' />"
     , " </head>"
     , " <body>"
     -- Avoid whitespace between the buttons. Stupid HTML.
