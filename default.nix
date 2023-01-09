@@ -220,10 +220,10 @@ let
     <!DOCTYPE html>
     <html>
       <head>
-        <script language="javascript" src="all.min.js"></script>
       </head>
       <body>
       </body>
+      <script language="javascript" src="all.min.js" defer></script>
     </html>
   '';
 
