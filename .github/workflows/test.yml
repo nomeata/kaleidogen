@@ -20,10 +20,10 @@ jobs:
       if: github.ref == 'refs/heads/master'
       uses: JamesIves/github-pages-deploy-action@releases/v4
       with:
-        ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
-        BRANCH: gh-pages
-        FOLDER: result
-        SINGLE_COMMIT: true
+        token: ${{ secrets.GH_ACCESS_TOKEN }}
+        branch: gh-pages
+        folder: result
+        single-commit: true
 
   local:
     runs-on: ubuntu-latest
