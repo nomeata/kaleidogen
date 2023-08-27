@@ -16,19 +16,13 @@ jobs:
     - run: cachix watch-store kaleidogen &
     - name: Build kaleidogen-web
       run: nix-build -A gh-page
-    - name: Copy out of nix store
-      # due to https://github.com/JamesIves/github-pages-deploy-action/issues/241
-      run: |
-       mkdir gh-page
-       cp -vr result/* gh-page
-       chmod u+w -R gh-page
     - name: Deploy to Github Pages
       if: github.ref == 'refs/heads/master'
-      uses: JamesIves/github-pages-deploy-action@releases/v3
+      uses: JamesIves/github-pages-deploy-action@releases/v4
       with:
         ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         BRANCH: gh-pages
-        FOLDER: gh-page
+        FOLDER: result
         SINGLE_COMMIT: true
 
   local:
