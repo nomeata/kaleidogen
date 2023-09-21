@@ -16,6 +16,7 @@ import Data.Int
 import qualified Data.Text as T
 import qualified Data.ByteString as BS
 import Text.Hex
+import Random
 
 type DNA = [Word8]
 

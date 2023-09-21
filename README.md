@@ -63,9 +63,6 @@ complete static environment):
     # Deploy locally (master branch deploys automatically)
     aws lambda update-function-code --region us-east-2 --function-name kaleidogen --zip-file fileb://result/function.zip
 
-There is an experimental Andorid build using reflex-platform, but it has not
-made it to the `master` branch yet, see branch `android`.
-
 Building the SDL version
 ------------------------
 
@@ -73,3 +70,29 @@ There is also an SDL version. To build and run:
 
 * Run `cabal new-run kaleidogen-sdl`
 
+
+Android notes
+-------------
+
+Android experiments are happening on and off.
+
+ * Play store entry: <https://play.google.com/store/apps/details?id=de.nomeata.kaleidogen>
+
+ * Build with
+   ```
+   nix-build -A android.android
+   ```
+ * Sign with
+   ```
+   apksigner sign --ks play-store-release.keystore --out signed.apk --ks-pass pass:XXX --key-pass pass:XXX result/android-app-release-unsigned.apk
+   ```
+   (of course this requires the file `play-store-release.keystore` that only I have)
+ * Deploy to a local phone using adb:
+   ```
+   adb install signed.apk
+   ```
+
+Status:
+
+ * Saving files is tricky, see https://github.com/reflex-frp/reflex-platform/issues/524, and thus currently disabled.
+ * In earlier versions, sometimes crashes while animating were observed

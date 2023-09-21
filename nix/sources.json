@@ -10,5 +10,17 @@
         "type": "tarball",
         "url": "https://github.com/NixOS/nixpkgs/archive/d3551b986a714071360b75feffa0ce117417f09c.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "reflex-platform": {
+        "branch": "kaleidogen",
+        "description": "A curated package set and set of tools that let you build Haskell packages so they can run on a variety of platforms. reflex-platform is built on top of the nix package manager.",
+        "homepage": "https://reflex-frp.org",
+        "owner": "nomeata",
+        "repo": "reflex-platform",
+        "rev": "23f1e99fd785ee479703976fa79cf572d63db1b3",
+        "sha256": "1ghgsrknqm8qjcib6njc98pzgaj7s8f9pwx5yyxhsqi3rhwjf3lh",
+        "type": "tarball",
+        "url": "https://github.com/nomeata/reflex-platform/archive/23f1e99fd785ee479703976fa79cf572d63db1b3.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }

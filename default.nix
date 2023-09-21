@@ -1,15 +1,103 @@
-let sources = import (builtins.fetchurl {
+let
+  sources = import (builtins.fetchurl {
     url = https://raw.githubusercontent.com/nmattia/niv/v0.2.16/nix/sources.nix;
     sha256 = "03fl8wfm2nhdiws7pmfz2kcbf47mv2f8gk30fzg4m07gb5zdv6gv";
-  }) { sourcesFile = ./nix/sources.json; } ; in
+  }) { sourcesFile = ./nix/sources.json; };
 
-let pkgs = import sources.nixpkgs {}; in
-let ghcjsPkgs = pkgs; in
-let staticPkgs = pkgs.pkgsStatic; in
+  # android experiments
 
-let strip = true; in
+  android =
+    let
+      pkgs = import sources.nixpkgs {
+        config = {
+          packageOverrides = pkgs: rec {
+            haskellPackages = pkgs.haskellPackages.override {
+              overrides = self: super: rec {
+                kaleidogen = self.callPackage ./project0.nix { };
+                # haskell-activity = import /home/jojo/build/haskell/reflex/android-activity {};
+              };
+            };
+          };
+          android_sdk = {
+            accept_license = true;
+          };
+          allowUnfree = true;
+        };
+      };
 
-let
+      kaleidogen-android = pkgs.pkgsCross.aarch64-android-prebuilt.haskellPackages.kaleidogen;
+
+      kaleidogen-sdl = pkgs.haskellPackages.callPackage ./kaleidogen-sdl.nix { };
+
+
+      overlay = self: super: {
+        kaleidogen = self.callPackage ./project0.nix { };
+        kaleidogen-sdl = self.callPackage ./project0.nix { use-sdl = true; };
+        #kaleidogen = self.callCabal2nixWithOptions "kaleidogen" ./. "-f-sdl -fandroid" { };
+        sdl2 = pkgs.haskell.lib.dontCheck super.sdl2;
+        # splitmix = pkgs.haskell.lib.dontCheck super.splitmix;
+        # splitmix = pkgs.haskell.lib.dontCheck (self.callPackage ./splitmix.nix {});
+        # vector = pkgs.haskell.lib.dontCheck super.vector;
+      };
+
+      platform = import sources.reflex-platform {
+        config = {
+          android_sdk = {
+            accept_license = true;
+          };
+        };
+        haskellOverlays = [ overlay ];
+      };
+      buildIcons = pkgs.callPackage ./buildIcons.nix { };
+      android = platform.android.buildApp {
+        package = p: p.kaleidogen;
+        executableName = "kaleidogen-android-clib";
+        applicationId = "de.nomeata.kaleidogen";
+        displayName = "Kaleidogen";
+        resources = buildIcons {
+          src = ./android-icon.png;
+        };
+        version = {
+          code = "4";
+          # Must be a monotonically increasing number; defines what it means to "upgrade" the app
+          name = "1.0";
+          # The version that is displayed to the end user
+        };
+        isRelease = true;
+        #permissions = ''
+        #  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+        #'';
+      };
+
+
+      kaleidogen = platform.nixpkgs.haskellPackages.callPackage ./project0.nix { };
+      android-run = platform.nixpkgs.androidenv.emulateApp {
+        name = "emulate-MyAndroidApp";
+        platformVersion = "24";
+        abiVersion = "armeabi-v7a"; # mips, x86 or x86_64
+        # useGoogleAPIs = false;
+        app = android;
+        package = "systems.obsidian";
+        activity = ".HaskellActivity";
+      };
+
+      android-sdl = platform.android.buildApp {
+        package = p: p.kaleidogen-sdl;
+        executableName = "kaleidogen-android-sdl";
+        applicationId = "de.nomeata.kaleidogen";
+        displayName = "Kaleidogen";
+      };
+
+    in { inherit kaleidogen-sdl kaleidogen-android android android-sdl android-run; };
+
+  pkgs = import sources.nixpkgs {};
+  ghcjsPkgs = pkgs;
+  #staticPkgs = (import (sources.nixpkgs-static + "/survey/default.nix") {}).pkgs;
+  staticPkgs = pkgs.pkgsStatic;
+
+  compiler = "ghc865";
+  strip = true;
+
   telegram-api-pkg =
     { mkDerivation
     , stdenv
@@ -266,5 +354,6 @@ in
       kaleidogen-local
       function-zip
       shell
-      gh-page;
+      gh-page
+      android;
   }
