@@ -8,12 +8,15 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE CPP #-}
 module ShaderCanvas
     ( CompiledProgram
     , autoResizeCanvas
     , querySize
     , shaderCanvas
+#ifndef NoSave
     , saveToPNG
+#endif
     ) where
 
 import Data.Maybe
@@ -39,7 +42,9 @@ import Language.Javascript.JSaddle.Object hiding (array)
 -- import Control.Lens ((^.))
 
 import CacheKey
+#ifndef NoSave
 import CanvasSave
+#endif
 import Shaders
 
 
@@ -160,6 +165,7 @@ shaderCanvas domEl =
             size <- querySize domEl
             paintGLCached pgmCache gl size toDraw
 
+#ifndef NoSave
 saveToPNG :: MonadJSM m => Graphic -> Text -> m ()
 saveToPNG ((_,a),x) name = do
     doc <- currentDocumentUnchecked
@@ -174,6 +180,7 @@ saveToPNG ((_,a),x) name = do
         prog <- compileFragmentShader gl a
         paintGL gl (1000, 1000) [(prog,x)]
     CanvasSave.save name domEl
+#endif
 
 -- A compiled program cache
 
